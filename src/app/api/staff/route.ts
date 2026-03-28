@@ -1,0 +1,154 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
+import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
+import type { Json } from '@/lib/types/database'
+
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const params = staffSearchSchema.parse({
+      search: searchParams.get('search') || undefined,
+      status: searchParams.get('status') || undefined,
+      employment_type: searchParams.get('employment_type') || undefined,
+      page: searchParams.get('page') || undefined,
+      limit: searchParams.get('limit') || undefined,
+    })
+
+    const supabase = await createServerSupabaseClient()
+    let query = supabase
+      .from('staff')
+      .select('*', { count: 'exact' })
+
+    // Search by name, email, or staff_code in custom_fields
+    if (params.search) {
+      query = query.or(
+        `full_name.ilike.%${params.search}%,full_name_kana.ilike.%${params.search}%,email.ilike.%${params.search}%,custom_fields->>staff_code.ilike.%${params.search}%`
+      )
+    }
+
+    if (params.status) {
+      query = query.eq('status', params.status)
+    }
+
+    if (params.employment_type) {
+      query = query.eq('employment_type', params.employment_type)
+    }
+
+    const offset = (params.page - 1) * params.limit
+    query = query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + params.limit - 1)
+
+    const { data, error, count } = await query
+
+    if (error) {
+      console.error('Staff list query error:', error)
+      return NextResponse.json(
+        { error: 'スタッフ一覧の取得に失敗しました' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      data: data || [],
+      total: count || 0,
+      page: params.page,
+      limit: params.limit,
+    })
+  } catch (err) {
+    console.error('Staff GET error:', err)
+    return NextResponse.json(
+      { error: 'サーバーエラーが発生しました' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const admin = await requireAdmin().catch(() => null)
+    if (!admin) {
+      return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const result = staffFormSchema.safeParse(body)
+
+    if (!result.success) {
+      const errors = result.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      }))
+      return NextResponse.json({ error: 'バリデーションエラー', details: errors }, { status: 400 })
+    }
+
+    const formData = result.data
+    const supabase = await createServerSupabaseClient()
+
+    // Build the staff record matching the DB schema
+    const staffRecord = {
+      full_name: `${formData.last_name} ${formData.first_name}`,
+      full_name_kana:
+        formData.last_name_kana || formData.first_name_kana
+          ? `${formData.last_name_kana || ''} ${formData.first_name_kana || ''}`.trim()
+          : null,
+      email: formData.email,
+      phone: formData.phone || null,
+      date_of_birth: formData.date_of_birth || null,
+      employment_type: formData.employment_type,
+      status: 'pre_contract' as const,
+      join_date: formData.join_date || null,
+      notes: formData.notes || null,
+      custom_fields: {
+        staff_code: formData.staff_code,
+        last_name: formData.last_name,
+        first_name: formData.first_name,
+        last_name_kana: formData.last_name_kana || '',
+        first_name_kana: formData.first_name_kana || '',
+        address: formData.address || '',
+        bank_name: formData.bank_name || '',
+        bank_branch: formData.bank_branch || '',
+        bank_account_type: formData.bank_account_type || '',
+        bank_account_number: formData.bank_account_number || '',
+        bank_account_holder: formData.bank_account_holder || '',
+      },
+    }
+
+    const { data: staff, error } = await supabase
+      .from('staff')
+      .insert(staffRecord)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Staff create error:', error)
+      return NextResponse.json(
+        { error: 'スタッフの作成に失敗しました' },
+        { status: 500 }
+      )
+    }
+
+    // Create audit log
+    await supabase.from('audit_logs').insert({
+      user_id: admin.id,
+      action: 'create',
+      resource: 'staff',
+      resource_id: staff.id,
+      new_data: staff as unknown as Record<string, Json>,
+    })
+
+    return NextResponse.json(staff, { status: 201 })
+  } catch (err) {
+    console.error('Staff POST error:', err)
+    return NextResponse.json(
+      { error: 'サーバーエラーが発生しました' },
+      { status: 500 }
+    )
+  }
+}

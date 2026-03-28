@@ -1,0 +1,108 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { projectFormSchema } from '@/lib/validations/project'
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { searchParams } = new URL(request.url)
+    const search = searchParams.get('search')
+    const status = searchParams.get('status')
+
+    let query = supabase.from('projects').select('*').order('created_at', { ascending: false })
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,client_name.ilike.%${search}%,metadata->>project_code.ilike.%${search}%`)
+    }
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Fetch assignment counts for each project
+    const projectIds = (data || []).map((p) => p.id)
+    let assignmentCounts: Record<string, number> = {}
+
+    if (projectIds.length > 0) {
+      const { data: assignments } = await supabase
+        .from('project_assignments')
+        .select('project_id')
+        .in('project_id', projectIds)
+        .eq('status', 'active')
+
+      if (assignments) {
+        assignmentCounts = assignments.reduce(
+          (acc, a) => {
+            acc[a.project_id] = (acc[a.project_id] || 0) + 1
+            return acc
+          },
+          {} as Record<string, number>
+        )
+      }
+    }
+
+    const result = (data || []).map((p) => ({
+      ...p,
+      assignment_count: assignmentCounts[p.id] || 0,
+    }))
+
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('GET /api/projects error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const body = await request.json()
+
+    const parsed = projectFormSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'バリデーションエラー', details: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { project_code, google_calendar_id, ...rest } = parsed.data
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        name: rest.name,
+        description: rest.description || null,
+        status: rest.status,
+        client_name: rest.client_name || null,
+        start_date: rest.start_date || null,
+        end_date: rest.end_date || null,
+        metadata: {
+          project_code,
+          google_calendar_id: google_calendar_id || null,
+        },
+        created_by: user?.id || null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(data, { status: 201 })
+  } catch (error) {
+    console.error('POST /api/projects error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
