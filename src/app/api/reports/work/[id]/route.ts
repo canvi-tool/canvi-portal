@@ -45,7 +45,7 @@ export async function GET(
           if (shift.start_time && shift.end_time) {
             const [sh, sm] = shift.start_time.split(':').map(Number)
             const [eh, em] = shift.end_time.split(':').map(Number)
-            const minutes = eh * 60 + em - (sh * 60 + sm) - (shift.break_minutes || 0)
+            const minutes = eh * 60 + em - (sh * 60 + sm)
             totalShiftHours += Math.max(0, minutes / 60)
           }
         }

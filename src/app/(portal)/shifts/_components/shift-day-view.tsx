@@ -1,29 +1,54 @@
 'use client'
 
-import { format } from 'date-fns'
-import { ja } from 'date-fns/locale'
-import { Clock, Edit2, Trash2, User, Briefcase } from 'lucide-react'
+import { Clock, User, Briefcase } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import type { ShiftWithRelations } from '@/hooks/use-shifts'
+import { cn } from '@/lib/utils'
+
+// --- Types ---
+
+type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+
+interface ShiftItem {
+  id: string
+  staffName: string
+  projectName: string
+  date: string
+  startTime: string
+  endTime: string
+  status: ShiftStatus
+  notes?: string
+}
 
 interface ShiftDayViewProps {
   date: string
-  shifts: ShiftWithRelations[]
-  onEdit: (shift: ShiftWithRelations) => void
-  onDelete: (shiftId: string) => void
+  shifts: ShiftItem[]
+  onShiftClick: (shift: ShiftItem) => void
   onClose: () => void
+}
+
+const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string }> = {
+  DRAFT: { label: '下書き', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-300' },
+  SUBMITTED: { label: '申請中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-300' },
+  APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
+  REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
+  NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
+}
+
+function formatDateJP(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${weekdays[d.getDay()]})`
 }
 
 export function ShiftDayView({
   date,
   shifts,
-  onEdit,
-  onDelete,
+  onShiftClick,
   onClose,
 }: ShiftDayViewProps) {
-  const formattedDate = format(new Date(date + 'T00:00:00'), 'yyyy年M月d日(E)', { locale: ja })
+  const formattedDate = formatDateJP(date)
 
   return (
     <Card>
@@ -40,79 +65,48 @@ export function ShiftDayView({
           </p>
         ) : (
           <div className="space-y-3">
-            {shifts.map((shift) => (
-              <div
-                key={shift.id}
-                className="flex items-start justify-between rounded-lg border p-3"
-              >
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm">
-                      {shift.staff_name || '不明'}
-                    </span>
-                  </div>
+            {shifts.map((shift) => {
+              const config = STATUS_CONFIG[shift.status]
+              return (
+                <div
+                  key={shift.id}
+                  className="flex items-start justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => onShiftClick(shift)}
+                >
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{shift.staffName}</span>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">
-                      {shift.project_name || '未設定'}
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{shift.projectName}</span>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">
-                      {shift.start_time
-                        ? `${shift.start_time.slice(0, 5)} ~ ${shift.end_time?.slice(0, 5) || '--:--'}`
-                        : '時間未設定'}
-                    </span>
-                    {shift.actual_hours !== undefined && shift.actual_hours > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        {shift.actual_hours}h
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {shift.startTime} ~ {shift.endTime}
+                      </span>
+                    </div>
+
+                    {shift.notes && (
+                      <div className="text-xs text-muted-foreground pl-6 mt-1">
+                        {shift.notes}
+                      </div>
                     )}
                   </div>
 
-                  {shift.break_minutes > 0 && (
-                    <div className="text-xs text-muted-foreground pl-6">
-                      休憩: {shift.break_minutes}分
-                    </div>
-                  )}
-
-                  {shift.notes && (
-                    <div className="text-xs text-muted-foreground pl-6 mt-1">
-                      {shift.notes}
-                    </div>
-                  )}
-
-                  {shift.shift_type === 'synced' && (
-                    <Badge variant="outline" className="text-xs mt-1">
-                      Google Calendar同期
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 ml-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onEdit(shift)}
+                  <Badge
+                    variant="outline"
+                    className={cn('border shrink-0', config.bgColor, config.color)}
                   >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => onDelete(shift.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                    {config.label}
+                  </Badge>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>

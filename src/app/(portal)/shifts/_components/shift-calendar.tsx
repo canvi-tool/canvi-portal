@@ -2,27 +2,36 @@
 
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import type { ShiftWithRelations } from '@/hooks/use-shifts'
+
+// --- Types ---
+
+type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+
+interface ShiftItem {
+  id: string
+  staffName: string
+  projectName: string
+  date: string
+  startTime: string
+  endTime: string
+  status: ShiftStatus
+}
 
 interface ShiftCalendarProps {
   year: number
   month: number
-  shifts: ShiftWithRelations[]
-  viewMode: 'staff' | 'project'
+  shifts: ShiftItem[]
   onDayClick: (date: string) => void
-  onShiftClick: (shift: ShiftWithRelations) => void
+  onShiftClick: (shift: ShiftItem) => void
 }
 
-const PROJECT_COLORS = [
-  'bg-blue-100 text-blue-800 border-blue-200',
-  'bg-green-100 text-green-800 border-green-200',
-  'bg-purple-100 text-purple-800 border-purple-200',
-  'bg-orange-100 text-orange-800 border-orange-200',
-  'bg-pink-100 text-pink-800 border-pink-200',
-  'bg-teal-100 text-teal-800 border-teal-200',
-  'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'bg-red-100 text-red-800 border-red-200',
-]
+const STATUS_COLORS: Record<ShiftStatus, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700 border-gray-300',
+  SUBMITTED: 'bg-amber-50 text-amber-700 border-amber-300',
+  APPROVED: 'bg-green-50 text-green-700 border-green-300',
+  REJECTED: 'bg-red-50 text-red-700 border-red-300',
+  NEEDS_REVISION: 'bg-orange-50 text-orange-700 border-orange-300',
+}
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -30,11 +39,10 @@ export function ShiftCalendar({
   year,
   month,
   shifts,
-  viewMode,
   onDayClick,
   onShiftClick,
 }: ShiftCalendarProps) {
-  const { calendarDays, projectColorMap } = useMemo(() => {
+  const { calendarDays } = useMemo(() => {
     const firstDay = new Date(year, month - 1, 1)
     const lastDay = new Date(year, month, 0)
     const startDow = firstDay.getDay()
@@ -76,18 +84,11 @@ export function ShiftCalendar({
       })
     }
 
-    // Build project color map
-    const projectNames = [...new Set(shifts.map((s) => s.project_name || '未設定'))]
-    const colorMap: Record<string, string> = {}
-    projectNames.forEach((name, idx) => {
-      colorMap[name] = PROJECT_COLORS[idx % PROJECT_COLORS.length]
-    })
-
-    return { calendarDays: days, projectColorMap: colorMap }
-  }, [year, month, shifts])
+    return { calendarDays: days }
+  }, [year, month])
 
   const shiftsByDate = useMemo(() => {
-    const map: Record<string, ShiftWithRelations[]> = {}
+    const map: Record<string, ShiftItem[]> = {}
     for (const shift of shifts) {
       if (!map[shift.date]) map[shift.date] = []
       map[shift.date].push(shift)
@@ -145,33 +146,22 @@ export function ShiftCalendar({
               </div>
 
               <div className="space-y-0.5">
-                {dayShifts.slice(0, 3).map((shift) => {
-                  const label =
-                    viewMode === 'project'
-                      ? shift.project_name || '未設定'
-                      : shift.staff_name || '不明'
-                  const colorClass =
-                    projectColorMap[shift.project_name || '未設定'] || PROJECT_COLORS[0]
-
-                  return (
-                    <button
-                      key={shift.id}
-                      className={cn(
-                        'w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded border truncate',
-                        colorClass
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onShiftClick(shift)
-                      }}
-                    >
-                      {shift.start_time && (
-                        <span className="font-medium">{shift.start_time.slice(0, 5)}</span>
-                      )}{' '}
-                      {label}
-                    </button>
-                  )
-                })}
+                {dayShifts.slice(0, 3).map((shift) => (
+                  <button
+                    key={shift.id}
+                    className={cn(
+                      'w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded border truncate',
+                      STATUS_COLORS[shift.status]
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onShiftClick(shift)
+                    }}
+                  >
+                    <span className="font-medium">{shift.startTime.slice(0, 5)}</span>{' '}
+                    {shift.staffName}
+                  </button>
+                ))}
                 {dayShifts.length > 3 && (
                   <div className="text-[10px] text-muted-foreground px-1">
                     +{dayShifts.length - 3}件

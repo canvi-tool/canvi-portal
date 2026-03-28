@@ -339,6 +339,7 @@ export interface Database {
           end_date: string | null
           client_name: string | null
           metadata: Json | null
+          shift_approval_mode: 'AUTO' | 'APPROVAL'
           created_by: string | null
           created_at: string
           updated_at: string
@@ -352,6 +353,7 @@ export interface Database {
           end_date?: string | null
           client_name?: string | null
           metadata?: Json | null
+          shift_approval_mode?: 'AUTO' | 'APPROVAL'
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -365,6 +367,7 @@ export interface Database {
           end_date?: string | null
           client_name?: string | null
           metadata?: Json | null
+          shift_approval_mode?: 'AUTO' | 'APPROVAL'
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -484,41 +487,59 @@ export interface Database {
         Row: {
           id: string
           staff_id: string
-          project_id: string | null
-          date: string
-          start_time: string | null
-          end_time: string | null
-          break_minutes: number
-          shift_type: string | null
+          project_id: string
+          shift_date: string
+          start_time: string
+          end_time: string
+          status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
           notes: string | null
+          google_calendar_event_id: string | null
+          google_calendar_synced: boolean
+          submitted_at: string | null
+          approved_at: string | null
+          approved_by: string | null
+          created_by: string
           created_at: string
           updated_at: string
+          deleted_at: string | null
         }
         Insert: {
           id?: string
           staff_id: string
-          project_id?: string | null
-          date: string
-          start_time?: string | null
-          end_time?: string | null
-          break_minutes?: number
-          shift_type?: string | null
+          project_id: string
+          shift_date: string
+          start_time: string
+          end_time: string
+          status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
           notes?: string | null
+          google_calendar_event_id?: string | null
+          google_calendar_synced?: boolean
+          submitted_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_by: string
           created_at?: string
           updated_at?: string
+          deleted_at?: string | null
         }
         Update: {
           id?: string
           staff_id?: string
-          project_id?: string | null
-          date?: string
-          start_time?: string | null
-          end_time?: string | null
-          break_minutes?: number
-          shift_type?: string | null
+          project_id?: string
+          shift_date?: string
+          start_time?: string
+          end_time?: string
+          status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
           notes?: string | null
+          google_calendar_event_id?: string | null
+          google_calendar_synced?: boolean
+          submitted_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_by?: string
           created_at?: string
           updated_at?: string
+          deleted_at?: string | null
         }
         Relationships: [
           {
@@ -533,6 +554,74 @@ export interface Database {
             columns: ['project_id']
             isOneToOne: false
             referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'shifts_approved_by_fkey'
+            columns: ['approved_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'shifts_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      shift_approval_history: {
+        Row: {
+          id: string
+          shift_id: string
+          action: 'APPROVE' | 'REJECT' | 'NEEDS_REVISION' | 'MODIFY' | 'COMMENT'
+          comment: string | null
+          previous_start_time: string | null
+          previous_end_time: string | null
+          new_start_time: string | null
+          new_end_time: string | null
+          performed_by: string
+          performed_at: string
+        }
+        Insert: {
+          id?: string
+          shift_id: string
+          action: 'APPROVE' | 'REJECT' | 'NEEDS_REVISION' | 'MODIFY' | 'COMMENT'
+          comment?: string | null
+          previous_start_time?: string | null
+          previous_end_time?: string | null
+          new_start_time?: string | null
+          new_end_time?: string | null
+          performed_by: string
+          performed_at?: string
+        }
+        Update: {
+          id?: string
+          shift_id?: string
+          action?: 'APPROVE' | 'REJECT' | 'NEEDS_REVISION' | 'MODIFY' | 'COMMENT'
+          comment?: string | null
+          previous_start_time?: string | null
+          previous_end_time?: string | null
+          new_start_time?: string | null
+          new_end_time?: string | null
+          performed_by?: string
+          performed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'shift_approval_history_shift_id_fkey'
+            columns: ['shift_id']
+            isOneToOne: false
+            referencedRelation: 'shifts'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'shift_approval_history_performed_by_fkey'
+            columns: ['performed_by']
+            isOneToOne: false
+            referencedRelation: 'users'
             referencedColumns: ['id']
           },
         ]

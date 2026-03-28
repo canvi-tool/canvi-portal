@@ -1,94 +1,39 @@
 -- ============================================================
 -- 00005_create_shifts.sql
--- シフト・勤怠管理
+-- シフト管理・承認フロー
 -- ============================================================
-
--- シフトステータス
-CREATE TYPE public.shift_status AS ENUM (
-  'scheduled',       -- 予定
-  'checked_in',      -- 出勤済み
-  'checked_out',     -- 退勤済み
-  'completed',       -- 確定済み
-  'absent',          -- 欠勤
-  'cancelled'        -- キャンセル
-);
-
--- 打刻方法
-CREATE TYPE public.checkin_method AS ENUM (
-  'manual',          -- 手動入力
-  'gps',             -- GPS打刻
-  'qr_code',         -- QRコード
-  'nfc',             -- NFC
-  'biometric',       -- 生体認証
-  'system'           -- システム自動
-);
 
 -- シフトテーブル
 CREATE TABLE public.shifts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   staff_id UUID NOT NULL REFERENCES public.staff(id) ON DELETE CASCADE,
-  project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
-  assignment_id UUID REFERENCES public.project_assignments(id) ON DELETE SET NULL,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
 
-  -- シフト予定
-  scheduled_date DATE NOT NULL,              -- 勤務予定日
-  scheduled_start TIMESTAMPTZ,               -- 予定開始日時
-  scheduled_end TIMESTAMPTZ,                 -- 予定終了日時
-  scheduled_break_minutes INTEGER DEFAULT 0, -- 予定休憩時間 (分)
+  -- シフト情報
+  shift_date DATE NOT NULL,                      -- 勤務日
+  start_time TIME NOT NULL,                      -- 開始時刻
+  end_time TIME NOT NULL,                        -- 終了時刻
 
-  -- 実績
-  actual_start TIMESTAMPTZ,                  -- 実際の出勤日時
-  actual_end TIMESTAMPTZ,                    -- 実際の退勤日時
-  actual_break_minutes INTEGER DEFAULT 0,    -- 実際の休憩時間 (分)
+  -- 承認ステータス
+  status TEXT NOT NULL DEFAULT 'DRAFT',          -- DRAFT, SUBMITTED, APPROVED, REJECTED, NEEDS_REVISION
 
-  -- 計算値 (actual_hours はトリガーで自動計算)
-  actual_hours NUMERIC(6, 2) GENERATED ALWAYS AS (
-    CASE
-      WHEN actual_start IS NOT NULL AND actual_end IS NOT NULL
-      THEN ROUND(
-        (EXTRACT(EPOCH FROM actual_end) - EXTRACT(EPOCH FROM actual_start)) / 3600.0
-        - COALESCE(actual_break_minutes, 0) / 60.0,
-        2
-      )
-      ELSE NULL
-    END
-  ) STORED,
+  -- メモ
+  notes TEXT,                                    -- 備考
 
-  -- ステータス
-  status public.shift_status NOT NULL DEFAULT 'scheduled',
+  -- Google Calendar 連携
+  google_calendar_event_id TEXT,                 -- Google Calendar イベントID
+  google_calendar_synced BOOLEAN DEFAULT false,  -- 同期済みフラグ
 
-  -- 打刻情報
-  checkin_method public.checkin_method,       -- 出勤打刻方法
-  checkout_method public.checkin_method,      -- 退勤打刻方法
-  checkin_lat NUMERIC(10, 7),               -- 出勤時緯度
-  checkin_lng NUMERIC(10, 7),               -- 出勤時経度
-  checkout_lat NUMERIC(10, 7),              -- 退勤時緯度
-  checkout_lng NUMERIC(10, 7),              -- 退勤時経度
-  checkin_photo_url TEXT,                    -- 出勤時写真URL
-  checkout_photo_url TEXT,                   -- 退勤時写真URL
-
-  -- フラグ
-  is_overtime BOOLEAN DEFAULT false,         -- 残業フラグ
-  is_night_shift BOOLEAN DEFAULT false,      -- 深夜勤務フラグ
-  is_holiday BOOLEAN DEFAULT false,          -- 休日出勤フラグ
-  is_manual_override BOOLEAN DEFAULT false,  -- 手動補正フラグ
-
-  -- 補正情報
-  override_reason TEXT,                      -- 補正理由
-  override_by UUID REFERENCES public.users(id), -- 補正者
-
-  -- 外部連携
-  external_id TEXT,                          -- 外部システムID (Google Calendar等)
-  external_source TEXT,                      -- 外部システム名
+  -- 承認関連タイムスタンプ
+  submitted_at TIMESTAMPTZ,                      -- 提出日時
+  approved_at TIMESTAMPTZ,                       -- 承認日時
+  approved_by UUID REFERENCES public.users(id),  -- 承認者
 
   -- メタデータ
-  notes TEXT,                                -- 備考
-  custom_fields JSONB DEFAULT '{}'::jsonb,
-  created_by UUID REFERENCES public.users(id),
-  updated_by UUID REFERENCES public.users(id),
+  created_by UUID NOT NULL REFERENCES public.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted_at TIMESTAMPTZ
+  deleted_at TIMESTAMPTZ                         -- 論理削除
 );
 
 -- updated_at トリガー
@@ -96,19 +41,47 @@ CREATE TRIGGER shifts_updated_at
   BEFORE UPDATE ON public.shifts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- インデックス
+-- ========== シフト承認履歴テーブル ==========
+CREATE TABLE public.shift_approval_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shift_id UUID NOT NULL REFERENCES public.shifts(id) ON DELETE CASCADE,
+
+  -- アクション情報
+  action TEXT NOT NULL,                          -- APPROVE, REJECT, NEEDS_REVISION, MODIFY, COMMENT
+  comment TEXT,                                  -- コメント
+
+  -- 変更前後の時刻 (MODIFY アクション用)
+  previous_start_time TIME,                      -- 変更前開始時刻
+  previous_end_time TIME,                        -- 変更前終了時刻
+  new_start_time TIME,                           -- 変更後開始時刻
+  new_end_time TIME,                             -- 変更後終了時刻
+
+  -- 実行者
+  performed_by UUID NOT NULL REFERENCES public.users(id),
+  performed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ========== インデックス ==========
+-- shifts
 CREATE INDEX idx_shifts_staff_id ON public.shifts(staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_shifts_project_id ON public.shifts(project_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_shifts_assignment_id ON public.shifts(assignment_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_shifts_scheduled_date ON public.shifts(scheduled_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shifts_shift_date ON public.shifts(shift_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_shifts_status ON public.shifts(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_shifts_staff_date ON public.shifts(staff_id, scheduled_date) WHERE deleted_at IS NULL;
-CREATE INDEX idx_shifts_project_date ON public.shifts(project_id, scheduled_date) WHERE deleted_at IS NULL;
-CREATE INDEX idx_shifts_external_id ON public.shifts(external_id) WHERE external_id IS NOT NULL;
-CREATE INDEX idx_shifts_actual_start ON public.shifts(actual_start) WHERE deleted_at IS NULL AND actual_start IS NOT NULL;
+CREATE INDEX idx_shifts_staff_date ON public.shifts(staff_id, shift_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shifts_project_date ON public.shifts(project_id, shift_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shifts_project_status ON public.shifts(project_id, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shifts_submitted_at ON public.shifts(submitted_at) WHERE deleted_at IS NULL AND submitted_at IS NOT NULL;
+CREATE INDEX idx_shifts_google_calendar_event ON public.shifts(google_calendar_event_id) WHERE google_calendar_event_id IS NOT NULL;
+CREATE INDEX idx_shifts_pending_approval ON public.shifts(project_id, status) WHERE deleted_at IS NULL AND status = 'SUBMITTED';
 
--- RLS 有効化
+-- shift_approval_history
+CREATE INDEX idx_shift_approval_history_shift ON public.shift_approval_history(shift_id);
+CREATE INDEX idx_shift_approval_history_performed_by ON public.shift_approval_history(performed_by);
+CREATE INDEX idx_shift_approval_history_performed_at ON public.shift_approval_history(performed_at);
+
+-- ========== RLS 有効化 ==========
 ALTER TABLE public.shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shift_approval_history ENABLE ROW LEVEL SECURITY;
 
 -- ========== shifts RLS ポリシー ==========
 CREATE POLICY "Admins can view all shifts" ON public.shifts
@@ -157,8 +130,15 @@ CREATE POLICY "Staff can view own shifts" ON public.shifts
     )
   );
 
--- Staff: 自分のシフトに打刻可能 (出勤・退勤のみ更新)
-CREATE POLICY "Staff can checkin own shifts" ON public.shifts
+-- Staff: 自分のシフトを作成・更新可能
+CREATE POLICY "Staff can insert own shifts" ON public.shifts
+  FOR INSERT WITH CHECK (
+    staff_id IN (
+      SELECT s.id FROM public.staff s WHERE s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Staff can update own shifts" ON public.shifts
   FOR UPDATE USING (
     staff_id IN (
       SELECT s.id FROM public.staff s WHERE s.user_id = auth.uid()
@@ -171,4 +151,38 @@ CREATE POLICY "Staff can checkin own shifts" ON public.shifts
   );
 
 CREATE POLICY "Service role manages shifts" ON public.shifts
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- ========== shift_approval_history RLS ポリシー ==========
+CREATE POLICY "Admins can view all approval history" ON public.shift_approval_history
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      JOIN public.roles r ON ur.role_id = r.id
+      WHERE ur.user_id = auth.uid() AND r.name IN ('owner', 'admin')
+    )
+  );
+
+CREATE POLICY "Admins can insert approval history" ON public.shift_approval_history
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      JOIN public.roles r ON ur.role_id = r.id
+      WHERE ur.user_id = auth.uid() AND r.name IN ('owner', 'admin')
+    )
+  );
+
+-- Staff: 自分のシフトの承認履歴を閲覧可能
+CREATE POLICY "Staff can view own shift approval history" ON public.shift_approval_history
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.shifts sh
+      JOIN public.staff s ON sh.staff_id = s.id
+      WHERE sh.id = shift_approval_history.shift_id
+        AND s.user_id = auth.uid()
+        AND sh.deleted_at IS NULL
+    )
+  );
+
+CREATE POLICY "Service role manages approval history" ON public.shift_approval_history
   FOR ALL USING (auth.role() = 'service_role');

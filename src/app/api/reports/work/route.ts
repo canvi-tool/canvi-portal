@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
       const { data: shifts } = await supabase
         .from('shifts')
-        .select('start_time, end_time, break_minutes')
+        .select('start_time, end_time')
         .eq('staff_id', parsed.data.staff_id)
         .gte('date', startDate)
         .lte('date', endDate)
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
           if (shift.start_time && shift.end_time) {
             const [sh, sm] = shift.start_time.split(':').map(Number)
             const [eh, em] = shift.end_time.split(':').map(Number)
-            const minutes = eh * 60 + em - (sh * 60 + sm) - (shift.break_minutes || 0)
+            const minutes = eh * 60 + em - (sh * 60 + sm)
             totalShiftHours += Math.max(0, minutes / 60)
           }
         }

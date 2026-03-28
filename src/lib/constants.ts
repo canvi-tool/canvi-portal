@@ -98,6 +98,27 @@ export const INVOICE_STATUS_LABELS: Record<string, string> = {
   cancelled: 'キャンセル',
 }
 
+export const SHIFT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: '下書き',
+  SUBMITTED: '申請済',
+  APPROVED: '承認済',
+  REJECTED: '却下',
+  NEEDS_REVISION: '修正依頼',
+}
+
+export const SHIFT_STATUS_COLORS: Record<string, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SUBMITTED: 'bg-amber-100 text-amber-700',
+  APPROVED: 'bg-green-100 text-green-700',
+  REJECTED: 'bg-red-100 text-red-700',
+  NEEDS_REVISION: 'bg-orange-100 text-orange-700',
+}
+
+export const SHIFT_APPROVAL_MODE_LABELS: Record<string, string> = {
+  AUTO: '自動確定',
+  APPROVAL: '承認制',
+}
+
 export interface NavItem {
   label: string
   href: string

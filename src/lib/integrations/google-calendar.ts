@@ -160,7 +160,7 @@ export class GoogleCalendarClient {
             .from('shifts')
             .select('id')
             .eq('staff_id', staffId)
-            .eq('date', date)
+            .eq('shift_date', date)
             .eq('start_time', startTime)
             .eq('end_time', endTime)
             .maybeSingle()
@@ -183,13 +183,12 @@ export class GoogleCalendarClient {
             const { error: updateError } = await supabase
               .from('shifts')
               .update({
-                date,
+                shift_date: date,
                 start_time: startTime,
                 end_time: endTime,
-                project_id: projectId || null,
-                shift_type: 'synced',
+                project_id: projectId || undefined,
                 updated_at: new Date().toISOString(),
-              })
+              } as never)
               .eq('id', existingByEvent.id)
 
             if (updateError) {
@@ -203,13 +202,14 @@ export class GoogleCalendarClient {
           // Create new shift
           const { error: insertError } = await supabase.from('shifts').insert({
             staff_id: staffId,
-            project_id: projectId || null,
-            date,
+            project_id: projectId || '',
+            shift_date: date,
             start_time: startTime,
             end_time: endTime,
-            break_minutes: 0,
-            shift_type: 'synced',
+            status: 'APPROVED' as const,
             notes: `gcal:${event.id}`,
+            google_calendar_synced: true,
+            created_by: staffId,
           })
 
           if (insertError) {

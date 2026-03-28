@@ -8,8 +8,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
-  Link2,
-  Unlink,
+  CalendarDays,
+  Clock,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,55 +25,161 @@ import {
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/layout/page-header'
 
-// --- Demo Data ---
+// --- Types ---
 
-type CalendarStatus = 'connected' | 'disconnected' | 'error'
+type SyncStatus = 'synced' | 'pending' | 'error' | 'not_approved'
 
-interface StaffCalendar {
+interface SyncedShift {
   id: string
   staffName: string
-  email: string
-  calendarStatus: CalendarStatus
-  lastSyncAt: string | null
+  projectName: string
+  date: string
+  startTime: string
+  endTime: string
+  syncStatus: SyncStatus
+  googleCalendarEventId?: string
+  lastSyncAt?: string
+  errorMessage?: string
 }
 
-const INITIAL_STAFF_CALENDARS: StaffCalendar[] = [
-  { id: '1', staffName: '田中太郎', email: 'tanaka@example.com', calendarStatus: 'connected', lastSyncAt: '2026-03-28T08:00:00' },
-  { id: '2', staffName: '佐藤花子', email: 'sato@example.com', calendarStatus: 'connected', lastSyncAt: '2026-03-28T07:30:00' },
-  { id: '3', staffName: '鈴木一郎', email: 'suzuki@example.com', calendarStatus: 'error', lastSyncAt: '2026-03-25T10:00:00' },
-  { id: '4', staffName: '高橋美咲', email: 'takahashi@example.com', calendarStatus: 'disconnected', lastSyncAt: null },
-  { id: '5', staffName: '渡辺健太', email: 'watanabe@example.com', calendarStatus: 'connected', lastSyncAt: '2026-03-28T08:15:00' },
+// --- Demo Data ---
+
+const today = new Date()
+function dayOffset(offset: number): string {
+  const d = new Date(today)
+  d.setDate(d.getDate() + offset)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const INITIAL_SYNCED_SHIFTS: SyncedShift[] = [
+  {
+    id: '1',
+    staffName: '佐藤健太',
+    projectName: 'AIアポブースト',
+    date: dayOffset(0),
+    startTime: '09:00',
+    endTime: '18:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_abc123',
+    lastSyncAt: dayOffset(0) + 'T08:01:00',
+  },
+  {
+    id: '3',
+    staffName: '鈴木一郎',
+    projectName: 'ミズテック受電',
+    date: dayOffset(0),
+    startTime: '09:00',
+    endTime: '17:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_def456',
+    lastSyncAt: dayOffset(-1) + 'T18:05:00',
+  },
+  {
+    id: '4',
+    staffName: '山田花子',
+    projectName: 'AIアポブースト',
+    date: dayOffset(0),
+    startTime: '13:00',
+    endTime: '22:00',
+    syncStatus: 'error',
+    errorMessage: 'Google Calendar API rate limit exceeded. Retry scheduled.',
+    lastSyncAt: dayOffset(0) + 'T07:30:00',
+  },
+  {
+    id: '6',
+    staffName: '佐藤健太',
+    projectName: 'WHITE営業代行',
+    date: dayOffset(-1),
+    startTime: '09:00',
+    endTime: '18:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_ghi789',
+    lastSyncAt: dayOffset(-1) + 'T10:02:00',
+  },
+  {
+    id: '8',
+    staffName: '鈴木一郎',
+    projectName: 'AIアポブースト',
+    date: dayOffset(-1),
+    startTime: '09:00',
+    endTime: '18:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_jkl012',
+    lastSyncAt: dayOffset(-2) + 'T18:03:00',
+  },
+  {
+    id: '10',
+    staffName: '佐藤健太',
+    projectName: 'AIアポブースト',
+    date: dayOffset(-2),
+    startTime: '09:00',
+    endTime: '18:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_mno345',
+    lastSyncAt: dayOffset(-3) + 'T18:01:00',
+  },
+  {
+    id: '11',
+    staffName: '山田花子',
+    projectName: 'ミズテック受電',
+    date: dayOffset(-2),
+    startTime: '10:00',
+    endTime: '19:00',
+    syncStatus: 'pending',
+    lastSyncAt: dayOffset(-2) + 'T09:05:00',
+  },
+  {
+    id: '16',
+    staffName: '田中美咲',
+    projectName: 'AIアポブースト',
+    date: dayOffset(1),
+    startTime: '09:00',
+    endTime: '18:00',
+    syncStatus: 'synced',
+    googleCalendarEventId: 'gcal_pqr678',
+    lastSyncAt: dayOffset(0) + 'T08:00:00',
+  },
 ]
 
-// --- Helpers ---
-
-function formatSyncTime(iso: string | null): string {
-  if (!iso) return '-'
+function formatDateTime(iso: string): string {
   const d = new Date(iso)
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function StatusBadge({ status }: { status: CalendarStatus }) {
+function formatDateJP(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+  return `${d.getMonth() + 1}/${d.getDate()}(${weekdays[d.getDay()]})`
+}
+
+function SyncStatusBadge({ status }: { status: SyncStatus }) {
   switch (status) {
-    case 'connected':
+    case 'synced':
       return (
         <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
           <CheckCircle2 className="h-3 w-3 mr-1" />
-          連携済み
+          同期済み
         </Badge>
       )
-    case 'disconnected':
+    case 'pending':
       return (
-        <Badge variant="outline" className="text-muted-foreground">
-          <XCircle className="h-3 w-3 mr-1" />
-          未連携
+        <Badge variant="default" className="bg-amber-100 text-amber-800 border-amber-200">
+          <Clock className="h-3 w-3 mr-1" />
+          同期待ち
         </Badge>
       )
     case 'error':
       return (
         <Badge variant="destructive">
           <AlertTriangle className="h-3 w-3 mr-1" />
-          同期エラー
+          エラー
+        </Badge>
+      )
+    case 'not_approved':
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          <XCircle className="h-3 w-3 mr-1" />
+          未承認
         </Badge>
       )
   }
@@ -83,42 +189,21 @@ function StatusBadge({ status }: { status: CalendarStatus }) {
 
 export default function ShiftSyncPage() {
   const router = useRouter()
-  const [staffCalendars, setStaffCalendars] = useState<StaffCalendar[]>(INITIAL_STAFF_CALENDARS)
+  const [shifts, setShifts] = useState<SyncedShift[]>(INITIAL_SYNCED_SHIFTS)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncingAll, setSyncingAll] = useState(false)
 
-  const connectedCount = staffCalendars.filter(s => s.calendarStatus === 'connected').length
-  const disconnectedCount = staffCalendars.filter(s => s.calendarStatus === 'disconnected').length
-  const errorCount = staffCalendars.filter(s => s.calendarStatus === 'error').length
-
-  const handleConnect = (id: string) => {
-    setStaffCalendars(prev =>
-      prev.map(s =>
-        s.id === id
-          ? { ...s, calendarStatus: 'connected' as const, lastSyncAt: new Date().toISOString() }
-          : s
-      )
-    )
-  }
-
-  const handleDisconnect = (id: string) => {
-    setStaffCalendars(prev =>
-      prev.map(s =>
-        s.id === id
-          ? { ...s, calendarStatus: 'disconnected' as const, lastSyncAt: null }
-          : s
-      )
-    )
-  }
+  const syncedCount = shifts.filter(s => s.syncStatus === 'synced').length
+  const pendingCount = shifts.filter(s => s.syncStatus === 'pending').length
+  const errorCount = shifts.filter(s => s.syncStatus === 'error').length
 
   const handleResync = async (id: string) => {
     setSyncingId(id)
-    // Simulate sync delay
     await new Promise(r => setTimeout(r, 1000))
-    setStaffCalendars(prev =>
+    setShifts(prev =>
       prev.map(s =>
         s.id === id
-          ? { ...s, calendarStatus: 'connected' as const, lastSyncAt: new Date().toISOString() }
+          ? { ...s, syncStatus: 'synced' as const, lastSyncAt: new Date().toISOString(), errorMessage: undefined, googleCalendarEventId: s.googleCalendarEventId || `gcal_resync_${id}` }
           : s
       )
     )
@@ -128,10 +213,10 @@ export default function ShiftSyncPage() {
   const handleSyncAll = async () => {
     setSyncingAll(true)
     await new Promise(r => setTimeout(r, 1500))
-    setStaffCalendars(prev =>
+    setShifts(prev =>
       prev.map(s =>
-        s.calendarStatus === 'connected' || s.calendarStatus === 'error'
-          ? { ...s, calendarStatus: 'connected' as const, lastSyncAt: new Date().toISOString() }
+        s.syncStatus === 'error' || s.syncStatus === 'pending'
+          ? { ...s, syncStatus: 'synced' as const, lastSyncAt: new Date().toISOString(), errorMessage: undefined, googleCalendarEventId: s.googleCalendarEventId || `gcal_bulk_${s.id}` }
           : s
       )
     )
@@ -141,8 +226,8 @@ export default function ShiftSyncPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Googleカレンダー同期設定"
-        description="スタッフごとのGoogleカレンダー連携状態を管理します"
+        title="Googleカレンダー同期状況"
+        description="承認済みシフトのGoogleカレンダー同期状態を確認できます。承認済みシフトのみが同期対象です。"
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => router.push('/shifts')}>
@@ -151,7 +236,7 @@ export default function ShiftSyncPage() {
             </Button>
             <Button size="sm" onClick={handleSyncAll} disabled={syncingAll}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncingAll ? 'animate-spin' : ''}`} />
-              {syncingAll ? '同期中...' : '全員を同期'}
+              {syncingAll ? '同期中...' : '全て再同期'}
             </Button>
           </div>
         }
@@ -163,25 +248,25 @@ export default function ShiftSyncPage() {
           <CardContent className="flex items-center gap-3 pt-0">
             <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
             <div>
-              <p className="text-2xl font-bold">{connectedCount}名</p>
-              <p className="text-xs text-muted-foreground">連携済み</p>
+              <p className="text-2xl font-bold">{syncedCount}件</p>
+              <p className="text-xs text-muted-foreground">同期済み</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 pt-0">
-            <XCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+            <Clock className="h-5 w-5 text-amber-500 shrink-0" />
             <div>
-              <p className="text-2xl font-bold">{disconnectedCount}名</p>
-              <p className="text-xs text-muted-foreground">未連携</p>
+              <p className="text-2xl font-bold">{pendingCount}件</p>
+              <p className="text-xs text-muted-foreground">同期待ち</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 pt-0">
-            <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+            <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
             <div>
-              <p className="text-2xl font-bold">{errorCount}名</p>
+              <p className="text-2xl font-bold">{errorCount}件</p>
               <p className="text-xs text-muted-foreground">同期エラー</p>
             </div>
           </CardContent>
@@ -190,78 +275,78 @@ export default function ShiftSyncPage() {
 
       {/* Error Alert */}
       {errorCount > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
-          <p className="text-yellow-800">
-            {staffCalendars.filter(s => s.calendarStatus === 'error').map(s => s.staffName).join('、')}
-            のカレンダー同期でエラーが発生しています。再同期を実行するか、連携設定を確認してください。
-          </p>
+        <div className="flex items-center gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm">
+          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium text-red-800">同期エラーが発生しています</p>
+            <p className="text-red-700">
+              {errorCount}件のシフトでGoogleカレンダーへの同期に失敗しています。再同期を実行してください。
+            </p>
+          </div>
         </div>
       )}
 
-      {/* Staff Calendar Table */}
+      {/* Info Banner */}
+      <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+        <CalendarDays className="h-5 w-5 text-blue-600 shrink-0" />
+        <p className="text-blue-800">
+          <span className="font-medium">承認済みシフトのみ</span>がGoogleカレンダーに同期されます。
+          下書き・申請中・却下・修正依頼のシフトは同期されません。
+        </p>
+      </div>
+
+      {/* Sync Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">スタッフ別カレンダー連携状態</CardTitle>
+          <CardTitle className="text-base">承認済みシフト同期一覧</CardTitle>
           <CardDescription>
-            各スタッフのGoogleカレンダー連携状態と最終同期日時を確認できます
+            各承認済みシフトのGoogleカレンダー同期状態を確認できます
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>スタッフ名</TableHead>
-                <TableHead>メールアドレス</TableHead>
-                <TableHead>連携状態</TableHead>
+                <TableHead>スタッフ</TableHead>
+                <TableHead>プロジェクト</TableHead>
+                <TableHead>日付</TableHead>
+                <TableHead>時間</TableHead>
+                <TableHead>同期状態</TableHead>
                 <TableHead>最終同期</TableHead>
                 <TableHead className="text-right">アクション</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staffCalendars.map(staff => (
-                <TableRow key={staff.id}>
-                  <TableCell className="font-medium">{staff.staffName}</TableCell>
-                  <TableCell className="text-muted-foreground">{staff.email}</TableCell>
+              {shifts.map(shift => (
+                <TableRow key={shift.id}>
+                  <TableCell className="font-medium">{shift.staffName}</TableCell>
                   <TableCell>
-                    <StatusBadge status={staff.calendarStatus} />
+                    <Badge variant="outline">{shift.projectName}</Badge>
+                  </TableCell>
+                  <TableCell>{formatDateJP(shift.date)}</TableCell>
+                  <TableCell>{shift.startTime} - {shift.endTime}</TableCell>
+                  <TableCell>
+                    <SyncStatusBadge status={shift.syncStatus} />
+                    {shift.errorMessage && (
+                      <p className="text-[10px] text-red-600 mt-1 max-w-[200px] truncate">
+                        {shift.errorMessage}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatSyncTime(staff.lastSyncAt)}
+                    {shift.lastSyncAt ? formatDateTime(shift.lastSyncAt) : '-'}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {staff.calendarStatus === 'disconnected' ? (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => handleConnect(staff.id)}
-                        >
-                          <Link2 className="h-3.5 w-3.5 mr-1" />
-                          連携する
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleResync(staff.id)}
-                            disabled={syncingId === staff.id}
-                          >
-                            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncingId === staff.id ? 'animate-spin' : ''}`} />
-                            {syncingId === staff.id ? '同期中...' : '再同期'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDisconnect(staff.id)}
-                          >
-                            <Unlink className="h-3.5 w-3.5 mr-1" />
-                            連携解除
-                          </Button>
-                        </>
-                      )}
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleResync(shift.id)}
+                        disabled={syncingId === shift.id}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncingId === shift.id ? 'animate-spin' : ''}`} />
+                        {syncingId === shift.id ? '同期中' : '再同期'}
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -274,14 +359,15 @@ export default function ShiftSyncPage() {
       {/* How it works */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">連携の仕組み</CardTitle>
+          <CardTitle className="text-base">同期の仕組み</CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-            <li>各スタッフが自身のGoogleカレンダーに勤務スケジュールを登録します</li>
-            <li>システムが定期的にカレンダーのイベントを取得し、シフトデータとして表示します</li>
-            <li>カレンダーイベントのタイトルからプロジェクト名を自動判定します</li>
-            <li>同期は1時間ごとに自動実行されますが、手動で即時同期も可能です</li>
+            <li>スタッフがシフトを登録し、申請します</li>
+            <li>PMが承認すると、ステータスが「承認済み」になります（自動承認プロジェクトは即時承認）</li>
+            <li>承認済みシフトが自動的にGoogleカレンダーに同期されます</li>
+            <li>同期は承認後5分以内に実行されます。手動で即時同期も可能です</li>
+            <li>却下・修正依頼されたシフトはカレンダーから削除されます</li>
           </ol>
         </CardContent>
       </Card>

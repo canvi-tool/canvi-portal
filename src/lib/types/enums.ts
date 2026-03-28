@@ -68,3 +68,30 @@ export type FieldType =
   | 'select'
   | 'checkbox'
   | 'textarea'
+
+export const SHIFT_STATUS = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  NEEDS_REVISION: 'NEEDS_REVISION',
+} as const
+
+export type ShiftStatus = typeof SHIFT_STATUS[keyof typeof SHIFT_STATUS]
+
+export const SHIFT_APPROVAL_MODE = {
+  AUTO: 'AUTO',
+  APPROVAL: 'APPROVAL',
+} as const
+
+export type ShiftApprovalMode = typeof SHIFT_APPROVAL_MODE[keyof typeof SHIFT_APPROVAL_MODE]
+
+export const SHIFT_APPROVAL_ACTION = {
+  APPROVE: 'APPROVE',
+  REJECT: 'REJECT',
+  NEEDS_REVISION: 'NEEDS_REVISION',
+  MODIFY: 'MODIFY',
+  COMMENT: 'COMMENT',
+} as const
+
+export type ShiftApprovalAction = typeof SHIFT_APPROVAL_ACTION[keyof typeof SHIFT_APPROVAL_ACTION]

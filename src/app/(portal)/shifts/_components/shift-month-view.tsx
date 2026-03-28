@@ -9,11 +9,29 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui/table'
-import type { ShiftWithRelations } from '@/hooks/use-shifts'
+import { Badge } from '@/components/ui/badge'
+
+// --- Types ---
+
+type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+
+interface ShiftItem {
+  id: string
+  staffId: string
+  staffName: string
+  projectId: string
+  projectName: string
+  date: string
+  startTime: string
+  endTime: string
+  status: ShiftStatus
+}
 
 interface ShiftMonthViewProps {
-  shifts: ShiftWithRelations[]
+  shifts: ShiftItem[]
 }
+
+/* STATUS_LABELS moved to constants */
 
 interface MonthlySummaryRow {
   staffId: string
@@ -21,44 +39,48 @@ interface MonthlySummaryRow {
   projectName: string
   workingDays: number
   totalHours: number
-  overtimeHours: number
+  approvedCount: number
+  pendingCount: number
+  otherCount: number
 }
-
-const OVERTIME_THRESHOLD = 8 // hours per day
 
 export function ShiftMonthView({ shifts }: ShiftMonthViewProps) {
   const summaryRows = useMemo(() => {
     const groupMap = new Map<string, MonthlySummaryRow>()
 
     for (const shift of shifts) {
-      const key = `${shift.staff_id}_${shift.project_id || 'none'}`
+      const key = `${shift.staffId}_${shift.projectId}`
 
       if (!groupMap.has(key)) {
         groupMap.set(key, {
-          staffId: shift.staff_id,
-          staffName: shift.staff_name || '不明',
-          projectName: shift.project_name || '未設定',
+          staffId: shift.staffId,
+          staffName: shift.staffName,
+          projectName: shift.projectName,
           workingDays: 0,
           totalHours: 0,
-          overtimeHours: 0,
+          approvedCount: 0,
+          pendingCount: 0,
+          otherCount: 0,
         })
       }
 
       const row = groupMap.get(key)!
       row.workingDays++
 
-      const hours = shift.actual_hours || 0
+      // Calculate hours
+      const startParts = shift.startTime.split(':').map(Number)
+      const endParts = shift.endTime.split(':').map(Number)
+      const hours = (endParts[0] + endParts[1] / 60) - (startParts[0] + startParts[1] / 60)
       row.totalHours += hours
 
-      if (hours > OVERTIME_THRESHOLD) {
-        row.overtimeHours += hours - OVERTIME_THRESHOLD
-      }
+      if (shift.status === 'APPROVED') row.approvedCount++
+      else if (shift.status === 'SUBMITTED') row.pendingCount++
+      else row.otherCount++
     }
 
     // Round values
     for (const row of groupMap.values()) {
       row.totalHours = Math.round(row.totalHours * 100) / 100
-      row.overtimeHours = Math.round(row.overtimeHours * 100) / 100
     }
 
     return Array.from(groupMap.values()).sort((a, b) =>
@@ -83,7 +105,8 @@ export function ShiftMonthView({ shifts }: ShiftMonthViewProps) {
             <TableHead>PJ名</TableHead>
             <TableHead className="text-right">勤務日数</TableHead>
             <TableHead className="text-right">総時間</TableHead>
-            <TableHead className="text-right">残業時間</TableHead>
+            <TableHead className="text-right">承認済</TableHead>
+            <TableHead className="text-right">承認待ち</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -94,12 +117,17 @@ export function ShiftMonthView({ shifts }: ShiftMonthViewProps) {
               <TableCell className="text-right">{row.workingDays}日</TableCell>
               <TableCell className="text-right">{row.totalHours}h</TableCell>
               <TableCell className="text-right">
-                {row.overtimeHours > 0 ? (
-                  <span className="text-orange-600 font-medium">
-                    {row.overtimeHours}h
-                  </span>
+                <Badge variant="default" className="bg-green-100 text-green-800 border-green-200 text-[10px]">
+                  {row.approvedCount}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                {row.pendingCount > 0 ? (
+                  <Badge variant="default" className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">
+                    {row.pendingCount}
+                  </Badge>
                 ) : (
-                  <span className="text-muted-foreground">0h</span>
+                  <span className="text-muted-foreground text-xs">0</span>
                 )}
               </TableCell>
             </TableRow>
@@ -115,7 +143,10 @@ export function ShiftMonthView({ shifts }: ShiftMonthViewProps) {
               {Math.round(summaryRows.reduce((sum, r) => sum + r.totalHours, 0) * 100) / 100}h
             </TableCell>
             <TableCell className="text-right">
-              {Math.round(summaryRows.reduce((sum, r) => sum + r.overtimeHours, 0) * 100) / 100}h
+              {summaryRows.reduce((sum, r) => sum + r.approvedCount, 0)}
+            </TableCell>
+            <TableCell className="text-right">
+              {summaryRows.reduce((sum, r) => sum + r.pendingCount, 0)}
             </TableCell>
           </TableRow>
         </TableBody>
