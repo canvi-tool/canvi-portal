@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
+import { ShiftWeeklyTimeline } from './_components/shift-weekly-timeline'
 import { cn } from '@/lib/utils'
 
 // --- Types ---
@@ -82,30 +83,50 @@ function dayOffset(offset: number): string {
 }
 
 const DEMO_SHIFTS: DemoShift[] = [
-  // Today
-  { id: '1', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: todayStr, startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '2', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: todayStr, startTime: '10:00', endTime: '19:00', status: 'SUBMITTED', submittedAt: '2026-03-27T20:00:00', approvalMode: 'APPROVAL' },
+  // Today - busy day with multiple staff/projects
+  { id: '1', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: todayStr, startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '1b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: todayStr, startTime: '13:00', endTime: '17:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '2', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: todayStr, startTime: '09:00', endTime: '13:00', status: 'SUBMITTED', submittedAt: '2026-03-27T20:00:00', approvalMode: 'APPROVAL' },
+  { id: '2b', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: todayStr, startTime: '14:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
   { id: '3', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj3', projectName: 'ミズテック受電', date: todayStr, startTime: '09:00', endTime: '17:00', status: 'APPROVED', approvedAt: '2026-03-27T18:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
   { id: '4', staffId: 's4', staffName: '山田花子', projectId: 'pj1', projectName: 'AIアポブースト', date: todayStr, startTime: '13:00', endTime: '22:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '5', staffId: 's5', staffName: '高橋雄太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: todayStr, startTime: '09:00', endTime: '18:00', status: 'DRAFT', approvalMode: 'AUTO' },
+  { id: '5', staffId: 's5', staffName: '高橋雄太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: todayStr, startTime: '09:00', endTime: '12:00', status: 'DRAFT', approvalMode: 'AUTO' },
+  { id: '5b', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: todayStr, startTime: '13:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
   // Yesterday
-  { id: '6', staffId: 's1', staffName: '佐藤健太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-1), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvedAt: '2026-03-26T10:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
+  { id: '6', staffId: 's1', staffName: '佐藤健太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-1), startTime: '08:30', endTime: '12:30', status: 'APPROVED', approvedAt: '2026-03-26T10:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
+  { id: '6b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-1), startTime: '13:30', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   { id: '7', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-1), startTime: '10:00', endTime: '19:00', status: 'REJECTED', approvalMode: 'APPROVAL' },
   { id: '8', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-1), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   { id: '9', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-1), startTime: '13:00', endTime: '22:00', status: 'NEEDS_REVISION', approvalMode: 'APPROVAL' },
+  { id: '9b', staffId: 's4', staffName: '山田花子', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-1), startTime: '09:00', endTime: '15:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   // 2 days ago
   { id: '10', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-2), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   { id: '11', staffId: 's4', staffName: '山田花子', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-2), startTime: '10:00', endTime: '19:00', status: 'APPROVED', approvedAt: '2026-03-25T09:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '12', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-2), startTime: '09:00', endTime: '18:00', status: 'SUBMITTED', submittedAt: '2026-03-25T21:00:00', approvalMode: 'APPROVAL' },
+  { id: '12', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-2), startTime: '09:00', endTime: '13:00', status: 'SUBMITTED', submittedAt: '2026-03-25T21:00:00', approvalMode: 'APPROVAL' },
+  { id: '12b', staffId: 's2', staffName: '田中美咲', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-2), startTime: '14:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '12c', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-2), startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '12d', staffId: 's5', staffName: '高橋雄太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-2), startTime: '10:00', endTime: '16:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   // 3 days ago
   { id: '13', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-3), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
   { id: '14', staffId: 's5', staffName: '高橋雄太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-3), startTime: '10:00', endTime: '16:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '14b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-3), startTime: '08:30', endTime: '17:30', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
+  { id: '14c', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-3), startTime: '09:00', endTime: '13:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
   // Tomorrow
-  { id: '15', staffId: 's1', staffName: '佐藤健太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(1), startTime: '09:00', endTime: '18:00', status: 'SUBMITTED', submittedAt: '2026-03-28T08:00:00', approvalMode: 'APPROVAL' },
+  { id: '15', staffId: 's1', staffName: '佐藤健太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(1), startTime: '08:30', endTime: '12:30', status: 'SUBMITTED', submittedAt: '2026-03-28T08:00:00', approvalMode: 'APPROVAL' },
+  { id: '15b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(1), startTime: '13:30', endTime: '18:00', status: 'SUBMITTED', approvalMode: 'APPROVAL' },
   { id: '16', staffId: 's2', staffName: '田中美咲', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(1), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '16b', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(1), startTime: '09:00', endTime: '14:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
+  { id: '16c', staffId: 's4', staffName: '山田花子', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(1), startTime: '10:00', endTime: '19:00', status: 'DRAFT', approvalMode: 'AUTO' },
+  { id: '16d', staffId: 's5', staffName: '高橋雄太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(1), startTime: '13:00', endTime: '20:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
   // Day after tomorrow
   { id: '17', staffId: 's4', staffName: '山田花子', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(2), startTime: '10:00', endTime: '19:00', status: 'DRAFT', approvalMode: 'APPROVAL' },
   { id: '18', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(2), startTime: '09:00', endTime: '17:00', status: 'SUBMITTED', submittedAt: '2026-03-28T10:00:00', approvalMode: 'APPROVAL' },
+  { id: '18b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(2), startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
+  { id: '18c', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(2), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
+  // 3 days ahead
+  { id: '19', staffId: 's1', staffName: '佐藤健太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(3), startTime: '09:00', endTime: '18:00', status: 'DRAFT', approvalMode: 'AUTO' },
+  { id: '19b', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(3), startTime: '10:00', endTime: '15:00', status: 'DRAFT', approvalMode: 'AUTO' },
+  { id: '19c', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(3), startTime: '08:30', endTime: '17:30', status: 'SUBMITTED', approvalMode: 'APPROVAL' },
 ]
 
 // --- Status helpers ---
@@ -116,15 +137,6 @@ const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor
   APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
   REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
   NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
-}
-
-function ShiftStatusBadge({ status }: { status: ShiftStatus }) {
-  const config = STATUS_CONFIG[status]
-  return (
-    <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border', config.bgColor, config.color)}>
-      {config.label}
-    </span>
-  )
 }
 
 // --- Calendar helpers ---
@@ -155,8 +167,6 @@ function getWeekDates(baseDate: Date): string[] {
   }
   return dates
 }
-
-const HOUR_SLOTS = Array.from({ length: 16 }, (_, i) => i + 7) // 7:00 - 22:00
 
 // --- Component ---
 
@@ -226,15 +236,8 @@ export default function ShiftsPage() {
     return map
   }, [filteredShifts, year, month])
 
-  // Week dates and shifts
+  // Week dates
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate])
-  const weekShiftsByDate = useMemo(() => {
-    const map: Record<string, DemoShift[]> = {}
-    for (const dateStr of weekDates) {
-      map[dateStr] = filteredShifts.filter(s => s.date === dateStr)
-    }
-    return map
-  }, [filteredShifts, weekDates])
 
   // Day shifts
   const selectedDayStr = useMemo(() => {
@@ -507,137 +510,22 @@ export default function ShiftsPage() {
           </div>
         </TabsContent>
 
-        {/* Weekly View */}
+        {/* Weekly View - Google Calendar Style Timeline */}
         <TabsContent value="weekly">
-          <Card>
-            <CardContent className="pt-0 overflow-x-auto">
-              <div className="min-w-[800px]">
-                {/* Header row */}
-                <div className="grid grid-cols-8 border-b">
-                  <div className="py-2 px-2 text-xs font-medium text-muted-foreground border-r">時間</div>
-                  {weekDates.map((dateStr, i) => {
-                    const d = new Date(dateStr + 'T00:00:00')
-                    const isToday_ = dateStr === todayStr
-                    return (
-                      <div
-                        key={dateStr}
-                        className={cn(
-                          'py-2 px-1 text-center text-xs font-medium',
-                          i === 0 && 'text-red-500',
-                          i === 6 && 'text-blue-500',
-                          isToday_ && 'bg-blue-50/50'
-                        )}
-                      >
-                        <div>{WEEKDAY_LABELS[i]}</div>
-                        <div className={cn(
-                          'text-sm font-semibold',
-                          isToday_ && 'text-blue-600'
-                        )}>
-                          {d.getDate()}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Time slots */}
-                {HOUR_SLOTS.map(hour => (
-                  <div key={hour} className="grid grid-cols-8 border-b min-h-[48px]">
-                    <div className="py-1 px-2 text-[11px] text-muted-foreground border-r flex items-start">
-                      {String(hour).padStart(2, '0')}:00
-                    </div>
-                    {weekDates.map((dateStr) => {
-                      const dayShifts_ = weekShiftsByDate[dateStr] || []
-                      const hourShifts_ = dayShifts_.filter(s => {
-                        const startHour = parseInt(s.startTime.split(':')[0])
-                        return startHour === hour
-                      })
-                      const isToday_ = dateStr === todayStr
-                      return (
-                        <div
-                          key={dateStr}
-                          className={cn(
-                            'py-0.5 px-0.5 border-r',
-                            isToday_ && 'bg-blue-50/30'
-                          )}
-                        >
-                          {hourShifts_.map(shift => {
-                            const startH = parseInt(shift.startTime.split(':')[0])
-                            const endH = parseInt(shift.endTime.split(':')[0])
-                            const span = endH - startH
-                            return (
-                              <div
-                                key={shift.id}
-                                className={cn(
-                                  'text-[10px] leading-tight px-1 py-0.5 rounded border mb-0.5 cursor-pointer hover:opacity-80',
-                                  STATUS_CONFIG[shift.status].bgColor,
-                                  STATUS_CONFIG[shift.status].color
-                                )}
-                                style={{ minHeight: `${Math.max(span * 48 - 4, 20)}px` }}
-                                onClick={() => router.push(`/shifts/${shift.id}`)}
-                              >
-                                <div className="font-medium truncate">{shift.staffName}</div>
-                                <div className="truncate">{shift.startTime}-{shift.endTime}</div>
-                                <div className="truncate">{shift.projectName}</div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <ShiftWeeklyTimeline
+            weekDates={weekDates}
+            shifts={filteredShifts}
+            onShiftClick={(shift) => router.push(`/shifts/${shift.id}`)}
+          />
         </TabsContent>
 
-        {/* Daily View */}
+        {/* Daily View - Single day timeline */}
         <TabsContent value="daily">
-          <Card>
-            <CardContent className="pt-0">
-              {dayShifts.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground">
-                  この日のシフトはありません
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {/* Timeline */}
-                  {HOUR_SLOTS.map(hour => {
-                    const hourStr = String(hour).padStart(2, '0')
-                    // hourShifts not needed for day view - we use startsThisHour instead
-                    const startsThisHour = dayShifts.filter(s => parseInt(s.startTime.split(':')[0]) === hour)
-
-                    return (
-                      <div key={hour} className="flex border-b min-h-[50px]">
-                        <div className="w-16 shrink-0 py-2 text-xs text-muted-foreground text-right pr-3 border-r">
-                          {hourStr}:00
-                        </div>
-                        <div className="flex-1 py-1 px-2 flex gap-2 flex-wrap">
-                          {startsThisHour.map(shift => (
-                            <div
-                              key={shift.id}
-                              className={cn(
-                                'text-xs px-2 py-1.5 rounded border cursor-pointer hover:opacity-80 min-w-[140px]',
-                                STATUS_CONFIG[shift.status].bgColor,
-                                STATUS_CONFIG[shift.status].color
-                              )}
-                              onClick={() => router.push(`/shifts/${shift.id}`)}
-                            >
-                              <div className="font-medium">{shift.staffName}</div>
-                              <div>{shift.startTime} - {shift.endTime}</div>
-                              <div className="text-[11px] opacity-80">{shift.projectName}</div>
-                              <ShiftStatusBadge status={shift.status} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ShiftWeeklyTimeline
+            weekDates={[selectedDayStr]}
+            shifts={dayShifts}
+            onShiftClick={(shift) => router.push(`/shifts/${shift.id}`)}
+          />
         </TabsContent>
       </Tabs>
     </div>
