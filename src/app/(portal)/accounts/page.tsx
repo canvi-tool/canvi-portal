@@ -15,6 +15,7 @@ import {
   Search,
   MoreHorizontal,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/layout/page-header'
 import { ProvisionAccountDialog } from './_components/provision-account-dialog'
+import { SyncAccountsDialog } from './_components/sync-accounts-dialog'
 import { cn } from '@/lib/utils'
 
 // --- Types ---
@@ -201,6 +203,7 @@ export default function AccountsPage() {
   const [callLogDirectionFilter, setCallLogDirectionFilter] = useState<string>('all')
   const [provisionOpen, setProvisionOpen] = useState(false)
   const [provisionProvider, setProvisionProvider] = useState<'google' | 'zoom'>('google')
+  const [syncOpen, setSyncOpen] = useState(false)
 
   // Google Workspace stats
   const gwActive = GOOGLE_WORKSPACE_USERS.filter(u => u.status === 'active').length
@@ -239,6 +242,12 @@ export default function AccountsPage() {
       <PageHeader
         title="アカウント管理"
         description="Google Workspace、Zoom、Zoom Phoneのアカウントを一元管理します。"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => setSyncOpen(true)}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            既存アカウント同期
+          </Button>
+        }
       />
 
       <Tabs value={mainTab} onValueChange={setMainTab}>
@@ -736,6 +745,12 @@ export default function AccountsPage() {
         open={provisionOpen}
         onOpenChange={setProvisionOpen}
         defaultProvider={provisionProvider}
+      />
+
+      {/* Sync Accounts Dialog */}
+      <SyncAccountsDialog
+        open={syncOpen}
+        onOpenChange={setSyncOpen}
       />
     </div>
   )

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
+import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
+import { createUser as createZoomUser } from '@/lib/integrations/zoom'
 import type { Json } from '@/lib/types/database'
 
 export async function GET(request: NextRequest) {
@@ -143,7 +145,67 @@ export async function POST(request: NextRequest) {
       new_data: staff as unknown as Record<string, Json>,
     })
 
-    return NextResponse.json(staff, { status: 201 })
+    // --- External account provisioning ---
+    const provisioning: Record<string, { success: boolean; email?: string; error?: string }> = {}
+
+    const createGoogleAccount = body.create_google_account === true
+    const createZoomAccount = body.create_zoom_account === true
+
+    // Google Workspace provisioning
+    if (createGoogleAccount && body.google_email_prefix) {
+      try {
+        const googleEmail = `${body.google_email_prefix}@canvi.co.jp`
+        const googleUser = await createGoogleUser({
+          email: googleEmail,
+          givenName: formData.first_name,
+          familyName: formData.last_name,
+          orgUnitPath: body.google_org_unit || '/スタッフ',
+        })
+        provisioning.google_workspace = {
+          success: true,
+          email: googleUser.primaryEmail,
+        }
+      } catch (err) {
+        console.error('Google Workspace provisioning error:', err)
+        provisioning.google_workspace = {
+          success: false,
+          error: err instanceof Error ? err.message : 'Google Workspaceアカウントの作成に失敗しました',
+        }
+      }
+    }
+
+    // Zoom provisioning
+    if (createZoomAccount) {
+      try {
+        // Use Google Workspace email if created, otherwise use staff email
+        const zoomEmail = provisioning.google_workspace?.success && provisioning.google_workspace.email
+          ? provisioning.google_workspace.email
+          : formData.email
+        const zoomUser = await createZoomUser({
+          email: zoomEmail,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          type: body.zoom_license_type || 1,
+        })
+        provisioning.zoom = {
+          success: true,
+          email: zoomUser.email,
+        }
+      } catch (err) {
+        console.error('Zoom provisioning error:', err)
+        provisioning.zoom = {
+          success: false,
+          error: err instanceof Error ? err.message : 'Zoomアカウントの作成に失敗しました',
+        }
+      }
+    }
+
+    const response = {
+      ...staff,
+      ...(Object.keys(provisioning).length > 0 ? { provisioning } : {}),
+    }
+
+    return NextResponse.json(response, { status: 201 })
   } catch (err) {
     console.error('Staff POST error:', err)
     return NextResponse.json(

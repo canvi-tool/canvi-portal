@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { staffFormSchema, type StaffFormValues } from '@/lib/validations/staff'
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -22,10 +24,19 @@ import {
 } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
+export interface ProvisioningData {
+  create_google_account: boolean
+  google_email_prefix: string
+  google_org_unit: string
+  create_zoom_account: boolean
+  zoom_license_type: number
+}
+
 interface StaffFormProps {
   defaultValues?: Partial<StaffFormValues>
-  onSubmit: (data: StaffFormValues) => void | Promise<void>
+  onSubmit: (data: StaffFormValues, provisioning?: ProvisioningData) => void | Promise<void>
   isLoading?: boolean
+  showProvisioning?: boolean
 }
 
 function FormField({
@@ -51,11 +62,24 @@ function FormField({
   )
 }
 
-export function StaffForm({ defaultValues, onSubmit, isLoading }: StaffFormProps) {
+const ORG_UNITS = [
+  { value: '/管理部', label: '管理部' },
+  { value: '/営業部', label: '営業部' },
+  { value: '/開発部', label: '開発部' },
+  { value: '/スタッフ', label: 'スタッフ' },
+]
+
+const ZOOM_LICENSE_TYPES = [
+  { value: 1, label: 'Basic（無料）' },
+  { value: 2, label: 'Licensed（有料）' },
+]
+
+export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true }: StaffFormProps) {
   const {
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors },
   } = useForm<StaffFormValues>({
     resolver: zodResolver(staffFormSchema),
@@ -81,8 +105,50 @@ export function StaffForm({ defaultValues, onSubmit, isLoading }: StaffFormProps
     },
   })
 
+  // Provisioning state (separate from zod schema)
+  const [createGoogle, setCreateGoogle] = useState(false)
+  const [googleEmailPrefix, setGoogleEmailPrefix] = useState('')
+  const [googleOrgUnit, setGoogleOrgUnit] = useState('/スタッフ')
+  const [createZoom, setCreateZoom] = useState(false)
+  const [zoomLicenseType, setZoomLicenseType] = useState(1)
+  const [googleEmailManuallyEdited, setGoogleEmailManuallyEdited] = useState(false)
+
+  // Watch last_name_kana for auto-filling google email prefix
+  const lastNameKana = watch('last_name_kana')
+
+  // Auto-fill google email prefix from last_name_kana (convert katakana to romaji-like lowercase)
+  useEffect(() => {
+    if (createGoogle && !googleEmailManuallyEdited && lastNameKana) {
+      // Simple katakana to romaji conversion for common names
+      const romaji = kanaToRomaji(lastNameKana).toLowerCase()
+      if (romaji) {
+        setGoogleEmailPrefix(romaji)
+      }
+    }
+  }, [lastNameKana, createGoogle, googleEmailManuallyEdited])
+
+  const handleFormSubmit = (data: StaffFormValues) => {
+    if (showProvisioning && (createGoogle || createZoom)) {
+      const provisioningData: ProvisioningData = {
+        create_google_account: createGoogle,
+        google_email_prefix: googleEmailPrefix,
+        google_org_unit: googleOrgUnit,
+        create_zoom_account: createZoom,
+        zoom_license_type: zoomLicenseType,
+      }
+      onSubmit(data, provisioningData)
+    } else {
+      onSubmit(data)
+    }
+  }
+
+  const googleEmail = googleEmailPrefix ? `${googleEmailPrefix}@canvi.co.jp` : ''
+
+  // Determine which email Zoom will use
+  const zoomEmail = createGoogle && googleEmail ? googleEmail : watch('email') || ''
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* 基本情報 */}
       <Card>
         <CardHeader>
@@ -199,6 +265,118 @@ export function StaffForm({ defaultValues, onSubmit, isLoading }: StaffFormProps
         </CardContent>
       </Card>
 
+      {/* 外部アカウント作成 */}
+      {showProvisioning && (
+        <Card>
+          <CardHeader>
+            <CardTitle>外部アカウント作成</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Google Workspace */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="create-google" className="text-sm font-medium">
+                  Google Workspaceアカウントを作成
+                </Label>
+                <Switch
+                  id="create-google"
+                  checked={createGoogle}
+                  onCheckedChange={setCreateGoogle}
+                />
+              </div>
+
+              {createGoogle && (
+                <div className="grid gap-4 sm:grid-cols-2 pl-1 border-l-2 border-muted ml-1">
+                  <FormField label="メールアドレス" required>
+                    <div className="flex items-center gap-0">
+                      <Input
+                        value={googleEmailPrefix}
+                        onChange={(e) => {
+                          setGoogleEmailPrefix(e.target.value)
+                          setGoogleEmailManuallyEdited(true)
+                        }}
+                        placeholder="username"
+                        className="rounded-r-none"
+                      />
+                      <span className="inline-flex items-center rounded-r-md border border-l-0 border-input bg-muted px-3 h-9 text-sm text-muted-foreground whitespace-nowrap">
+                        @canvi.co.jp
+                      </span>
+                    </div>
+                  </FormField>
+
+                  <FormField label="組織部門" required>
+                    <Select
+                      value={googleOrgUnit}
+                      onValueChange={setGoogleOrgUnit}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="選択してください" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ORG_UNITS.map((ou) => (
+                          <SelectItem key={ou.value} value={ou.value}>
+                            {ou.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </div>
+              )}
+            </div>
+
+            {/* Zoom */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="create-zoom" className="text-sm font-medium">
+                  Zoomアカウントを作成
+                </Label>
+                <Switch
+                  id="create-zoom"
+                  checked={createZoom}
+                  onCheckedChange={setCreateZoom}
+                />
+              </div>
+
+              {createZoom && (
+                <div className="grid gap-4 sm:grid-cols-2 pl-1 border-l-2 border-muted ml-1">
+                  <FormField label="ライセンス種別" required>
+                    <Select
+                      value={String(zoomLicenseType)}
+                      onValueChange={(val) => setZoomLicenseType(Number(val))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="選択してください" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ZOOM_LICENSE_TYPES.map((lt) => (
+                          <SelectItem key={lt.value} value={String(lt.value)}>
+                            {lt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+
+                  <FormField label="使用メールアドレス">
+                    <Input
+                      value={zoomEmail}
+                      disabled
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {createGoogle
+                        ? 'Google Workspaceのメールアドレスを使用します'
+                        : 'スタッフのメールアドレスを使用します'}
+                    </p>
+                  </FormField>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 銀行口座 */}
       <Card>
         <CardHeader>
@@ -295,4 +473,74 @@ export function StaffForm({ defaultValues, onSubmit, isLoading }: StaffFormProps
       </div>
     </form>
   )
+}
+
+/**
+ * Simple katakana to romaji conversion for common Japanese surnames.
+ * This is a basic mapping - not exhaustive but covers common patterns.
+ */
+function kanaToRomaji(kana: string): string {
+  const map: Record<string, string> = {
+    'ア': 'a', 'イ': 'i', 'ウ': 'u', 'エ': 'e', 'オ': 'o',
+    'カ': 'ka', 'キ': 'ki', 'ク': 'ku', 'ケ': 'ke', 'コ': 'ko',
+    'サ': 'sa', 'シ': 'shi', 'ス': 'su', 'セ': 'se', 'ソ': 'so',
+    'タ': 'ta', 'チ': 'chi', 'ツ': 'tsu', 'テ': 'te', 'ト': 'to',
+    'ナ': 'na', 'ニ': 'ni', 'ヌ': 'nu', 'ネ': 'ne', 'ノ': 'no',
+    'ハ': 'ha', 'ヒ': 'hi', 'フ': 'fu', 'ヘ': 'he', 'ホ': 'ho',
+    'マ': 'ma', 'ミ': 'mi', 'ム': 'mu', 'メ': 'me', 'モ': 'mo',
+    'ヤ': 'ya', 'ユ': 'yu', 'ヨ': 'yo',
+    'ラ': 'ra', 'リ': 'ri', 'ル': 'ru', 'レ': 're', 'ロ': 'ro',
+    'ワ': 'wa', 'ヲ': 'wo', 'ン': 'n',
+    'ガ': 'ga', 'ギ': 'gi', 'グ': 'gu', 'ゲ': 'ge', 'ゴ': 'go',
+    'ザ': 'za', 'ジ': 'ji', 'ズ': 'zu', 'ゼ': 'ze', 'ゾ': 'zo',
+    'ダ': 'da', 'ヂ': 'di', 'ヅ': 'du', 'デ': 'de', 'ド': 'do',
+    'バ': 'ba', 'ビ': 'bi', 'ブ': 'bu', 'ベ': 'be', 'ボ': 'bo',
+    'パ': 'pa', 'ピ': 'pi', 'プ': 'pu', 'ペ': 'pe', 'ポ': 'po',
+    'キャ': 'kya', 'キュ': 'kyu', 'キョ': 'kyo',
+    'シャ': 'sha', 'シュ': 'shu', 'ショ': 'sho',
+    'チャ': 'cha', 'チュ': 'chu', 'チョ': 'cho',
+    'ニャ': 'nya', 'ニュ': 'nyu', 'ニョ': 'nyo',
+    'ヒャ': 'hya', 'ヒュ': 'hyu', 'ヒョ': 'hyo',
+    'ミャ': 'mya', 'ミュ': 'myu', 'ミョ': 'myo',
+    'リャ': 'rya', 'リュ': 'ryu', 'リョ': 'ryo',
+    'ギャ': 'gya', 'ギュ': 'gyu', 'ギョ': 'gyo',
+    'ジャ': 'ja', 'ジュ': 'ju', 'ジョ': 'jo',
+    'ビャ': 'bya', 'ビュ': 'byu', 'ビョ': 'byo',
+    'ピャ': 'pya', 'ピュ': 'pyu', 'ピョ': 'pyo',
+    'ッ': '',  // handled as double consonant
+    'ー': '',  // long vowel mark (ignored)
+  }
+
+  let result = ''
+  let i = 0
+  while (i < kana.length) {
+    // Try two-character combinations first (for combo kana like キャ)
+    if (i + 1 < kana.length) {
+      const twoChar = kana[i] + kana[i + 1]
+      if (map[twoChar] !== undefined) {
+        result += map[twoChar]
+        i += 2
+        continue
+      }
+    }
+
+    // Handle small tsu (ッ) - doubles the next consonant
+    if (kana[i] === 'ッ' && i + 1 < kana.length) {
+      const nextChar = kana[i + 1]
+      const nextRomaji = map[nextChar]
+      if (nextRomaji && nextRomaji.length > 0) {
+        result += nextRomaji[0]  // double the first consonant
+      }
+      i++
+      continue
+    }
+
+    const oneChar = kana[i]
+    if (map[oneChar] !== undefined) {
+      result += map[oneChar]
+    }
+    i++
+  }
+
+  return result
 }

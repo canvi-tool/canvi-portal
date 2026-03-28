@@ -2,9 +2,19 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { StaffFormValues } from '@/lib/validations/staff'
+import type { ProvisioningData } from '@/app/(portal)/staff/_components/staff-form'
 import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
+
+export interface ProvisioningResult {
+  google_workspace?: { success: boolean; email?: string; error?: string }
+  zoom?: { success: boolean; email?: string; error?: string }
+}
+
+export interface CreateStaffResponse extends Staff {
+  provisioning?: ProvisioningResult
+}
 
 interface StaffListParams {
   search?: string
@@ -46,11 +56,25 @@ async function fetchStaff(id: string): Promise<Staff & { contracts: Tables<'cont
   return res.json()
 }
 
-async function createStaff(data: StaffFormValues): Promise<Staff> {
+interface CreateStaffInput {
+  formData: StaffFormValues
+  provisioning?: ProvisioningData
+}
+
+async function createStaff({ formData, provisioning }: CreateStaffInput): Promise<CreateStaffResponse> {
   const res = await fetch('/api/staff', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      ...formData,
+      ...(provisioning ? {
+        create_google_account: provisioning.create_google_account,
+        google_email_prefix: provisioning.google_email_prefix,
+        google_org_unit: provisioning.google_org_unit,
+        create_zoom_account: provisioning.create_zoom_account,
+        zoom_license_type: provisioning.zoom_license_type,
+      } : {}),
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'スタッフの作成に失敗しました' }))
@@ -100,7 +124,7 @@ export function useStaff(id: string) {
 export function useCreateStaff() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: createStaff,
+    mutationFn: (input: CreateStaffInput) => createStaff(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', 'list'] })
     },

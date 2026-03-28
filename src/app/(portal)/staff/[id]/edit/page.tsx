@@ -81,6 +81,7 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
         defaultValues={defaultValues}
         onSubmit={handleSubmit}
         isLoading={isPending}
+        showProvisioning={false}
       />
     </div>
   )
