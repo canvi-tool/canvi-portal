@@ -17,17 +17,15 @@ interface PortalShellProps {
 }
 
 export function PortalShell({ user, children }: PortalShellProps) {
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
+    // クッキー削除
+    document.cookie = 'demo_role=;path=/;max-age=0'
+    // Supabase セッション削除（awaitしない - ハングを防ぐ）
     try {
-      // デモモードのクッキー削除
-      document.cookie = 'demo_role=;path=/;max-age=0'
-      // Supabase セッション削除
       const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch (err) {
-      console.error('ログアウトエラー:', err)
-    }
-    // 必ずリダイレクト
+      supabase.auth.signOut().catch(() => {})
+    } catch {}
+    // 即座にリダイレクト
     window.location.href = '/login'
   }
 
