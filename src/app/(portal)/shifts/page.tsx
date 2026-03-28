@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftWeeklyTimeline } from './_components/shift-weekly-timeline'
+import { ShiftEditDialog } from './_components/shift-edit-dialog'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 // --- Types ---
@@ -174,12 +176,44 @@ export default function ShiftsPage() {
   const router = useRouter()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
-  const [viewMode, setViewMode] = useState<string>('monthly')
+  const [viewMode, setViewMode] = useState<string>('weekly')
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterProject, setFilterProject] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [selectedDate, setSelectedDate] = useState<Date>(today)
   const [, setSelectedDayDetail] = useState<string | null>(null)
+
+  // Edit dialog state
+  const [editingShift, setEditingShift] = useState<DemoShift | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+
+  const handleShiftClick = (shift: { id: string; staffId: string; staffName: string; projectId: string; projectName: string; date: string; startTime: string; endTime: string; status: ShiftStatus; notes?: string }) => {
+    // Find the full DemoShift from our data
+    const fullShift = DEMO_SHIFTS.find(s => s.id === shift.id)
+    if (fullShift) {
+      setEditingShift(fullShift)
+      setEditDialogOpen(true)
+    }
+  }
+
+  const handleShiftSave = (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
+    toast.success(`${updated.staffName}のシフトを更新しました`)
+  }
+
+  const handleShiftDelete = (shiftId: string) => {
+    toast.success('シフトを削除しました')
+    console.log('Delete shift:', shiftId)
+  }
+
+  const handleShiftApprove = (shiftId: string) => {
+    toast.success('シフトを承認しました')
+    console.log('Approve shift:', shiftId)
+  }
+
+  const handleShiftReject = (shiftId: string) => {
+    toast.success('シフトを却下しました')
+    console.log('Reject shift:', shiftId)
+  }
 
   const handlePrevMonth = () => {
     if (month === 1) { setYear(year - 1); setMonth(12) } else { setMonth(month - 1) }
@@ -368,55 +402,68 @@ export default function ShiftsPage() {
 
       {/* View Mode Tabs */}
       <Tabs value={viewMode} onValueChange={setViewMode}>
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="monthly">月表示</TabsTrigger>
-            <TabsTrigger value="weekly">週表示</TabsTrigger>
-            <TabsTrigger value="daily">日表示</TabsTrigger>
-          </TabsList>
-
-          {/* Navigation arrows per view */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Navigation - left side */}
           <div className="flex items-center gap-2">
             {viewMode === 'monthly' && (
               <>
-                <Button variant="outline" size="icon" onClick={handlePrevMonth}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-semibold min-w-[120px] text-center">
+                <span className="text-sm font-semibold min-w-[100px] text-center">
                   {year}年{month}月
                 </span>
-                <Button variant="outline" size="icon" onClick={handleNextMonth}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </>
             )}
             {viewMode === 'weekly' && (
               <>
-                <Button variant="outline" size="icon" onClick={handlePrevWeek}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevWeek}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-semibold min-w-[200px] text-center">
+                <span className="text-sm font-semibold min-w-[180px] text-center">
                   {weekDates[0]?.replace(/-/g, '/')} ~ {weekDates[6]?.replace(/-/g, '/')}
                 </span>
-                <Button variant="outline" size="icon" onClick={handleNextWeek}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextWeek}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </>
             )}
             {viewMode === 'daily' && (
               <>
-                <Button variant="outline" size="icon" onClick={handlePrevDay}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevDay}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-semibold min-w-[160px] text-center">
+                <span className="text-sm font-semibold min-w-[140px] text-center">
                   {selectedDate.getFullYear()}年{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日({WEEKDAY_LABELS[selectedDate.getDay()]})
                 </span>
-                <Button variant="outline" size="icon" onClick={handleNextDay}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextDay}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-8"
+              onClick={() => {
+                setSelectedDate(today)
+                setYear(today.getFullYear())
+                setMonth(today.getMonth() + 1)
+              }}
+            >
+              今日
+            </Button>
           </div>
+
+          {/* Tabs - right side */}
+          <TabsList>
+            <TabsTrigger value="monthly">月</TabsTrigger>
+            <TabsTrigger value="weekly">週</TabsTrigger>
+            <TabsTrigger value="daily">日</TabsTrigger>
+          </TabsList>
         </div>
 
         {/* Monthly View */}
@@ -515,7 +562,7 @@ export default function ShiftsPage() {
           <ShiftWeeklyTimeline
             weekDates={weekDates}
             shifts={filteredShifts}
-            onShiftClick={(shift) => router.push(`/shifts/${shift.id}`)}
+            onShiftClick={handleShiftClick}
           />
         </TabsContent>
 
@@ -524,10 +571,21 @@ export default function ShiftsPage() {
           <ShiftWeeklyTimeline
             weekDates={[selectedDayStr]}
             shifts={dayShifts}
-            onShiftClick={(shift) => router.push(`/shifts/${shift.id}`)}
+            onShiftClick={handleShiftClick}
           />
         </TabsContent>
       </Tabs>
+
+      {/* Shift Edit Dialog */}
+      <ShiftEditDialog
+        shift={editingShift}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSave={handleShiftSave}
+        onDelete={handleShiftDelete}
+        onApprove={handleShiftApprove}
+        onReject={handleShiftReject}
+      />
     </div>
   )
 }
