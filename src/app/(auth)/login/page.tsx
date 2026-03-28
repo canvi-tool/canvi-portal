@@ -193,7 +193,9 @@ export default function LoginPage() {
           password,
         })
         if (signInError) throw signInError
-        router.push('/dashboard')
+        // Full page reload to ensure middleware reads auth cookies correctly
+        window.location.href = '/dashboard'
+        return
       }
     } catch (err: unknown) {
       const authErr = err as { message?: string }
