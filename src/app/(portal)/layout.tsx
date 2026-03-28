@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic'
 
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { PortalShell } from './portal-shell'
+import { getDemoAccountByRole, type DemoRole } from '@/lib/demo-accounts'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -11,14 +13,24 @@ export default async function PortalLayout({
 }: {
   children: React.ReactNode
 }) {
-  // デモモード: 仮ユーザーで表示
+  // デモモード
   if (DEMO_MODE) {
+    const cookieStore = await cookies()
+    const demoRole = cookieStore.get('demo_role')?.value as DemoRole | undefined
+
+    if (!demoRole) {
+      redirect('/login')
+    }
+
+    const account = getDemoAccountByRole(demoRole)
     return (
       <PortalShell
         user={{
-          displayName: 'デモユーザー',
-          email: 'demo@canvi.jp',
+          displayName: account.name,
+          email: account.email,
           avatarUrl: undefined,
+          role: account.role,
+          roleLabelJa: account.roleLabelJa,
         }}
       >
         {children}
@@ -26,6 +38,7 @@ export default async function PortalLayout({
     )
   }
 
+  // 本番モード
   let user = null
   try {
     const supabase = await createServerSupabaseClient()

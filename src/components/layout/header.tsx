@@ -69,6 +69,11 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
           <span className="hidden text-sm font-medium sm:inline-block">
             {user?.displayName ?? 'ゲスト'}
           </span>
+          {user && 'roleLabelJa' in user && (user as { roleLabelJa?: string }).roleLabelJa && (
+            <span className="hidden text-xs text-muted-foreground sm:inline-block">
+              ({(user as { roleLabelJa: string }).roleLabelJa})
+            </span>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-56">
           <DropdownMenuLabel>

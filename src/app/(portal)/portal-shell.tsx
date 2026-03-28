@@ -4,9 +4,16 @@ import { useRouter } from 'next/navigation'
 import { DesktopSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { useAuth } from '@/components/providers/auth-provider'
+import type { DemoRole } from '@/lib/demo-accounts'
 
 interface PortalShellProps {
-  user: { displayName: string; email: string; avatarUrl?: string }
+  user: {
+    displayName: string
+    email: string
+    avatarUrl?: string
+    role?: DemoRole
+    roleLabelJa?: string
+  }
   children: React.ReactNode
 }
 

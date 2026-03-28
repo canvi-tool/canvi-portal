@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS, APP_NAME, type NavItem } from '@/lib/constants'
+import { canAccessRoute, type DemoRole } from '@/lib/demo-accounts'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -45,7 +46,7 @@ const iconMap: Record<string, LucideIcon> = {
 }
 
 export interface SidebarProps {
-  user?: { displayName: string; email: string; avatarUrl?: string } | null
+  user?: { displayName: string; email: string; avatarUrl?: string; role?: DemoRole; roleLabelJa?: string } | null
   onSignOut?: () => void
 }
 
@@ -108,10 +109,26 @@ function SidebarContent({
         </Link>
       </div>
 
+      {/* Role badge */}
+      {user?.roleLabelJa && !collapsed && (
+        <div className="px-4 pb-1">
+          <span className={cn(
+            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+            user.role === 'owner' && 'bg-amber-500/20 text-amber-300',
+            user.role === 'admin' && 'bg-blue-500/20 text-blue-300',
+            user.role === 'staff' && 'bg-emerald-500/20 text-emerald-300',
+          )}>
+            {user.roleLabelJa}
+          </span>
+        </div>
+      )}
+
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS
+            .filter((item) => !user?.role || canAccessRoute(user.role, item.href))
+            .map((item) => (
             <div key={item.href} onClick={onNavigate}>
               <NavLink
                 item={item}
