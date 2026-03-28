@@ -73,6 +73,31 @@ export const ALERT_SEVERITY_LABELS: Record<string, string> = {
   critical: '重大',
 }
 
+export const ESTIMATE_STATUS_LABELS: Record<string, string> = {
+  draft: '下書き',
+  sent: '送付済',
+  accepted: '承認済',
+  rejected: '却下',
+  expired: '期限切れ',
+}
+
+export const PROJECT_CONTRACT_STATUS_LABELS: Record<string, string> = {
+  draft: '下書き',
+  pending_signature: '署名待ち',
+  signed: '署名済',
+  active: '有効',
+  expired: '期限切れ',
+  terminated: '終了',
+}
+
+export const INVOICE_STATUS_LABELS: Record<string, string> = {
+  draft: '下書き',
+  sent: '送付済',
+  paid: '入金済',
+  overdue: '支払遅延',
+  cancelled: 'キャンセル',
+}
+
 export interface NavItem {
   label: string
   href: string
@@ -85,6 +110,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'スタッフ管理', href: '/staff', icon: 'Users' },
   { label: '契約管理', href: '/contracts', icon: 'FileText' },
   { label: 'プロジェクト', href: '/projects', icon: 'Briefcase' },
+  { label: '書類管理', href: '/documents', icon: 'FileStack' },
   { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
   { label: '勤務報告', href: '/reports/work', icon: 'ClipboardList' },
   { label: '業務実績', href: '/reports/performance', icon: 'BarChart3' },

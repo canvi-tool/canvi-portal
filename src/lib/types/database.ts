@@ -1065,6 +1065,371 @@ export interface Database {
         }
         Relationships: []
       }
+      project_estimates: {
+        Row: {
+          id: string
+          project_id: string
+          estimate_number: string
+          title: string
+          client_name: string
+          client_address: string | null
+          client_contact_person: string | null
+          client_email: string | null
+          description: string | null
+          items: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal: number
+          tax_rate: number
+          tax_amount: number
+          total_amount: number
+          valid_until: string | null
+          notes: string | null
+          status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          estimate_number: string
+          title: string
+          client_name: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          description?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          valid_until?: string | null
+          notes?: string | null
+          status?: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          estimate_number?: string
+          title?: string
+          client_name?: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          description?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          valid_until?: string | null
+          notes?: string | null
+          status?: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_estimates_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_estimates_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      project_contracts: {
+        Row: {
+          id: string
+          project_id: string
+          estimate_id: string | null
+          contract_number: string
+          title: string
+          client_name: string
+          client_address: string | null
+          client_contact_person: string | null
+          client_email: string | null
+          content: string | null
+          items: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal: number
+          tax_rate: number
+          tax_amount: number
+          total_amount: number
+          start_date: string | null
+          end_date: string | null
+          payment_terms: string | null
+          notes: string | null
+          status: 'draft' | 'pending_signature' | 'signed' | 'active' | 'expired' | 'terminated'
+          external_sign_id: string | null
+          signed_at: string | null
+          signed_document_url: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          estimate_id?: string | null
+          contract_number: string
+          title: string
+          client_name: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          content?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          start_date?: string | null
+          end_date?: string | null
+          payment_terms?: string | null
+          notes?: string | null
+          status?: 'draft' | 'pending_signature' | 'signed' | 'active' | 'expired' | 'terminated'
+          external_sign_id?: string | null
+          signed_at?: string | null
+          signed_document_url?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          estimate_id?: string | null
+          contract_number?: string
+          title?: string
+          client_name?: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          content?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          start_date?: string | null
+          end_date?: string | null
+          payment_terms?: string | null
+          notes?: string | null
+          status?: 'draft' | 'pending_signature' | 'signed' | 'active' | 'expired' | 'terminated'
+          external_sign_id?: string | null
+          signed_at?: string | null
+          signed_document_url?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_contracts_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_contracts_estimate_id_fkey'
+            columns: ['estimate_id']
+            isOneToOne: false
+            referencedRelation: 'project_estimates'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_contracts_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      project_invoices: {
+        Row: {
+          id: string
+          project_id: string
+          contract_id: string | null
+          invoice_number: string
+          title: string
+          client_name: string
+          client_address: string | null
+          client_contact_person: string | null
+          client_email: string | null
+          description: string | null
+          items: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal: number
+          tax_rate: number
+          tax_amount: number
+          total_amount: number
+          issue_date: string
+          due_date: string | null
+          payment_method: string | null
+          bank_info: string | null
+          notes: string | null
+          status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+          sent_at: string | null
+          paid_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          contract_id?: string | null
+          invoice_number: string
+          title: string
+          client_name: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          description?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          issue_date?: string
+          due_date?: string | null
+          payment_method?: string | null
+          bank_info?: string | null
+          notes?: string | null
+          status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+          sent_at?: string | null
+          paid_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          contract_id?: string | null
+          invoice_number?: string
+          title?: string
+          client_name?: string
+          client_address?: string | null
+          client_contact_person?: string | null
+          client_email?: string | null
+          description?: string | null
+          items?: Array<{
+            name: string
+            description?: string
+            quantity: number
+            unit: string
+            unit_price: number
+            amount: number
+          }>
+          subtotal?: number
+          tax_rate?: number
+          tax_amount?: number
+          total_amount?: number
+          issue_date?: string
+          due_date?: string | null
+          payment_method?: string | null
+          bank_info?: string | null
+          notes?: string | null
+          status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+          sent_at?: string | null
+          paid_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_invoices_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_invoices_contract_id_fkey'
+            columns: ['contract_id']
+            isOneToOne: false
+            referencedRelation: 'project_contracts'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_invoices_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1120,6 +1485,15 @@ export interface Database {
         | 'anomaly_detected'
       alert_severity: 'info' | 'warning' | 'critical'
       field_type: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'textarea'
+      estimate_status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+      project_contract_status:
+        | 'draft'
+        | 'pending_signature'
+        | 'signed'
+        | 'active'
+        | 'expired'
+        | 'terminated'
+      invoice_status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
     }
     CompositeTypes: {
       [_ in never]: never
