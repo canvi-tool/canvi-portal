@@ -140,4 +140,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'AI分析', href: '/ai/anomalies', icon: 'Brain' },
   { label: 'アラート', href: '/alerts', icon: 'Bell' },
   { label: '設定', href: '/settings', icon: 'Settings' },
+  { label: 'アカウント管理', href: '/accounts', icon: 'KeyRound' },
 ]

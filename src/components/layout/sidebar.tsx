@@ -24,6 +24,7 @@ import {
   Brain,
   Bell,
   Settings,
+  KeyRound,
   Menu,
   LogOut,
   ChevronLeft,
@@ -45,6 +46,7 @@ const iconMap: Record<string, LucideIcon> = {
   Brain,
   Bell,
   Settings,
+  KeyRound,
 }
 
 export interface SidebarProps {
