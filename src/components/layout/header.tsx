@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { MobileSidebar, type SidebarProps } from '@/components/layout/sidebar'
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { Bell, Settings, User, LogOut } from 'lucide-react'
 
 interface HeaderProps {
@@ -21,7 +20,6 @@ interface HeaderProps {
 }
 
 export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) {
-  const router = useRouter()
   const initials = user?.displayName
     ? user.displayName
         .split(/\s+/)
@@ -40,11 +38,9 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
       <div className="flex-1" />
 
       {/* Notifications */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative"
-        onClick={() => router.push('/alerts')}
+      <Link
+        href="/alerts"
+        className="relative inline-flex items-center justify-center rounded-lg size-9 hover:bg-muted transition-colors"
       >
         <Bell className="h-5 w-5" />
         {notificationCount > 0 && (
@@ -53,7 +49,7 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
           </span>
         )}
         <span className="sr-only">通知</span>
-      </Button>
+      </Link>
 
       {/* User dropdown */}
       <DropdownMenu>
@@ -69,11 +65,6 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
           <span className="hidden text-sm font-medium sm:inline-block">
             {user?.displayName ?? 'ゲスト'}
           </span>
-          {user && 'roleLabelJa' in user && (user as { roleLabelJa?: string }).roleLabelJa && (
-            <span className="hidden text-xs text-muted-foreground sm:inline-block">
-              ({(user as { roleLabelJa: string }).roleLabelJa})
-            </span>
-          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-56">
           <DropdownMenuLabel>
@@ -83,16 +74,16 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push('/settings')}>
+          <DropdownMenuItem onClick={() => { window.location.href = '/settings' }}>
             <User className="mr-2 h-4 w-4" />
             プロフィール
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push('/settings')}>
+          <DropdownMenuItem onClick={() => { window.location.href = '/settings' }}>
             <Settings className="mr-2 h-4 w-4" />
             設定
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onSignOut}>
+          <DropdownMenuItem onClick={() => { if (onSignOut) onSignOut() }}>
             <LogOut className="mr-2 h-4 w-4" />
             ログアウト
           </DropdownMenuItem>
