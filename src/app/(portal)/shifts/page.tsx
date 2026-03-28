@@ -9,7 +9,6 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Filter,
   CalendarDays,
 } from 'lucide-react'
 
@@ -355,99 +354,36 @@ export default function ShiftsPage() {
         </Card>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Filter className="h-4 w-4" />
-          <span>フィルター:</span>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="全プロジェクト" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全プロジェクト</SelectItem>
-              {DEMO_PROJECTS.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="全ステータス" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全ステータス</SelectItem>
-              {Object.entries(STATUS_CONFIG).map(([key, val]) => (
-                <SelectItem key={key} value={key}>{val.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={filterStaff} onValueChange={setFilterStaff}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="全スタッフ" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全スタッフ</SelectItem>
-              {DEMO_STAFF.map(s => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* View Mode Tabs */}
+      {/* Calendar Toolbar: Nav + Filters + Tabs in one bar */}
       <Tabs value={viewMode} onValueChange={setViewMode}>
-        <div className="flex items-center justify-between gap-4">
-          {/* Navigation - left side */}
-          <div className="flex items-center gap-2">
-            {viewMode === 'monthly' && (
-              <>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-semibold min-w-[100px] text-center">
-                  {year}年{month}月
-                </span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {viewMode === 'weekly' && (
-              <>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevWeek}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-semibold min-w-[180px] text-center">
-                  {weekDates[0]?.replace(/-/g, '/')} ~ {weekDates[6]?.replace(/-/g, '/')}
-                </span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextWeek}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {viewMode === 'daily' && (
-              <>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevDay}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-semibold min-w-[140px] text-center">
-                  {selectedDate.getFullYear()}年{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日({WEEKDAY_LABELS[selectedDate.getDay()]})
-                </span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextDay}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </>
-            )}
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {/* Navigation */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={viewMode === 'monthly' ? handlePrevMonth : viewMode === 'weekly' ? handlePrevWeek : handlePrevDay}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-semibold min-w-[80px] text-center">
+              {viewMode === 'monthly' && `${year}年${month}月`}
+              {viewMode === 'weekly' && `${weekDates[0]?.slice(5).replace('-', '/')} ~ ${weekDates[6]?.slice(5).replace('-', '/')}`}
+              {viewMode === 'daily' && `${selectedDate.getMonth() + 1}/${selectedDate.getDate()}(${WEEKDAY_LABELS[selectedDate.getDay()]})`}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={viewMode === 'monthly' ? handleNextMonth : viewMode === 'weekly' ? handleNextWeek : handleNextDay}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="text-xs h-8"
+              className="text-xs h-8 px-2"
               onClick={() => {
                 setSelectedDate(today)
                 setYear(today.getFullYear())
@@ -458,11 +394,59 @@ export default function ShiftsPage() {
             </Button>
           </div>
 
-          {/* Tabs - right side */}
-          <TabsList>
-            <TabsTrigger value="monthly">月</TabsTrigger>
-            <TabsTrigger value="weekly">週</TabsTrigger>
-            <TabsTrigger value="daily">日</TabsTrigger>
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Filters - compact */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Select value={filterProject} onValueChange={setFilterProject}>
+              <SelectTrigger className="h-8 w-auto min-w-[100px] text-xs">
+                <SelectValue>
+                  {filterProject === 'all' ? '全PJ' : DEMO_PROJECTS.find(p => p.id === filterProject)?.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全プロジェクト</SelectItem>
+                {DEMO_PROJECTS.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-8 w-auto min-w-[80px] text-xs">
+                <SelectValue>
+                  {filterStatus === 'all' ? '全状態' : STATUS_CONFIG[filterStatus as ShiftStatus]?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全ステータス</SelectItem>
+                {Object.entries(STATUS_CONFIG).map(([key, val]) => (
+                  <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStaff} onValueChange={setFilterStaff}>
+              <SelectTrigger className="h-8 w-auto min-w-[80px] text-xs">
+                <SelectValue>
+                  {filterStaff === 'all' ? '全員' : DEMO_STAFF.find(s => s.id === filterStaff)?.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全スタッフ</SelectItem>
+                {DEMO_STAFF.map(s => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* View tabs */}
+          <TabsList className="h-8">
+            <TabsTrigger value="monthly" className="text-xs px-2.5 h-6">月</TabsTrigger>
+            <TabsTrigger value="weekly" className="text-xs px-2.5 h-6">週</TabsTrigger>
+            <TabsTrigger value="daily" className="text-xs px-2.5 h-6">日</TabsTrigger>
           </TabsList>
         </div>
 

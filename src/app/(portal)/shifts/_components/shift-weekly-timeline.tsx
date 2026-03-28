@@ -222,7 +222,7 @@ export function ShiftWeeklyTimeline({
             <div
               key={dateStr}
               className={cn(
-                'flex-1 py-2 px-1 text-center border-r last:border-r-0 min-w-[120px]',
+                'flex-1 py-2 px-1 text-center border-r last:border-r-0 min-w-0',
                 isToday && 'bg-blue-50/60'
               )}
             >
@@ -282,7 +282,7 @@ export function ShiftWeeklyTimeline({
               <div
                 key={dateStr}
                 className={cn(
-                  'flex-1 border-r last:border-r-0 relative min-w-[120px]',
+                  'flex-1 border-r last:border-r-0 relative min-w-0',
                   isToday && 'bg-blue-50/30'
                 )}
                 style={{ height: `${totalHeight}px` }}
