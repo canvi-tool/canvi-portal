@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import {
   createCustomFieldSchema,
   updateCustomFieldSchema,
@@ -7,7 +8,45 @@ import {
   ENTITY_TYPES,
 } from '@/lib/validations/settings'
 
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+const demoCustomFields = [
+  {
+    id: 'cf-001', entity_type: 'staff', field_name: 'staff_code',
+    field_label: 'スタッフコード', field_type: 'text', options: null,
+    is_required: true, sort_order: 0, is_active: true,
+    created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cf-002', entity_type: 'staff', field_name: 'department',
+    field_label: '部署', field_type: 'select',
+    options: ['営業部', '管理部', '開発部', 'カスタマーサポート'],
+    is_required: false, sort_order: 1, is_active: true,
+    created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cf-003', entity_type: 'project', field_name: 'client_industry',
+    field_label: 'クライアント業種', field_type: 'select',
+    options: ['IT', '金融', '不動産', '人材', '医療', 'その他'],
+    is_required: false, sort_order: 0, is_active: true,
+    created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'cf-004', entity_type: 'contract', field_name: 'contract_category',
+    field_label: '契約カテゴリ', field_type: 'select',
+    options: ['業務委託', '派遣', 'SES', 'コンサルティング'],
+    is_required: false, sort_order: 0, is_active: true,
+    created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+  },
+]
+
 async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
+  if (DEMO_MODE) {
+    const cookieStore = await cookies()
+    const role = cookieStore.get('demo_role')?.value
+    return role === 'owner'
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -22,8 +61,8 @@ async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupaba
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const isOwner = await checkOwner(supabase)
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
+  const isOwner = await checkOwner(supabase as never)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
   }
@@ -38,7 +77,11 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { data: fields, error } = await supabase
+  if (DEMO_MODE) {
+    return NextResponse.json({ fields: demoCustomFields.filter(f => f.entity_type === entityType) })
+  }
+
+  const { data: fields, error } = await supabase!
     .from('custom_field_definitions')
     .select('*')
     .eq('entity_type', entityType)
@@ -54,8 +97,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const isOwner = await checkOwner(supabase)
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
+  const isOwner = await checkOwner(supabase as never)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
   }
@@ -70,8 +113,14 @@ export async function POST(request: NextRequest) {
 
   const data = parsed.data
 
+  if (DEMO_MODE) {
+    return NextResponse.json({
+      field: { id: `cf-${Date.now()}`, ...data, sort_order: 0, is_active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    }, { status: 201 })
+  }
+
   // Check for duplicate field_name within same entity_type
-  const { data: existing } = await supabase
+  const { data: existing } = await supabase!
     .from('custom_field_definitions')
     .select('id')
     .eq('entity_type', data.entity_type)
@@ -86,7 +135,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Get max sort_order for this entity type
-  const { data: maxOrderRow } = await supabase
+  const { data: maxOrderRow } = await supabase!
     .from('custom_field_definitions')
     .select('sort_order')
     .eq('entity_type', data.entity_type)
@@ -97,7 +146,7 @@ export async function POST(request: NextRequest) {
 
   const nextOrder = (maxOrderRow?.sort_order ?? -1) + 1
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await supabase!
     .from('custom_field_definitions')
     .insert({
       entity_type: data.entity_type,
@@ -120,8 +169,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const isOwner = await checkOwner(supabase)
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
+  const isOwner = await checkOwner(supabase as never)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
   }
@@ -136,6 +185,10 @@ export async function PUT(request: NextRequest) {
 
   const { id, ...updateData } = parsed.data
 
+  if (DEMO_MODE) {
+    return NextResponse.json({ field: { id, ...updateData, updated_at: new Date().toISOString() } })
+  }
+
   // Build update object, only include defined fields
   const updateObj: Record<string, unknown> = {}
   if (updateData.field_label !== undefined) updateObj.field_label = updateData.field_label
@@ -149,7 +202,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: '更新するフィールドがありません' }, { status: 400 })
   }
 
-  const { data: updated, error } = await supabase
+  const { data: updated, error } = await supabase!
     .from('custom_field_definitions')
     .update(updateObj)
     .eq('id', id)
@@ -165,8 +218,8 @@ export async function PUT(request: NextRequest) {
 
 // PATCH - Reorder fields
 export async function PATCH(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const isOwner = await checkOwner(supabase)
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
+  const isOwner = await checkOwner(supabase as never)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
   }
@@ -179,11 +232,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: firstError }, { status: 400 })
   }
 
+  if (DEMO_MODE) {
+    return NextResponse.json({ success: true })
+  }
+
   const { field_ids } = parsed.data
 
   // Update sort_order for each field
   const updates = field_ids.map((id, index) =>
-    supabase
+    supabase!
       .from('custom_field_definitions')
       .update({ sort_order: index })
       .eq('id', id)

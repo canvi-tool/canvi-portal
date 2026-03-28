@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { INTEGRATION_KEYS, updateIntegrationSchema } from '@/lib/validations/settings'
 
-/**
- * Integration configs are stored in a simple key-value table or
- * environment variables. For this implementation, we use a
- * `integration_configs` approach via Supabase metadata.
- *
- * Since the database schema doesn't include an integrations table,
- * we'll store configs in a simple JSON structure. In production,
- * you would use Supabase Vault or a dedicated secrets manager.
- *
- * For now, we use a lightweight approach: configs are stored as
- * rows in a generic settings table. If that table doesn't exist,
- * we fall back to environment variable checks.
- */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
-async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
+async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>> | null) {
+  if (DEMO_MODE) {
+    const cookieStore = await cookies()
+    const role = cookieStore.get('demo_role')?.value
+    return role === 'owner'
+  }
+  if (!supabase) return false
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -91,7 +87,7 @@ function getIntegrations() {
 }
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient()
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
   const isOwner = await checkOwner(supabase)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
@@ -101,7 +97,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
   const isOwner = await checkOwner(supabase)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
@@ -139,7 +135,7 @@ export async function PUT(request: NextRequest) {
 
 // POST - Test connection
 export async function POST(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = DEMO_MODE ? null : await createServerSupabaseClient()
   const isOwner = await checkOwner(supabase)
   if (!isOwner) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 })
