@@ -11,12 +11,12 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Upsert user record in public.users table
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       if (user) {
+        // Upsert user record in public.users table
         await supabase.from('users').upsert(
           {
             id: user.id,
@@ -27,6 +27,9 @@ export async function GET(request: Request) {
           },
           { onConflict: 'id' }
         )
+
+        // 初回ユーザー（他にユーザーがいなければ）をオーナーに自動設定
+        await assignRoleIfFirstUser(supabase, user.id)
       }
 
       return NextResponse.redirect(`${origin}${next}`)
@@ -34,4 +37,40 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+}
+
+async function assignRoleIfFirstUser(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  userId: string
+) {
+  // 既にロールが割り当てられていれば何もしない
+  const { data: existingRole } = await supabase
+    .from('user_roles')
+    .select('role_id')
+    .eq('user_id', userId)
+    .limit(1)
+
+  if (existingRole && existingRole.length > 0) return
+
+  // ユーザー数を確認 - 1人目ならオーナー
+  const { count } = await supabase
+    .from('users')
+    .select('id', { count: 'exact', head: true })
+
+  const isFirstUser = (count ?? 0) <= 1
+
+  // オーナーまたはスタッフロールを取得
+  const roleName = isFirstUser ? 'owner' : 'staff'
+  const { data: role } = await supabase
+    .from('roles')
+    .select('id')
+    .eq('name', roleName)
+    .single()
+
+  if (role) {
+    await supabase.from('user_roles').upsert(
+      { user_id: userId, role_id: role.id },
+      { onConflict: 'user_id,role_id' }
+    )
+  }
 }

@@ -34,6 +34,11 @@ export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   // Google OAuth ログイン（本番用）
   const handleGoogleLogin = async () => {
@@ -163,7 +168,42 @@ export default function LoginPage() {
     )
   }
 
-  // 本番モード: Google OAuth ログイン
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const supabase = createClient()
+
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/callback`,
+          },
+        })
+        if (signUpError) throw signUpError
+        setMessage('確認メールを送信しました。メールのリンクをクリックしてください。')
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (signInError) throw signInError
+        router.push('/dashboard')
+      }
+    } catch (err: unknown) {
+      const authErr = err as { message?: string }
+      setError(authErr.message || 'ログインに失敗しました')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 本番モード: メール + Google OAuth ログイン
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
@@ -175,10 +215,80 @@ export default function LoginPage() {
           業務管理ポータルにログインしてください
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* メールログインフォーム */}
+        <form onSubmit={handleEmailLogin} className="space-y-3">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              メールアドレス
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              パスワード
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
+              placeholder="6文字以上"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+          {message && (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-11"
+            size="lg"
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSignUp ? 'アカウント作成' : 'ログイン'}
+          </Button>
+        </form>
+
+        <button
+          type="button"
+          onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
+          className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          {isSignUp ? '既にアカウントをお持ちの方はこちら' : '新規アカウント作成はこちら'}
+        </button>
+
+        {/* 区切り線 */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-slate-200 dark:border-slate-700" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white dark:bg-slate-950 px-2 text-slate-500">または</span>
+          </div>
+        </div>
+
+        {/* Google OAuth */}
         <Button
           onClick={handleGoogleLogin}
           disabled={isLoading}
+          variant="outline"
           className="w-full h-11"
           size="lg"
         >

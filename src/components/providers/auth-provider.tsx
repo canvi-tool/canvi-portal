@@ -86,10 +86,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession)
       setUser(newSession?.user ?? null)
       setIsLoading(false)
+
+      // メールログイン時にユーザーレコードを作成
+      if (event === 'SIGNED_IN' && newSession?.user) {
+        const u = newSession.user
+        await supabase.from('users').upsert(
+          {
+            id: u.id,
+            email: u.email!,
+            display_name: u.user_metadata?.full_name || u.email!,
+            avatar_url: u.user_metadata?.avatar_url || null,
+          },
+          { onConflict: 'id' }
+        )
+        // ロール自動割り当て
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', u.id)
+          .limit(1)
+        if (!existingRole || existingRole.length === 0) {
+          const { count } = await supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+          const roleName = (count ?? 0) <= 1 ? 'owner' : 'staff'
+          const { data: role } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('name', roleName)
+            .single()
+          if (role) {
+            await supabase.from('user_roles').upsert(
+              { user_id: u.id, role_id: role.id },
+              { onConflict: 'user_id,role_id' }
+            )
+          }
+        }
+      }
     })
 
     return () => {
