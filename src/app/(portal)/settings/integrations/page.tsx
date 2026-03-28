@@ -43,12 +43,13 @@ const INTEGRATION_META: Record<
 > = {
   freee_sign: {
     name: 'freee Sign',
-    description: '電子契約サービスとの連携。契約書の電子署名を管理します。',
+    description: '電子契約サービスとの連携（OAuth 2.0）。契約書の電子署名を管理します。',
     icon: FileSignature,
     configFields: [
-      { key: 'client_id', label: 'クライアントID', placeholder: 'freee Sign クライアントID' },
+      { key: 'client_id', label: 'クライアントID', placeholder: 'freee Sign OAuth クライアントID' },
       { key: 'client_secret', label: 'クライアントシークレット', masked: true, placeholder: '••••••••' },
-      { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://...' },
+      { key: 'sender_user_id', label: '送信者ユーザーID', placeholder: 'freee Sign上の送信者ID' },
+      { key: 'webhook_secret', label: 'Webhookシークレット', masked: true, placeholder: 'Webhook署名検証用パスワード' },
     ],
   },
   google_calendar: {

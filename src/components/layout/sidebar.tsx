@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import { NAV_ITEMS, APP_NAME, type NavItem } from '@/lib/constants'
 import { canAccessRoute, type DemoRole } from '@/lib/demo-accounts'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -229,7 +228,7 @@ export function MobileSidebar({ user, onSignOut }: SidebarProps) {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <Button variant="ghost" size="icon" className="lg:hidden" />
+          <button className="inline-flex items-center justify-center rounded-lg size-8 hover:bg-muted hover:text-foreground lg:hidden" />
         }
       >
         <Menu className="h-5 w-5" />

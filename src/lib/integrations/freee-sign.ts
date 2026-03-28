@@ -1,48 +1,87 @@
 /**
- * freee Sign API クライアント
+ * freee Sign (ninja-sign.com) API クライアント
  *
- * freee Sign（電子署名サービス）との連携を提供します。
- * 環境変数で API URL・認証情報を設定してください。
+ * OAuth 2.0認証フローを使用してfreee Signと連携します。
+ * Swagger UI: https://ninja-sign.com/v1/docs
  *
  * 必要な環境変数:
- *   FREEE_SIGN_API_URL - APIベースURL (例: https://api.freee-sign.com/v1)
- *   FREEE_SIGN_API_KEY - APIキー
- *   FREEE_SIGN_COMPANY_ID - 会社ID
+ *   FREEE_SIGN_CLIENT_ID     - OAuth クライアントID
+ *   FREEE_SIGN_CLIENT_SECRET - OAuth クライアントシークレット
+ *   FREEE_SIGN_REDIRECT_URI  - OAuthリダイレクトURI
+ *   FREEE_SIGN_WEBHOOK_SECRET - Webhook署名検証用シークレット
+ *
+ * レート制限: 同一IPから5リクエスト/秒（429で返却）
  */
 
-interface FreeeSignConfig {
-  apiUrl: string
-  apiKey: string
-  companyId: string
+import { createHmac } from 'crypto'
+
+// ─── 型定義 ──────────────────────────────────────────
+
+interface FreeeSignOAuthConfig {
+  clientId: string
+  clientSecret: string
+  redirectUri: string
 }
 
-interface FreeeSignDocumentRequest {
-  title: string
-  signerName: string
-  signerEmail: string
-  pdfUrl?: string
-  pdfBase64?: string
-  message?: string
-  callbackUrl?: string
+interface FreeeSignTokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  refresh_token: string
+  scope?: string
 }
 
-interface FreeeSignDocument {
+export interface FreeeSignDocument {
   id: string
   title: string
-  status: 'created' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired'
-  signerName: string
-  signerEmail: string
-  createdAt: string
-  updatedAt: string
-  signedAt: string | null
-  downloadUrl: string | null
+  status: 'creating' | 'created' | 'sent' | 'viewed' | 'signed' | 'completed' | 'rejected' | 'expired' | 'cancelled'
+  owner_id: string
+  folder_id: string | null
+  created_at: string
+  updated_at: string
 }
 
-interface FreeeSignListResponse {
-  documents: FreeeSignDocument[]
-  total: number
-  page: number
-  perPage: number
+interface FreeeSignDocumentCreateRequest {
+  title: string
+  template_id?: string
+  folder_id?: string
+}
+
+export interface FreeeSignConfirmationRequest {
+  document_id: string
+  sender_user_id: string
+  recipients: {
+    email: string
+    name: string
+    message?: string
+  }[]
+}
+
+interface FreeeSignTemplate {
+  id: string
+  name: string
+  description?: string
+}
+
+interface FreeeSignInputField {
+  id: string
+  key: string
+  value: string | null
+  type: string
+}
+
+export interface FreeeSignWebhookPayload {
+  trigger: 'document_status_changed' | 'post_test'
+  document?: {
+    id: string
+    title: string
+    owner_id: string
+    status: string
+    folder_id: string | null
+    created_at: string
+    updated_at: string
+  }
+  message?: string
 }
 
 interface FreeeSignError {
@@ -51,28 +90,114 @@ interface FreeeSignError {
   details?: Record<string, string>
 }
 
-function getConfig(): FreeeSignConfig {
-  const apiUrl = process.env.FREEE_SIGN_API_URL || 'https://api.freee-sign.com/v1'
-  const apiKey = process.env.FREEE_SIGN_API_KEY || ''
-  const companyId = process.env.FREEE_SIGN_COMPANY_ID || ''
-  return { apiUrl, apiKey, companyId }
+// ─── OAuth 2.0 ──────────────────────────────────────
+
+function getOAuthConfig(): FreeeSignOAuthConfig {
+  return {
+    clientId: process.env.FREEE_SIGN_CLIENT_ID || '',
+    clientSecret: process.env.FREEE_SIGN_CLIENT_SECRET || '',
+    redirectUri: process.env.FREEE_SIGN_REDIRECT_URI || '',
+  }
 }
 
+const API_BASE = 'https://ninja-sign.com'
+const API_V1 = `${API_BASE}/v1`
+
+/**
+ * OAuth認可URLを生成する
+ */
+export function getFreeeSignAuthUrl(state: string): string {
+  const config = getOAuthConfig()
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    state,
+  })
+  return `${API_BASE}/oauth/authorize?${params.toString()}`
+}
+
+/**
+ * 認可コードをアクセストークンに交換する
+ */
+export async function exchangeCodeForToken(code: string): Promise<FreeeSignTokenResponse> {
+  const config = getOAuthConfig()
+  const res = await fetch(`${API_BASE}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'authorization_code',
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.redirectUri,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Token exchange failed' }))
+    throw new FreeeSignApiError('AUTH_ERROR', err.message || 'トークン交換に失敗しました', res.status)
+  }
+  return res.json()
+}
+
+/**
+ * リフレッシュトークンでアクセストークンを更新する
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<FreeeSignTokenResponse> {
+  const config = getOAuthConfig()
+  const res = await fetch(`${API_BASE}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Token refresh failed' }))
+    throw new FreeeSignApiError('AUTH_ERROR', err.message || 'トークン更新に失敗しました', res.status)
+  }
+  return res.json()
+}
+
+// ─── Webhook署名検証 ────────────────────────────────
+
+/**
+ * Webhookリクエストの署名を検証する (HMAC-SHA256)
+ */
+export function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret?: string
+): boolean {
+  const webhookSecret = secret || process.env.FREEE_SIGN_WEBHOOK_SECRET || ''
+  if (!webhookSecret || !signature) return false
+
+  const expectedSig = signature.replace('sha256=', '')
+  const computed = createHmac('sha256', webhookSecret)
+    .update(payload)
+    .digest('hex')
+
+  return computed === expectedSig
+}
+
+// ─── APIクライアント ────────────────────────────────
+
 export class FreeeSignClient {
-  private config: FreeeSignConfig
+  private accessToken: string
   private maxRetries: number
 
-  constructor(config?: Partial<FreeeSignConfig>, maxRetries = 3) {
-    const defaultConfig = getConfig()
-    this.config = { ...defaultConfig, ...config }
+  constructor(accessToken: string, maxRetries = 3) {
+    this.accessToken = accessToken
     this.maxRetries = maxRetries
   }
 
   private get headers(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.config.apiKey}`,
-      'X-Company-Id': this.config.companyId,
+      Authorization: `Bearer ${this.accessToken}`,
     }
   }
 
@@ -82,7 +207,7 @@ export class FreeeSignClient {
     body?: unknown,
     attempt = 1
   ): Promise<T> {
-    const url = `${this.config.apiUrl}${path}`
+    const url = `${API_V1}${path}`
 
     try {
       const res = await fetch(url, {
@@ -100,10 +225,10 @@ export class FreeeSignClient {
         throw new FreeeSignApiError(error.code, error.message, res.status, error.details)
       }
 
-      return (await res.json()) as T
+      const text = await res.text()
+      return text ? JSON.parse(text) as T : {} as T
     } catch (err) {
       if (err instanceof FreeeSignApiError) {
-        // Retry on 429 (rate limit) or 5xx server errors
         if (attempt < this.maxRetries && (err.statusCode === 429 || err.statusCode >= 500)) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000)
           await new Promise((resolve) => setTimeout(resolve, delay))
@@ -111,7 +236,6 @@ export class FreeeSignClient {
         }
         throw err
       }
-      // Network errors - retry
       if (attempt < this.maxRetries) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000)
         await new Promise((resolve) => setTimeout(resolve, delay))
@@ -125,50 +249,88 @@ export class FreeeSignClient {
     }
   }
 
-  /**
-   * 署名依頼ドキュメントを送信する
-   */
-  async sendDocument(data: FreeeSignDocumentRequest): Promise<FreeeSignDocument> {
-    return this.request<FreeeSignDocument>('POST', '/documents', {
-      title: data.title,
-      signer_name: data.signerName,
-      signer_email: data.signerEmail,
-      pdf_url: data.pdfUrl,
-      pdf_base64: data.pdfBase64,
-      message: data.message || '',
-      callback_url: data.callbackUrl || '',
+  // ─── テンプレート ───────────────────────────────
+
+  /** テンプレート一覧を取得 */
+  async listTemplates(): Promise<FreeeSignTemplate[]> {
+    return this.request<FreeeSignTemplate[]>('GET', '/templates')
+  }
+
+  /** テンプレート詳細を取得 */
+  async getTemplate(templateId: string): Promise<FreeeSignTemplate> {
+    return this.request<FreeeSignTemplate>('GET', `/templates/${templateId}`)
+  }
+
+  // ─── ドキュメント ───────────────────────────────
+
+  /** テンプレートからドキュメントを作成 */
+  async createDocument(data: FreeeSignDocumentCreateRequest): Promise<FreeeSignDocument> {
+    return this.request<FreeeSignDocument>('POST', '/documents', data)
+  }
+
+  /** ファイルアップロードでドキュメントを作成 */
+  async uploadDocument(title: string, pdfBase64: string): Promise<FreeeSignDocument> {
+    return this.request<FreeeSignDocument>('POST', '/documents/upload', {
+      title,
+      file: pdfBase64,
     })
   }
 
-  /**
-   * ドキュメントのステータスを取得する
-   */
-  async getDocumentStatus(documentId: string): Promise<FreeeSignDocument> {
+  /** ドキュメント取得 */
+  async getDocument(documentId: string): Promise<FreeeSignDocument> {
     return this.request<FreeeSignDocument>('GET', `/documents/${documentId}`)
   }
 
-  /**
-   * ドキュメント一覧を取得する
-   */
-  async listDocuments(
-    page = 1,
-    perPage = 20
-  ): Promise<FreeeSignListResponse> {
-    return this.request<FreeeSignListResponse>(
-      'GET',
-      `/documents?page=${page}&per_page=${perPage}`
+  /** ドキュメント一覧 */
+  async listDocuments(page = 1, perPage = 20): Promise<{ documents: FreeeSignDocument[]; total: number }> {
+    return this.request('GET', `/documents?page=${page}&per_page=${perPage}`)
+  }
+
+  /** ドキュメント削除 */
+  async deleteDocument(documentId: string): Promise<void> {
+    await this.request('DELETE', `/documents/${documentId}`)
+  }
+
+  // ─── 入力フィールド ─────────────────────────────
+
+  /** 入力フィールド一覧を取得 */
+  async getInputFields(documentId: string): Promise<FreeeSignInputField[]> {
+    return this.request<FreeeSignInputField[]>('GET', `/documents/${documentId}/input_fields`)
+  }
+
+  /** 入力フィールドに値を設定 */
+  async setInputFieldValues(
+    documentId: string,
+    fields: { id: string; value: string }[]
+  ): Promise<void> {
+    await this.request('PUT', `/documents/${documentId}/input_fields`, { fields })
+  }
+
+  // ─── 署名送信 ───────────────────────────────────
+
+  /** ドキュメントを署名者に送信 */
+  async sendForSignature(data: FreeeSignConfirmationRequest): Promise<FreeeSignDocument> {
+    return this.request<FreeeSignDocument>(
+      'POST',
+      `/documents/${data.document_id}/confirmations`,
+      {
+        sender_user_id: data.sender_user_id,
+        recipients: data.recipients,
+      }
     )
   }
 
-  /**
-   * 署名済みドキュメントのPDFをダウンロードする
-   */
-  async downloadSignedDocument(documentId: string): Promise<ArrayBuffer> {
-    const url = `${this.config.apiUrl}/documents/${documentId}/download`
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: this.headers,
-    })
+  /** ドキュメントのキャンセル */
+  async cancelDocument(documentId: string): Promise<FreeeSignDocument> {
+    return this.request<FreeeSignDocument>('POST', `/documents/${documentId}/cancel`)
+  }
+
+  // ─── ダウンロード ───────────────────────────────
+
+  /** 署名済みドキュメントをダウンロード */
+  async downloadDocument(documentId: string): Promise<ArrayBuffer> {
+    const url = `${API_V1}/documents/${documentId}/download`
+    const res = await fetch(url, { method: 'GET', headers: this.headers })
     if (!res.ok) {
       throw new FreeeSignApiError(
         'DOWNLOAD_ERROR',
@@ -179,16 +341,15 @@ export class FreeeSignClient {
     return res.arrayBuffer()
   }
 
-  /**
-   * ドキュメントの署名依頼をキャンセルする
-   */
-  async cancelDocument(documentId: string): Promise<FreeeSignDocument> {
-    return this.request<FreeeSignDocument>(
-      'POST',
-      `/documents/${documentId}/cancel`
-    )
+  // ─── フォルダ ───────────────────────────────────
+
+  /** フォルダ一覧を取得 */
+  async listFolders(): Promise<{ id: string; name: string }[]> {
+    return this.request('GET', '/folders')
   }
 }
+
+// ─── エラークラス ───────────────────────────────────
 
 export class FreeeSignApiError extends Error {
   code: string
@@ -209,12 +370,28 @@ export class FreeeSignApiError extends Error {
   }
 }
 
-// Singleton instance for convenience
-let _client: FreeeSignClient | null = null
+// ─── ユーティリティ ─────────────────────────────────
 
-export function getFreeeSignClient(): FreeeSignClient {
-  if (!_client) {
-    _client = new FreeeSignClient()
+/**
+ * freee Signステータスを契約ステータスにマッピング
+ */
+export function mapFreeeSignStatusToContractStatus(
+  freeeStatus: string
+): 'pending_signature' | 'signed' | 'draft' | null {
+  switch (freeeStatus) {
+    case 'sent':
+    case 'viewed':
+    case 'creating':
+    case 'created':
+      return 'pending_signature'
+    case 'signed':
+    case 'completed':
+      return 'signed'
+    case 'rejected':
+    case 'cancelled':
+    case 'expired':
+      return 'draft'
+    default:
+      return null
   }
-  return _client
 }

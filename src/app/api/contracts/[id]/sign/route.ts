@@ -48,41 +48,51 @@ export async function POST(
       )
     }
 
-    // Generate PDF URL for freee Sign (using our own PDF endpoint)
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const pdfUrl = `${baseUrl}/api/contracts/${id}/pdf`
-
-    // Send to freee Sign
-    const freeeSign = new FreeeSignClient()
-
     let freeeSignDocumentId: string | null = null
 
-    try {
-      const document = await freeeSign.sendDocument({
-        title: contract.title,
-        signerName: staff.full_name,
-        signerEmail: staff.email,
-        pdfUrl,
-        message: `${contract.title}の署名をお願いいたします。内容をご確認の上、電子署名をお願いいたします。`,
-        callbackUrl: `${baseUrl}/api/contracts/${id}/sign/callback`,
-      })
-      freeeSignDocumentId = document.id
-    } catch (err) {
-      if (err instanceof FreeeSignApiError) {
-        console.error('freee Sign API error:', err.code, err.message)
-        // If freee Sign is not configured, still update the status
-        // but log the error
-        if (err.statusCode === 0) {
-          console.warn('freee Sign API not configured, updating status only')
-        } else {
-          return NextResponse.json(
-            { error: `freee Sign エラー: ${err.message}` },
-            { status: 502 }
-          )
+    // freee Sign連携: OAuthトークンが環境変数で設定されている場合に使用
+    const accessToken = process.env.FREEE_SIGN_ACCESS_TOKEN || ''
+
+    if (accessToken) {
+      try {
+        const client = new FreeeSignClient(accessToken)
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
+
+        // PDF生成してアップロード
+        const pdfRes = await fetch(`${baseUrl}/api/contracts/${id}/pdf`)
+        if (pdfRes.ok) {
+          const pdfBuffer = await pdfRes.arrayBuffer()
+          const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
+
+          const doc = await client.uploadDocument(contract.title, pdfBase64)
+
+          // 署名依頼送信
+          await client.sendForSignature({
+            document_id: doc.id,
+            sender_user_id: process.env.FREEE_SIGN_SENDER_USER_ID || '',
+            recipients: [{
+              email: staff.email,
+              name: staff.full_name,
+              message: `${contract.title}の署名をお願いいたします。内容をご確認の上、電子署名をお願いいたします。`,
+            }],
+          })
+
+          freeeSignDocumentId = doc.id
         }
-      } else {
+      } catch (err) {
+        if (err instanceof FreeeSignApiError) {
+          console.error('freee Sign API error:', err.code, err.message)
+          if (err.statusCode !== 0) {
+            return NextResponse.json(
+              { error: `freee Sign エラー: ${err.message}` },
+              { status: 502 }
+            )
+          }
+        }
         console.warn('freee Sign send failed, updating status only:', err)
       }
+    } else {
+      console.warn('freee Sign not configured, updating status only')
     }
 
     // Update contract status to pending_signature
