@@ -140,13 +140,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (DEMO_MODE) {
-      // デモモードではcookieを削除
       document.cookie = 'demo_role=;path=/;max-age=0'
       setDemoAccount(null)
       setDemoRole(null)
     } else {
-      const supabase = createClient()
-      await supabase.auth.signOut()
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut()
+      } catch (err) {
+        console.error('サインアウトエラー:', err)
+      }
     }
     setUser(null)
     setSession(null)

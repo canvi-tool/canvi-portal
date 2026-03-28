@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { DesktopSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { useAuth } from '@/components/providers/auth-provider'
@@ -18,12 +17,11 @@ interface PortalShellProps {
 }
 
 export function PortalShell({ user, children }: PortalShellProps) {
-  const router = useRouter()
   const { signOut } = useAuth()
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   return (
