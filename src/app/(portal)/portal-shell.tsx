@@ -2,7 +2,7 @@
 
 import { DesktopSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
-import { useAuth } from '@/components/providers/auth-provider'
+import { createClient } from '@/lib/supabase/client'
 import type { DemoRole } from '@/lib/demo-accounts'
 
 interface PortalShellProps {
@@ -17,10 +17,17 @@ interface PortalShellProps {
 }
 
 export function PortalShell({ user, children }: PortalShellProps) {
-  const { signOut } = useAuth()
-
   const handleSignOut = async () => {
-    await signOut()
+    try {
+      // デモモードのクッキー削除
+      document.cookie = 'demo_role=;path=/;max-age=0'
+      // Supabase セッション削除
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('ログアウトエラー:', err)
+    }
+    // 必ずリダイレクト
     window.location.href = '/login'
   }
 
