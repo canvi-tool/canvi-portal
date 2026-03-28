@@ -295,7 +295,7 @@ export async function listUsers(
     'GET',
     `/users?${params.toString()}`
   )
-  return (data.users || []).map(mapApiUser)
+  return (data.users || []).map((u) => mapApiUser(u))
 }
 
 /**

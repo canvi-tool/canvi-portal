@@ -23,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { FileSignature, Calendar, Mail, Brain, Loader2 } from 'lucide-react'
+import { FileSignature, Calendar, Mail, Brain, Loader2, Users, Phone, Video } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface IntegrationConfig {
@@ -77,6 +77,33 @@ const INTEGRATION_META: Record<
       { key: 'api_key', label: 'APIキー', masked: true, placeholder: 'sk-ant-xxxxxxxxxxxx' },
       { key: 'model', label: 'モデル', placeholder: 'claude-sonnet-4-20250514' },
     ],
+  },
+  google_workspace: {
+    name: 'Google Workspace',
+    description: 'ユーザー・グループ管理をGoogle Admin SDKで連携します。',
+    icon: Users,
+    configFields: [
+      { key: 'service_account_email', label: 'サービスアカウントメール', placeholder: 'xxx@xxx.iam.gserviceaccount.com' },
+      { key: 'private_key', label: '秘密鍵 (PEM)', masked: true, placeholder: '-----BEGIN PRIVATE KEY-----...' },
+      { key: 'admin_email', label: '管理者メール', placeholder: 'admin@canvi.co.jp' },
+      { key: 'domain', label: 'ドメイン', placeholder: 'canvi.co.jp' },
+    ],
+  },
+  zoom: {
+    name: 'Zoom',
+    description: 'Zoomユーザー管理をServer-to-Server OAuthで連携します。',
+    icon: Video,
+    configFields: [
+      { key: 'account_id', label: 'アカウントID', placeholder: 'Zoom Account ID' },
+      { key: 'client_id', label: 'クライアントID', placeholder: 'Zoom Client ID' },
+      { key: 'client_secret', label: 'クライアントシークレット', masked: true, placeholder: '••••••••' },
+    ],
+  },
+  zoom_phone: {
+    name: 'Zoom Phone',
+    description: 'Zoom Phoneのコールキュー・通話ログ管理（Zoom連携が必要）',
+    icon: Phone,
+    configFields: [],
   },
 }
 
