@@ -138,9 +138,9 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
               </Select>
               <p className="text-xs text-muted-foreground">
                 {employmentType === 'freelance'
-                  ? '業務委託の場合、住所・銀行口座などは任意項目になります'
+                  ? '業務委託の場合、緊急連絡先が任意になります'
                   : employmentType
-                    ? '社員の場合、住所・緊急連絡先・銀行口座が必須になります'
+                    ? '社員の場合、住所・緊急連絡先・銀行口座がすべて必須になります'
                     : '雇用区分によって登録フォームの必須項目が変わります'}
               </p>
             </div>

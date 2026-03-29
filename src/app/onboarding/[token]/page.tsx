@@ -109,25 +109,25 @@ export default function OnboardingPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
 
-    // 共通必須
+    // 全員共通必須
     if (!form.last_name) errors.last_name = '姓は必須です'
     if (!form.first_name) errors.first_name = '名は必須です'
     if (!form.last_name_kana) errors.last_name_kana = '姓（カナ）は必須です'
     if (!form.first_name_kana) errors.first_name_kana = '名（カナ）は必須です'
+    if (!form.date_of_birth) errors.date_of_birth = '生年月日は必須です'
     if (!form.phone) errors.phone = '電話番号は必須です'
+    if (!form.prefecture) errors.prefecture = '都道府県は必須です'
+    if (!form.bank_name) errors.bank_name = '銀行名は必須です'
+    if (!form.bank_branch) errors.bank_branch = '支店名は必須です'
+    if (!form.bank_account_number) errors.bank_account_number = '口座番号は必須です'
+    if (!form.bank_account_holder) errors.bank_account_holder = '口座名義は必須です'
 
-    // 社員系のみ必須
+    // 社員系のみ追加必須
     if (isEmployee) {
-      if (!form.date_of_birth) errors.date_of_birth = '生年月日は必須です'
       if (!form.postal_code) errors.postal_code = '郵便番号は必須です'
-      if (!form.prefecture) errors.prefecture = '都道府県は必須です'
       if (!form.address_line1) errors.address_line1 = '住所は必須です'
       if (!form.emergency_contact_name) errors.emergency_contact_name = '緊急連絡先の氏名は必須です'
       if (!form.emergency_contact_phone) errors.emergency_contact_phone = '緊急連絡先の電話番号は必須です'
-      if (!form.bank_name) errors.bank_name = '銀行名は必須です'
-      if (!form.bank_branch) errors.bank_branch = '支店名は必須です'
-      if (!form.bank_account_number) errors.bank_account_number = '口座番号は必須です'
-      if (!form.bank_account_holder) errors.bank_account_holder = '口座名義は必須です'
     }
 
     setValidationErrors(errors)
@@ -236,7 +236,7 @@ export default function OnboardingPage() {
           <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
             <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              業務委託の方は、基本情報と電話番号のみ必須です。住所・銀行口座・緊急連絡先は任意でご入力ください。
+              業務委託の方は、緊急連絡先のみ任意です。その他の項目はすべてご入力ください。
             </p>
           </div>
         )}
@@ -262,7 +262,7 @@ export default function OnboardingPage() {
                 <Field label="名（カナ）" required error={validationErrors.first_name_kana}>
                   <Input value={form.first_name_kana} onChange={(e) => updateField('first_name_kana', e.target.value)} placeholder="メイ" />
                 </Field>
-                <Field label="生年月日" required={isEmployee} error={validationErrors.date_of_birth}>
+                <Field label="生年月日" required error={validationErrors.date_of_birth}>
                   <Input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} />
                 </Field>
                 <Field label="性別">
@@ -296,7 +296,7 @@ export default function OnboardingPage() {
                 <Field label="郵便番号" required={isEmployee} error={validationErrors.postal_code}>
                   <Input value={form.postal_code} onChange={(e) => updateField('postal_code', e.target.value)} placeholder="123-4567" />
                 </Field>
-                <Field label="都道府県" required={isEmployee} error={validationErrors.prefecture}>
+                <Field label="都道府県" required error={validationErrors.prefecture}>
                   <Input value={form.prefecture} onChange={(e) => updateField('prefecture', e.target.value)} placeholder="東京都" />
                 </Field>
                 <div className="sm:col-span-2">
@@ -335,16 +335,14 @@ export default function OnboardingPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">銀行口座（給与振込先）</CardTitle>
-              <CardDescription>
-                {isEmployee ? '給与振込に必要です' : '任意項目です。後日でも登録可能です。'}
-              </CardDescription>
+              <CardDescription>給与・報酬の振込先</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="銀行名" required={isEmployee} error={validationErrors.bank_name}>
+                <Field label="銀行名" required error={validationErrors.bank_name}>
                   <Input value={form.bank_name} onChange={(e) => updateField('bank_name', e.target.value)} />
                 </Field>
-                <Field label="支店名" required={isEmployee} error={validationErrors.bank_branch}>
+                <Field label="支店名" required error={validationErrors.bank_branch}>
                   <Input value={form.bank_branch} onChange={(e) => updateField('bank_branch', e.target.value)} />
                 </Field>
                 <Field label="口座種別">
@@ -356,11 +354,11 @@ export default function OnboardingPage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="口座番号" required={isEmployee} error={validationErrors.bank_account_number}>
+                <Field label="口座番号" required error={validationErrors.bank_account_number}>
                   <Input value={form.bank_account_number} onChange={(e) => updateField('bank_account_number', e.target.value)} />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="口座名義（カタカナ）" required={isEmployee} error={validationErrors.bank_account_holder}>
+                  <Field label="口座名義（カタカナ）" required error={validationErrors.bank_account_holder}>
                     <Input value={form.bank_account_holder} onChange={(e) => updateField('bank_account_holder', e.target.value)} />
                   </Field>
                 </div>

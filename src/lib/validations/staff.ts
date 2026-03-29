@@ -67,14 +67,13 @@ export function isEmployeeType(type: string): boolean {
   return (EMPLOYEE_TYPES as readonly string[]).includes(type)
 }
 
-/** オンボーディングフォームスキーマ（スタッフ本人が入力） */
-// 雇用区分に応じて必須項目が変わるので、superRefineで制御
-export const staffOnboardingSchema = z.object({
+/** オンボーディングフォーム共通ベーススキーマ */
+const onboardingBase = z.object({
   last_name: z.string().min(1, '姓は必須です'),
   first_name: z.string().min(1, '名は必須です'),
   last_name_kana: z.string().min(1, '姓（カナ）は必須です'),
   first_name_kana: z.string().min(1, '名（カナ）は必須です'),
-  date_of_birth: z.string().optional(),
+  date_of_birth: z.string().min(1, '生年月日は必須です'),
   gender: z.string().optional(),
   phone: z.string().min(1, '電話番号は必須です'),
   postal_code: z.string().optional(),
@@ -89,15 +88,30 @@ export const staffOnboardingSchema = z.object({
   bank_account_holder: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
-  // 雇用区分（フォームからは送らないが、サーバーで参照用）
   employment_type: z.string().optional(),
 })
 
-/** 社員向け追加バリデーション */
-export const employeeOnboardingSchema = staffOnboardingSchema.superRefine((data, ctx) => {
-  if (!data.date_of_birth) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '生年月日は必須です', path: ['date_of_birth'] })
+/** 業務委託向けバリデーション（都道府県 + 銀行口座が必須） */
+export const staffOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
+  if (!data.prefecture) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '都道府県は必須です', path: ['prefecture'] })
   }
+  if (!data.bank_name) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '銀行名は必須です', path: ['bank_name'] })
+  }
+  if (!data.bank_branch) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '支店名は必須です', path: ['bank_branch'] })
+  }
+  if (!data.bank_account_number) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '口座番号は必須です', path: ['bank_account_number'] })
+  }
+  if (!data.bank_account_holder) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '口座名義は必須です', path: ['bank_account_holder'] })
+  }
+})
+
+/** 社員向け追加バリデーション（住所全体 + 緊急連絡先も必須） */
+export const employeeOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
   if (!data.postal_code) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '郵便番号は必須です', path: ['postal_code'] })
   }
