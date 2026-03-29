@@ -60,6 +60,7 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
     return null
   }
 
+  // eslint-disable-next-line prefer-const
   let { data: userData, error: userError } = await supabase
     .from('users')
     .select(
