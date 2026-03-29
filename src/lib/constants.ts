@@ -1,6 +1,9 @@
 export const APP_NAME = 'Canvi Portal'
 export const APP_DESCRIPTION = 'Canvi業務総合ポータル'
 
+/** ログインを許可するメールドメイン（小文字） */
+export const ALLOWED_EMAIL_DOMAINS = ['canvi.co.jp']
+
 export const STAFF_STATUS_LABELS: Record<string, string> = {
   pre_contract: '契約前',
   contract_sent: '契約送付済',

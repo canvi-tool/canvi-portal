@@ -1,16 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { APP_NAME } from '@/lib/constants'
+import { APP_NAME, ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import { DEMO_ACCOUNTS, setDemoRoleCookie, type DemoRole } from '@/lib/demo-accounts'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Crown, Shield, User, ChevronRight, Lock } from 'lucide-react'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+/** メールドメインが許可リストに含まれるか */
+function isAllowedDomain(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  return ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')
+}
 
 const ROLE_ICONS: Record<DemoRole, typeof Crown> = {
   owner: Crown,
@@ -31,13 +38,32 @@ const ROLE_BORDER_COLORS: Record<DemoRole, string> = {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  )
+}
+
+function LoginPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [isMagicLink, setIsMagicLink] = useState(false)
+  const [error, setError] = useState<string | null>(() => {
+    const urlError = searchParams.get('error')
+    if (urlError === 'domain_not_allowed') {
+      return `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのアカウントのみログインできます`
+    }
+    if (urlError === 'auth_failed') {
+      return '認証に失敗しました。もう一度お試しください。'
+    }
+    return null
+  })
   const [message, setMessage] = useState<string | null>(null)
 
   // Google OAuth ログイン（本番用）
@@ -168,11 +194,50 @@ export default function LoginPage() {
     )
   }
 
+  // マジックリンクログイン
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+    setMessage(null)
+
+    // ドメインチェック（クライアント側）
+    if (!isAllowedDomain(email)) {
+      setError(`@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ使用できます`)
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { error: magicError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/callback`,
+        },
+      })
+      if (magicError) throw magicError
+      setMessage('ログインリンクをメールに送信しました。メールを確認してください。')
+    } catch (err: unknown) {
+      const authErr = err as { message?: string }
+      setError(authErr.message || 'メール送信に失敗しました')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
     setMessage(null)
+
+    // ドメインチェック（クライアント側）
+    if (!isAllowedDomain(email)) {
+      setError(`@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ使用できます`)
+      setIsLoading(false)
+      return
+    }
 
     try {
       const supabase = createClient()
@@ -215,11 +280,13 @@ export default function LoginPage() {
         <CardTitle className="text-2xl">{APP_NAME}</CardTitle>
         <CardDescription>
           業務管理ポータルにログインしてください
+          <br />
+          <span className="text-xs text-slate-400">※ @{ALLOWED_EMAIL_DOMAINS[0]} のアカウントのみ利用可能</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* メールログインフォーム */}
-        <form onSubmit={handleEmailLogin} className="space-y-3">
+        {/* マジックリンクログイン（メイン） */}
+        <form onSubmit={isMagicLink ? handleMagicLink : handleEmailLogin} className="space-y-3">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               メールアドレス
@@ -231,24 +298,27 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
-              placeholder="you@example.com"
+              placeholder="you@canvi.co.jp"
             />
           </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              パスワード
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
-              placeholder="6文字以上"
-            />
-          </div>
+
+          {!isMagicLink && (
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                パスワード
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
+                placeholder="6文字以上"
+              />
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -264,17 +334,31 @@ export default function LoginPage() {
             size="lg"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSignUp ? 'アカウント作成' : 'ログイン'}
+            {isMagicLink ? 'ログインリンクを送信' : isSignUp ? 'アカウント作成' : 'ログイン'}
           </Button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
-          className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
-          {isSignUp ? '既にアカウントをお持ちの方はこちら' : '新規アカウント作成はこちら'}
-        </button>
+        <div className="flex justify-center gap-3 text-sm">
+          <button
+            type="button"
+            onClick={() => { setIsMagicLink(!isMagicLink); setError(null); setMessage(null) }}
+            className="text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            {isMagicLink ? 'パスワードでログイン' : 'メールリンクでログイン'}
+          </button>
+          {!isMagicLink && (
+            <>
+              <span className="text-slate-300">|</span>
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {isSignUp ? 'ログインに戻る' : '新規登録'}
+              </button>
+            </>
+          )}
+        </div>
 
         {/* 区切り線 */}
         <div className="relative">

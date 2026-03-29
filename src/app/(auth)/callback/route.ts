@@ -1,5 +1,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
+
+/** メールアドレスのドメインが許可リストに含まれるか確認 */
+function isAllowedDomain(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  return ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -16,6 +23,15 @@ export async function GET(request: Request) {
       } = await supabase.auth.getUser()
 
       if (user) {
+        // ドメイン制限チェック
+        if (!isAllowedDomain(user.email ?? '')) {
+          // 許可されていないドメイン → セッション削除してログインページへ
+          await supabase.auth.signOut()
+          return NextResponse.redirect(
+            `${origin}/login?error=domain_not_allowed`
+          )
+        }
+
         // Upsert user record in public.users table
         await supabase.from('users').upsert(
           {
