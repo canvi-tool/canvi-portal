@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -39,11 +39,11 @@ import {
 } from 'lucide-react'
 
 interface PageProps {
-  params: Promise<{ yearMonth: string; staffId: string }>
+  params: { yearMonth: string; staffId: string }
 }
 
 export default function StaffPaymentDetailPage({ params }: PageProps) {
-  const { yearMonth, staffId } = use(params)
+  const { yearMonth, staffId } = params
   const router = useRouter()
 
   // staff_id + yearMonth でpayment を特定するために一覧から検索

@@ -3,11 +3,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { ClientDetailClient } from '../_components/client-detail-client'
 
 interface ClientDetailPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
-  const { id } = await params
+  const { id } = params
   const supabase = await createServerSupabaseClient()
 
   const { data: client, error } = await supabase

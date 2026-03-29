@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -295,11 +294,11 @@ function getStatusLabels(type: string) {
 // --- Component ---
 
 interface PageProps {
-  params: Promise<{ type: string; id: string }>
+  params: { type: string; id: string }
 }
 
 export default function DocumentDetailPage({ params }: PageProps) {
-  const { type, id } = use(params)
+  const { type, id } = params
   const router = useRouter()
 
   const doc = demoDocuments[type]?.[id]

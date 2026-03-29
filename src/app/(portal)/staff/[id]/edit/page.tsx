@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -10,11 +9,11 @@ import { useStaff, useUpdateStaff } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
 
 interface EditStaffPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default function EditStaffPage({ params }: EditStaffPageProps) {
-  const { id } = use(params)
+  const { id } = params
   const router = useRouter()
   const { data: staff, isLoading: isLoadingStaff } = useStaff(id)
   const { mutateAsync, isPending } = useUpdateStaff(id)

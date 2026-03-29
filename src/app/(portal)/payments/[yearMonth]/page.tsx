@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -24,11 +24,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 
 interface PageProps {
-  params: Promise<{ yearMonth: string }>
+  params: { yearMonth: string }
 }
 
 export default function MonthDetailPage({ params }: PageProps) {
-  const { yearMonth } = use(params)
+  const { yearMonth } = params
   const router = useRouter()
   const queryClient = useQueryClient()
 

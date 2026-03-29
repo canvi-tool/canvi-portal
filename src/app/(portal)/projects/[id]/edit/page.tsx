@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -13,11 +12,11 @@ import type { ProjectFormValues } from '@/lib/validations/project'
 import { ArrowLeft } from 'lucide-react'
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default function EditProjectPage({ params }: PageProps) {
-  const { id } = use(params)
+  const { id } = params
   const router = useRouter()
 
   const { data: project, isLoading } = useProject(id)

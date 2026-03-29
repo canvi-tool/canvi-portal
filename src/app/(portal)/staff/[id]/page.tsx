@@ -4,11 +4,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { StaffDetailClient } from '../_components/staff-detail-client'
 
 interface StaffDetailPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default async function StaffDetailPage({ params }: StaffDetailPageProps) {
-  const { id } = await params
+  const { id } = params
   const supabase = await createServerSupabaseClient()
 
   const { data: staff, error } = await supabase

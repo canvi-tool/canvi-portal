@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -56,11 +56,11 @@ import {
 } from 'lucide-react'
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default function ProjectDetailPage({ params }: PageProps) {
-  const { id } = use(params)
+  const { id } = params
   const router = useRouter()
 
   const { data: project, isLoading: projectLoading } = useProject(id)

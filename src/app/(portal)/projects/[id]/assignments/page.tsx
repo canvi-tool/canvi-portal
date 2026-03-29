@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { toast } from 'sonner'
@@ -53,7 +53,7 @@ import {
 } from 'lucide-react'
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 // ---- Assignment Detail Card ----
@@ -155,7 +155,7 @@ function AssignmentCard({
 // ---- Main Page ----
 
 export default function AssignmentsPage({ params }: PageProps) {
-  const { id: projectId } = use(params)
+  const { id: projectId } = params
   const router = useRouter()
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('highlight')

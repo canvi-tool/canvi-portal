@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -9,11 +9,11 @@ import { ClientForm } from '../../_components/client-form'
 import type { ClientFormValues } from '@/lib/validations/client'
 
 interface EditClientPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default function EditClientPage({ params }: EditClientPageProps) {
-  const { id } = use(params)
+  const { id } = params
   const router = useRouter()
   const [client, setClient] = useState<Record<string, unknown> | null>(null)
   const [isLoadingClient, setIsLoadingClient] = useState(true)
