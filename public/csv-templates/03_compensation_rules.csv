@@ -1,0 +1,8 @@
+staff_code,project_name,rule_type,name,priority,effective_from,effective_to,param_rate_per_hour,param_overtime_multiplier,param_overtime_threshold_hours,param_amount,param_unit_name,param_rate_per_unit,param_minimum_count,param_rate_per_day,param_fixed_amount,param_variable_unit,param_variable_rate,param_percentage,param_base_rule_name,param_reason
+S001,プロジェクトA,monthly_fixed,基本月給,10,2024-04-01,,,,,,,,,,300000,,,,
+S001,プロジェクトB,time_rate,時給,10,2024-06-01,2024-12-31,1500,1.25,8,,,,,,,,,,
+S002,プロジェクトA,time_rate,基本時給,10,2024-01-15,,1500,1.25,8,,,,,,,,,,
+S002,プロジェクトA,count_rate,成果インセンティブ,5,2024-01-15,,,,,,契約獲得,500,0,,,,,,
+S002,プロジェクトC,time_rate,深夜時給,10,2024-07-01,,1800,1.50,8,,,,,,,,,,
+S002,プロジェクトC,standby_rate,待機手当,5,2024-07-01,,,,,,,,3000,,,,,,
+S002,プロジェクトC,adjustment,通勤手当,1,2024-07-01,,,,,10000,,,,,,,,,月額固定交通費
