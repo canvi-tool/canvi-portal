@@ -123,8 +123,8 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
 
     console.log(`Auto-provisioned user ${email} with role ${roleName}`)
 
-    // Re-fetch with roles
-    const { data: refetched } = await supabase
+    // Re-fetch with roles (adminClientでRLSをバイパス)
+    const { data: refetched } = await adminClient
       .from('users')
       .select(
         `
@@ -140,9 +140,29 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
 
   if (!userData) return null
 
-  const roles =
+  // rolesが空の場合、オーナーメールなら自動修復
+  let roles =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (userData.user_roles as any[])?.map((ur: any) => ur.role?.name as RoleName) || []
+
+  if (roles.length === 0 && OWNER_EMAILS.includes((user.email || '').toLowerCase())) {
+    // ロール未割当のオーナー → 自動修復
+    const adminClient = createAdminClient()
+    const { data: ownerRole } = await adminClient
+      .from('roles')
+      .select('id')
+      .eq('name', 'owner')
+      .single()
+
+    if (ownerRole) {
+      await adminClient.from('user_roles').upsert(
+        { user_id: user.id, role_id: ownerRole.id },
+        { onConflict: 'user_id,role_id' }
+      )
+      roles = ['owner']
+      console.log(`Auto-repaired owner role for ${user.email}`)
+    }
+  }
 
   // Get staff_id if exists
   const { data: staffData } = await supabase
