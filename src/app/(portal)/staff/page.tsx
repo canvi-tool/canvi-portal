@@ -31,7 +31,7 @@ async function fetchStaffList() {
   const { data, error } = await supabase
     .from('staff')
     .select('*')
-    .order('staff_code', { ascending: false })
+    .order('staff_code', { ascending: true })
 
   if (error) {
     console.error('Staff list query error:', error)
