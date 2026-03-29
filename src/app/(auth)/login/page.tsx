@@ -52,7 +52,6 @@ function LoginPageInner() {
   const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
   const [isMagicLink, setIsMagicLink] = useState(false)
   const [error, setError] = useState<string | null>(() => {
     const urlError = searchParams.get('error')
@@ -241,27 +240,14 @@ function LoginPageInner() {
 
     try {
       const supabase = createClient()
-
-      if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/callback`,
-          },
-        })
-        if (signUpError) throw signUpError
-        setMessage('確認メールを送信しました。メールのリンクをクリックしてください。')
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (signInError) throw signInError
-        // Full page reload to ensure middleware reads auth cookies correctly
-        window.location.href = '/dashboard'
-        return
-      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (signInError) throw signInError
+      // Full page reload to ensure middleware reads auth cookies correctly
+      window.location.href = '/dashboard'
+      return
     } catch (err: unknown) {
       const authErr = err as { message?: string }
       setError(authErr.message || 'ログインに失敗しました')
@@ -334,11 +320,11 @@ function LoginPageInner() {
             size="lg"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isMagicLink ? 'ログインリンクを送信' : isSignUp ? 'アカウント作成' : 'ログイン'}
+            {isMagicLink ? 'ログインリンクを送信' : 'ログイン'}
           </Button>
         </form>
 
-        <div className="flex justify-center gap-3 text-sm">
+        <div className="flex justify-center text-sm">
           <button
             type="button"
             onClick={() => { setIsMagicLink(!isMagicLink); setError(null); setMessage(null) }}
@@ -346,18 +332,6 @@ function LoginPageInner() {
           >
             {isMagicLink ? 'パスワードでログイン' : 'メールリンクでログイン'}
           </button>
-          {!isMagicLink && (
-            <>
-              <span className="text-slate-300">|</span>
-              <button
-                type="button"
-                onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
-                className="text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                {isSignUp ? 'ログインに戻る' : '新規登録'}
-              </button>
-            </>
-          )}
         </div>
 
         {/* 区切り線 */}

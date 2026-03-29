@@ -6,13 +6,19 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Shield, SlidersHorizontal, Plug, FileText } from 'lucide-react'
+import { Shield, SlidersHorizontal, Plug, FileText, Users } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 const SETTING_CARDS = [
+  {
+    title: 'ポータルユーザー管理',
+    description: 'ポータルにログインできるユーザーの招待・管理を行います。招待されたユーザーのみログイン可能です。',
+    href: '/settings/users',
+    icon: Users,
+  },
   {
     title: 'ロール管理',
     description: 'ユーザーのロールと権限を管理します。各ロールに対してリソースごとの権限を設定できます。',
