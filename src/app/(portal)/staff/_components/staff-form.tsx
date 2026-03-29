@@ -22,7 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, ShieldCheck } from 'lucide-react'
 
 export interface ProvisioningData {
   create_google_account: boolean
@@ -32,11 +33,20 @@ export interface ProvisioningData {
   zoom_license_type: number
 }
 
+export interface PortalAccountData {
+  create_portal_account: boolean
+  portal_role: 'owner' | 'admin' | 'staff'
+}
+
 interface StaffFormProps {
   defaultValues?: Partial<StaffFormValues>
-  onSubmit: (data: StaffFormValues, provisioning?: ProvisioningData) => void | Promise<void>
+  onSubmit: (data: StaffFormValues, provisioning?: ProvisioningData, portalAccount?: PortalAccountData) => void | Promise<void>
   isLoading?: boolean
   showProvisioning?: boolean
+  /** 既存のポータルロール（編集時のみ） */
+  currentPortalRole?: string | null
+  /** ポータルアカウントが既に存在するか */
+  hasPortalAccount?: boolean
 }
 
 function FormField({
@@ -74,7 +84,7 @@ const ZOOM_LICENSE_TYPES = [
   { value: 2, label: 'Licensed（有料）' },
 ]
 
-export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true }: StaffFormProps) {
+export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true, currentPortalRole, hasPortalAccount }: StaffFormProps) {
   const {
     register,
     handleSubmit,
@@ -121,6 +131,12 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   const [zoomLicenseType, setZoomLicenseType] = useState(1)
   const [googleEmailManuallyEdited, setGoogleEmailManuallyEdited] = useState(false)
 
+  // Portal account state
+  const [createPortalAccount, setCreatePortalAccount] = useState(false)
+  const [portalRole, setPortalRole] = useState<'owner' | 'admin' | 'staff'>(
+    (currentPortalRole as 'owner' | 'admin' | 'staff') || 'staff'
+  )
+
   // Watch last_name_kana for auto-filling google email prefix
   const lastNameKana = watch('last_name_kana')
 
@@ -136,18 +152,23 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   }, [lastNameKana, createGoogle, googleEmailManuallyEdited])
 
   const handleFormSubmit = (data: StaffFormValues) => {
-    if (showProvisioning && (createGoogle || createZoom)) {
-      const provisioningData: ProvisioningData = {
-        create_google_account: createGoogle,
-        google_email_prefix: googleEmailPrefix,
-        google_org_unit: googleOrgUnit,
-        create_zoom_account: createZoom,
-        zoom_license_type: zoomLicenseType,
-      }
-      onSubmit(data, provisioningData)
-    } else {
-      onSubmit(data)
-    }
+    const provisioningData = showProvisioning && (createGoogle || createZoom)
+      ? {
+          create_google_account: createGoogle,
+          google_email_prefix: googleEmailPrefix,
+          google_org_unit: googleOrgUnit,
+          create_zoom_account: createZoom,
+          zoom_license_type: zoomLicenseType,
+        }
+      : undefined
+
+    // Portal account: new creation or role change
+    const portalAccountData: PortalAccountData | undefined =
+      (createPortalAccount || hasPortalAccount)
+        ? { create_portal_account: createPortalAccount, portal_role: portalRole }
+        : undefined
+
+    onSubmit(data, provisioningData, portalAccountData)
   }
 
   const googleEmail = googleEmailPrefix ? `${googleEmailPrefix}@canvi.co.jp` : ''
@@ -422,6 +443,85 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
           </CardContent>
         </Card>
       )}
+
+      {/* ポータルアカウント・ロール */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            ポータルアカウント
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hasPortalAccount ? (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="secondary">アカウント済み</Badge>
+                <span className="text-muted-foreground">このスタッフはポータルにログイン可能です</span>
+              </div>
+              <FormField label="ポータルロール">
+                <Select
+                  value={portalRole}
+                  onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
+                >
+                  <SelectTrigger className="w-full max-w-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">オーナー</SelectItem>
+                    <SelectItem value="admin">管理者</SelectItem>
+                    <SelectItem value="staff">スタッフ</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  オーナー: 全機能アクセス / 管理者: スタッフ・契約管理 / スタッフ: 閲覧・自分の勤務報告
+                </p>
+              </FormField>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="create-portal" className="text-sm font-medium">
+                    ポータルアカウントを作成
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    招待メールが送信され、パスワード設定後にログインできます
+                  </p>
+                </div>
+                <Switch
+                  id="create-portal"
+                  checked={createPortalAccount}
+                  onCheckedChange={setCreatePortalAccount}
+                />
+              </div>
+
+              {createPortalAccount && (
+                <div className="pl-1 border-l-2 border-muted ml-1">
+                  <FormField label="ポータルロール">
+                    <Select
+                      value={portalRole}
+                      onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
+                    >
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="owner">オーナー</SelectItem>
+                        <SelectItem value="admin">管理者</SelectItem>
+                        <SelectItem value="staff">スタッフ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      オーナー: 全機能アクセス / 管理者: スタッフ・契約管理 / スタッフ: 閲覧・自分の勤務報告
+                    </p>
+                  </FormField>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 銀行口座 */}
       <Card>

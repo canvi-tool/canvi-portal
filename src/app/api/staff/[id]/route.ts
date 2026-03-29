@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema } from '@/lib/validations/staff'
+import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import type { Json } from '@/lib/types/database'
 
 interface RouteParams {
@@ -45,10 +47,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .eq('staff_id', id)
       .order('start_date', { ascending: false })
 
+    // Fetch portal account info by matching email
+    let portalRole: string | null = null
+    let hasPortalAccount = false
+
+    const { data: portalUser } = await supabase
+      .from('users')
+      .select('id, user_roles(roles(name))')
+      .eq('email', staff.email)
+      .maybeSingle()
+
+    if (portalUser) {
+      hasPortalAccount = true
+      const roles = (portalUser.user_roles as { roles: { name: string } | null }[])
+        ?.map((ur) => ur.roles?.name)
+        .filter(Boolean) ?? []
+      portalRole = roles[0] || null
+    }
+
     return NextResponse.json({
       ...staff,
       contracts: contracts || [],
       project_assignments: assignments || [],
+      portal_role: portalRole,
+      has_portal_account: hasPortalAccount,
     })
   } catch (err) {
     console.error('Staff GET detail error:', err)
@@ -153,7 +175,103 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       new_data: staff as unknown as Record<string, Json>,
     })
 
-    return NextResponse.json(staff)
+    // --- Portal account: create or update role ---
+    const createPortalAccount = body.create_portal_account === true
+    const portalRole = body.portal_role as string | undefined
+    let portalResult: { success: boolean; message?: string; error?: string } | undefined
+
+    if (portalRole) {
+      const adminClient = createAdminClient()
+      const staffEmail = formData.email
+
+      // Check if portal user exists
+      const { data: existingUser } = await adminClient
+        .from('users')
+        .select('id')
+        .eq('email', staffEmail)
+        .maybeSingle()
+
+      if (existingUser) {
+        // Update role: remove old roles, add new one
+        const { data: newRole } = await adminClient
+          .from('roles')
+          .select('id')
+          .eq('name', portalRole)
+          .single()
+
+        if (newRole) {
+          // Delete existing roles for this user
+          await adminClient
+            .from('user_roles')
+            .delete()
+            .eq('user_id', existingUser.id)
+
+          // Assign new role
+          await adminClient.from('user_roles').insert({
+            user_id: existingUser.id,
+            role_id: newRole.id,
+          })
+
+          portalResult = { success: true, message: `ロールを「${portalRole}」に変更しました` }
+        }
+      } else if (createPortalAccount) {
+        // New portal account: invite
+        const domain = staffEmail.split('@')[1]?.toLowerCase()
+        if (!ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')) {
+          portalResult = {
+            success: false,
+            error: `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ招待できます`,
+          }
+        } else {
+          const { data: inviteData, error: inviteError } =
+            await adminClient.auth.admin.inviteUserByEmail(staffEmail, {
+              data: {
+                display_name: `${formData.last_name} ${formData.first_name}`,
+                invited_role: portalRole,
+              },
+              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/callback`,
+            })
+
+          if (inviteError) {
+            portalResult = {
+              success: false,
+              error: inviteError.message?.includes('already been registered')
+                ? 'このメールアドレスは既に登録されています'
+                : inviteError.message || 'ポータルアカウントの作成に失敗しました',
+            }
+          } else if (inviteData.user) {
+            await adminClient.from('users').upsert(
+              {
+                id: inviteData.user.id,
+                email: staffEmail,
+                display_name: `${formData.last_name} ${formData.first_name}`,
+              },
+              { onConflict: 'id' }
+            )
+
+            const { data: roleData } = await adminClient
+              .from('roles')
+              .select('id')
+              .eq('name', portalRole)
+              .single()
+
+            if (roleData) {
+              await adminClient.from('user_roles').upsert(
+                { user_id: inviteData.user.id, role_id: roleData.id },
+                { onConflict: 'user_id,role_id' }
+              )
+            }
+
+            portalResult = { success: true, message: '招待メールを送信しました' }
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ...staff,
+      ...(portalResult ? { portal: portalResult } : {}),
+    })
   } catch (err) {
     console.error('Staff PUT error:', err)
     return NextResponse.json(

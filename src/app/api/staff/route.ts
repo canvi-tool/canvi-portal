@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
 import { createUser as createZoomUser } from '@/lib/integrations/zoom'
+import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import type { Json } from '@/lib/types/database'
 
 export async function GET(request: NextRequest) {
@@ -201,6 +203,83 @@ export async function POST(request: NextRequest) {
         provisioning.zoom = {
           success: false,
           error: err instanceof Error ? err.message : 'Zoomアカウントの作成に失敗しました',
+        }
+      }
+    }
+
+    // --- Portal account provisioning ---
+    const createPortalAccount = body.create_portal_account === true
+    const portalRole = body.portal_role as string | undefined
+
+    if (createPortalAccount && formData.email) {
+      try {
+        const domain = formData.email.split('@')[1]?.toLowerCase()
+        if (!ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')) {
+          provisioning.portal = {
+            success: false,
+            error: `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ招待できます`,
+          }
+        } else {
+          const adminClient = createAdminClient()
+          const { data: inviteData, error: inviteError } =
+            await adminClient.auth.admin.inviteUserByEmail(formData.email, {
+              data: {
+                display_name: `${formData.last_name} ${formData.first_name}`,
+                invited_role: portalRole || 'staff',
+              },
+              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/callback`,
+            })
+
+          if (inviteError) {
+            provisioning.portal = {
+              success: false,
+              error: inviteError.message?.includes('already been registered')
+                ? 'このメールアドレスは既に登録されています'
+                : inviteError.message || 'ポータルアカウントの作成に失敗しました',
+            }
+          } else if (inviteData.user) {
+            // Create users record
+            await adminClient.from('users').upsert(
+              {
+                id: inviteData.user.id,
+                email: formData.email,
+                display_name: `${formData.last_name} ${formData.first_name}`,
+              },
+              { onConflict: 'id' }
+            )
+
+            // Assign role
+            const roleName = portalRole || 'staff'
+            const { data: roleData } = await adminClient
+              .from('roles')
+              .select('id')
+              .eq('name', roleName)
+              .single()
+
+            if (roleData) {
+              await adminClient.from('user_roles').upsert(
+                { user_id: inviteData.user.id, role_id: roleData.id },
+                { onConflict: 'user_id,role_id' }
+              )
+            }
+
+            // Link staff to user
+            await supabase
+              .from('staff')
+              .update({ user_id: inviteData.user.id })
+              .eq('id', staff.id)
+
+            provisioning.portal = {
+              success: true,
+              email: formData.email,
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Portal account provisioning error:', err)
+        provisioning.portal = {
+          success: false,
+          error: err instanceof Error ? err.message : 'ポータルアカウントの作成に失敗しました',
         }
       }
     }

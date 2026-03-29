@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { StaffForm } from '../../_components/staff-form'
+import type { PortalAccountData } from '../../_components/staff-form'
 import { useStaff, useUpdateStaff } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
 
@@ -18,10 +19,21 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
   const { data: staff, isLoading: isLoadingStaff } = useStaff(id)
   const { mutateAsync, isPending } = useUpdateStaff(id)
 
-  async function handleSubmit(data: StaffFormValues) {
+  async function handleSubmit(data: StaffFormValues, _provisioning?: unknown, portalAccount?: PortalAccountData) {
     try {
-      await mutateAsync(data)
-      toast.success('スタッフ情報を更新しました')
+      const result = await mutateAsync({ data, portalAccount })
+      const portalResult = (result as { portal?: { success: boolean; message?: string; error?: string } }).portal
+      if (portalResult?.success) {
+        toast.success('スタッフ情報を更新しました', {
+          description: portalResult.message,
+        })
+      } else if (portalResult && !portalResult.success) {
+        toast.warning('スタッフ情報は更新しましたが、ポータルアカウントの処理に失敗しました', {
+          description: portalResult.error,
+        })
+      } else {
+        toast.success('スタッフ情報を更新しました')
+      }
       router.push(`/staff/${id}`)
     } catch (err) {
       const message =
@@ -88,6 +100,8 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
         onSubmit={handleSubmit}
         isLoading={isPending}
         showProvisioning={false}
+        currentPortalRole={(staff as { portal_role?: string }).portal_role ?? null}
+        hasPortalAccount={(staff as { has_portal_account?: boolean }).has_portal_account ?? false}
       />
     </div>
   )
