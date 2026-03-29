@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { EmptyState } from '@/components/shared/empty-state'
+import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,18 +18,40 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PROJECT_STATUS_LABELS } from '@/lib/constants'
-import { useProjects, type Project } from '@/hooks/use-projects'
+import { useProjects, useBulkUpdateProjectStatus, type Project } from '@/hooks/use-projects'
+import { toast } from 'sonner'
 import { Plus, Search, Briefcase, Users } from 'lucide-react'
+
+const BULK_STATUS_OPTIONS = [
+  { value: 'active', label: '稼働中に変更' },
+  { value: 'paused', label: '一時停止に変更' },
+  { value: 'completed', label: '完了に変更' },
+  { value: 'archived', label: 'アーカイブに変更' },
+]
 
 export default function ProjectsPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const bulkUpdate = useBulkUpdateProjectStatus()
 
   const { data: projects, isLoading } = useProjects({
     search: search || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   })
+
+  const handleBulkStatusChange = async (status: string) => {
+    const ids = Array.from(selectedIds)
+    try {
+      const result = await bulkUpdate.mutateAsync({ ids, status })
+      toast.success(`${result.updated}件のプロジェクトのステータスを更新しました`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '一括更新に失敗しました')
+    }
+  }
 
   const columns: DataTableColumn<Project>[] = [
     {
@@ -157,8 +180,30 @@ export default function ProjectsPage() {
           loading={isLoading}
           emptyMessage="条件に一致するプロジェクトが見つかりません"
           keyExtractor={(row) => row.id}
+          selectable
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={projects?.length ?? 0}
+        onClearSelection={() => setSelectedIds(new Set())}
+      >
+        {BULK_STATUS_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            variant="secondary"
+            size="sm"
+            disabled={bulkUpdate.isPending}
+            onClick={() => handleBulkStatusChange(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </BulkActionBar>
     </div>
   )
 }

@@ -3,13 +3,13 @@ import { z } from 'zod'
 export const clientFormSchema = z.object({
   client_code: z.string().min(1, 'クライアントコードは必須です'),
   name: z.string().min(1, 'クライアント名は必須です'),
-  name_kana: z.string(),
-  contact_person: z.string(),
-  contact_email: z.string().email('メールアドレスの形式が正しくありません').or(z.literal('')),
-  contact_phone: z.string(),
-  address: z.string(),
-  industry: z.string(),
-  notes: z.string(),
+  name_kana: z.string().optional(),
+  contact_person: z.string().optional(),
+  contact_email: z.string().email('メールアドレスの形式が正しくありません').or(z.literal('')).optional(),
+  contact_phone: z.string().optional(),
+  address: z.string().optional(),
+  industry: z.string().optional(),
+  notes: z.string().optional(),
   status: z.enum(['active', 'inactive']),
 })
 

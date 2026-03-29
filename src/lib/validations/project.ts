@@ -8,7 +8,7 @@ export const projectFormSchema = z.object({
     .string()
     .min(1, '番号は必須です')
     .regex(/^\d{3}$/, '001〜999の3桁で入力してください'),
-  project_code: z.string(),
+  project_code: z.string().optional(),
   name: z
     .string()
     .min(1, 'PJ名は必須です')

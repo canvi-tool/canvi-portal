@@ -219,6 +219,29 @@ export function useDeleteProject() {
   })
 }
 
+async function bulkUpdateProjectStatus({ ids, status }: { ids: string[]; status: string }): Promise<{ updated: number; status: string }> {
+  const res = await fetch('/api/projects/bulk', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, status }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: '一括更新に失敗しました' }))
+    throw new Error(err.error || '一括更新に失敗しました')
+  }
+  return res.json()
+}
+
+export function useBulkUpdateProjectStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: bulkUpdateProjectStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+    },
+  })
+}
+
 export function useAssignments(projectId: string) {
   return useQuery({
     queryKey: projectKeys.assignments(projectId),

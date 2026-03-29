@@ -1,6 +1,33 @@
+import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export type RoleName = 'owner' | 'admin' | 'staff'
+
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+const DEMO_USERS: Record<string, UserWithRole> = {
+  owner: {
+    id: 'demo-owner-001',
+    email: 'okabayashi@canvi.co.jp',
+    displayName: '岡林 優治',
+    roles: ['owner'],
+    staffId: null,
+  },
+  admin: {
+    id: 'demo-admin-001',
+    email: 'tanaka@canvi.co.jp',
+    displayName: '田中 美咲',
+    roles: ['admin'],
+    staffId: null,
+  },
+  staff: {
+    id: 'demo-staff-001',
+    email: 'sato@example.com',
+    displayName: '佐藤 健太',
+    roles: ['staff'],
+    staffId: null,
+  },
+}
 
 export interface UserWithRole {
   id: string
@@ -11,6 +38,15 @@ export interface UserWithRole {
 }
 
 export async function getCurrentUser(): Promise<UserWithRole | null> {
+  if (DEMO_MODE) {
+    const cookieStore = await cookies()
+    const demoRole = cookieStore.get('demo_role')?.value
+    if (demoRole && DEMO_USERS[demoRole]) {
+      return DEMO_USERS[demoRole]
+    }
+    return DEMO_USERS.owner
+  }
+
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },

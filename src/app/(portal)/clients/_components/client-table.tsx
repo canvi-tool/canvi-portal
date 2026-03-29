@@ -12,9 +12,12 @@ type Client = Tables<'clients'>
 interface ClientTableProps {
   data: Client[]
   loading?: boolean
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
-export function ClientTable({ data, loading }: ClientTableProps) {
+export function ClientTable({ data, loading, selectable, selectedIds, onSelectionChange }: ClientTableProps) {
   const router = useRouter()
 
   const columns: DataTableColumn<Client>[] = [
@@ -80,6 +83,9 @@ export function ClientTable({ data, loading }: ClientTableProps) {
       emptyMessage="クライアントが登録されていません"
       pageSize={20}
       keyExtractor={(row) => row.id}
+      selectable={selectable}
+      selectedIds={selectedIds}
+      onSelectionChange={onSelectionChange}
     />
   )
 }

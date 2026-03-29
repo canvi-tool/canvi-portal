@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, type ReactNode } from 'react'
+import { useState, useMemo, useCallback, type ReactNode } from 'react'
 import {
   Table,
   TableHeader,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export interface DataTableColumn<T> {
@@ -29,6 +30,9 @@ interface DataTableProps<T> {
   emptyMessage?: string
   pageSize?: number
   keyExtractor?: (row: T) => string
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
 type SortDirection = 'asc' | 'desc' | null
@@ -40,10 +44,58 @@ export function DataTable<T>({
   emptyMessage = 'データがありません',
   pageSize = 10,
   keyExtractor,
+  selectable = false,
+  selectedIds,
+  onSelectionChange,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [page, setPage] = useState(0)
+
+  const getRowId = useCallback(
+    (row: T, idx: number) => keyExtractor?.(row) ?? String(idx),
+    [keyExtractor]
+  )
+
+  const allPageIds = useMemo(() => {
+    if (!selectable || !keyExtractor) return []
+    const start = page * pageSize
+    const end = start + pageSize
+    const sorted = sortKey && sortDir ? [...data] : data
+    return sorted.slice(start, end).map((row) => keyExtractor(row))
+  }, [selectable, keyExtractor, data, page, pageSize, sortKey, sortDir])
+
+  const isAllPageSelected = useMemo(() => {
+    if (!selectedIds || allPageIds.length === 0) return false
+    return allPageIds.every((id) => selectedIds.has(id))
+  }, [selectedIds, allPageIds])
+
+  const isSomePageSelected = useMemo(() => {
+    if (!selectedIds || allPageIds.length === 0) return false
+    return allPageIds.some((id) => selectedIds.has(id)) && !isAllPageSelected
+  }, [selectedIds, allPageIds, isAllPageSelected])
+
+  const toggleSelectAll = useCallback(() => {
+    if (!onSelectionChange || !selectedIds) return
+    const next = new Set(selectedIds)
+    if (isAllPageSelected) {
+      allPageIds.forEach((id) => next.delete(id))
+    } else {
+      allPageIds.forEach((id) => next.add(id))
+    }
+    onSelectionChange(next)
+  }, [onSelectionChange, selectedIds, isAllPageSelected, allPageIds])
+
+  const toggleSelectRow = useCallback(
+    (id: string) => {
+      if (!onSelectionChange || !selectedIds) return
+      const next = new Set(selectedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      onSelectionChange(next)
+    },
+    [onSelectionChange, selectedIds]
+  )
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -104,6 +156,16 @@ export function DataTable<T>({
         <Table>
           <TableHeader>
             <TableRow>
+              {selectable && (
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={isAllPageSelected}
+                    indeterminate={isSomePageSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="全て選択"
+                  />
+                </TableHead>
+              )}
               {columns.map((col) => (
                 <TableHead key={col.key} className={col.className}>
                   {col.sortable !== false ? (
@@ -131,22 +193,38 @@ export function DataTable<T>({
             {paginatedData.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={columns.length + (selectable ? 1 : 0)}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedData.map((row, idx) => (
-                <TableRow key={keyExtractor ? keyExtractor(row) : idx}>
-                  {columns.map((col) => (
-                    <TableCell key={col.key} className={col.className}>
-                      {col.cell ? col.cell(row) : String(col.accessor(row) ?? '')}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              paginatedData.map((row, idx) => {
+                const rowId = getRowId(row, page * pageSize + idx)
+                const isSelected = selectable && selectedIds?.has(rowId)
+                return (
+                  <TableRow
+                    key={keyExtractor ? keyExtractor(row) : idx}
+                    className={isSelected ? 'bg-primary/5' : undefined}
+                  >
+                    {selectable && (
+                      <TableCell className="w-[40px]">
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={() => toggleSelectRow(rowId)}
+                          aria-label="行を選択"
+                        />
+                      </TableCell>
+                    )}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className={col.className}>
+                        {col.cell ? col.cell(row) : String(col.accessor(row) ?? '')}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

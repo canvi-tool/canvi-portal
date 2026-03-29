@@ -151,3 +151,26 @@ export function useDeleteStaff() {
     },
   })
 }
+
+async function bulkUpdateStaffStatus({ ids, status }: { ids: string[]; status: string }): Promise<{ updated: number; status: string }> {
+  const res = await fetch('/api/staff/bulk', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, status }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: '一括更新に失敗しました' }))
+    throw new Error(err.error || '一括更新に失敗しました')
+  }
+  return res.json()
+}
+
+export function useBulkUpdateStaffStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: bulkUpdateStaffStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff', 'list'] })
+    },
+  })
+}

@@ -12,9 +12,12 @@ type Staff = Tables<'staff'>
 interface StaffTableProps {
   data: Staff[]
   loading?: boolean
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
-export function StaffTable({ data, loading }: StaffTableProps) {
+export function StaffTable({ data, loading, selectable, selectedIds, onSelectionChange }: StaffTableProps) {
   const router = useRouter()
 
   const columns: DataTableColumn<Staff>[] = [
@@ -80,6 +83,9 @@ export function StaffTable({ data, loading }: StaffTableProps) {
       emptyMessage="スタッフが登録されていません"
       pageSize={20}
       keyExtractor={(row) => row.id}
+      selectable={selectable}
+      selectedIds={selectedIds}
+      onSelectionChange={onSelectionChange}
     />
   )
 }

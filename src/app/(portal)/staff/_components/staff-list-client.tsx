@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -11,7 +12,10 @@ import {
 } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 import { StaffTable } from './staff-table'
+import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { STAFF_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
+import { useBulkUpdateStaffStatus } from '@/hooks/use-staff'
+import { toast } from 'sonner'
 import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
@@ -20,10 +24,19 @@ interface StaffListClientProps {
   initialData: Staff[]
 }
 
+const BULK_STATUS_OPTIONS = [
+  { value: 'active', label: '稼働中に変更' },
+  { value: 'on_leave', label: '休止中に変更' },
+  { value: 'retired', label: '退職/離任に変更' },
+]
+
 export function StaffListClient({ initialData }: StaffListClientProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [employmentFilter, setEmploymentFilter] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const bulkUpdate = useBulkUpdateStaffStatus()
 
   const filteredData = useMemo(() => {
     let result = initialData
@@ -53,6 +66,17 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
 
     return result
   }, [initialData, search, statusFilter, employmentFilter])
+
+  const handleBulkStatusChange = async (status: string) => {
+    const ids = Array.from(selectedIds)
+    try {
+      const result = await bulkUpdate.mutateAsync({ ids, status })
+      toast.success(`${result.updated}件のスタッフのステータスを更新しました`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '一括更新に失敗しました')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -104,7 +128,31 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
       </div>
 
       {/* Table */}
-      <StaffTable data={filteredData} />
+      <StaffTable
+        data={filteredData}
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={filteredData.length}
+        onClearSelection={() => setSelectedIds(new Set())}
+      >
+        {BULK_STATUS_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            variant="secondary"
+            size="sm"
+            disabled={bulkUpdate.isPending}
+            onClick={() => handleBulkStatusChange(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </BulkActionBar>
     </div>
   )
 }

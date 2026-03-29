@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -11,7 +12,10 @@ import {
 } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 import { ClientTable } from './client-table'
+import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { CLIENT_STATUS_LABELS } from '@/lib/constants'
+import { useBulkUpdateClientStatus } from '@/hooks/use-clients'
+import { toast } from 'sonner'
 import type { Tables } from '@/lib/types/database'
 
 type Client = Tables<'clients'>
@@ -20,9 +24,17 @@ interface ClientListClientProps {
   initialData: Client[]
 }
 
+const BULK_STATUS_OPTIONS = [
+  { value: 'active', label: '有効に変更' },
+  { value: 'inactive', label: '無効に変更' },
+]
+
 export function ClientListClient({ initialData }: ClientListClientProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const bulkUpdate = useBulkUpdateClientStatus()
 
   const filteredData = useMemo(() => {
     let result = initialData
@@ -51,6 +63,17 @@ export function ClientListClient({ initialData }: ClientListClientProps) {
 
     return result
   }, [initialData, search, statusFilter])
+
+  const handleBulkStatusChange = async (status: string) => {
+    const ids = Array.from(selectedIds)
+    try {
+      const result = await bulkUpdate.mutateAsync({ ids, status })
+      toast.success(`${result.updated}件のクライアントのステータスを更新しました`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '一括更新に失敗しました')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -85,7 +108,31 @@ export function ClientListClient({ initialData }: ClientListClientProps) {
       </div>
 
       {/* Table */}
-      <ClientTable data={filteredData} />
+      <ClientTable
+        data={filteredData}
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={filteredData.length}
+        onClearSelection={() => setSelectedIds(new Set())}
+      >
+        {BULK_STATUS_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            variant="secondary"
+            size="sm"
+            disabled={bulkUpdate.isPending}
+            onClick={() => handleBulkStatusChange(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </BulkActionBar>
     </div>
   )
 }
