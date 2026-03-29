@@ -213,21 +213,27 @@ export async function POST(request: NextRequest) {
 
     if (createPortalAccount && formData.email) {
       try {
-        const domain = formData.email.split('@')[1]?.toLowerCase()
+        // ポータル招待にはcanviドメインのメールを使用する
+        // Googleアカウントが発行済みならそのメール、なければformData.emailをチェック
+        const portalEmail = (provisioning.google_workspace?.success && provisioning.google_workspace.email)
+          ? provisioning.google_workspace.email
+          : formData.email
+
+        const domain = portalEmail.split('@')[1]?.toLowerCase()
         if (!ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')) {
           provisioning.portal = {
             success: false,
-            error: `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ招待できます`,
+            error: `ポータル招待には @${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスが必要です。先にGoogleアカウントを発行してください。`,
           }
         } else {
           const adminClient = createAdminClient()
           const { data: inviteData, error: inviteError } =
-            await adminClient.auth.admin.inviteUserByEmail(formData.email, {
+            await adminClient.auth.admin.inviteUserByEmail(portalEmail, {
               data: {
                 display_name: `${formData.last_name} ${formData.first_name}`,
                 invited_role: portalRole || 'staff',
               },
-              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/callback`,
+              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/setup-password`,
             })
 
           if (inviteError) {
@@ -242,7 +248,7 @@ export async function POST(request: NextRequest) {
             await adminClient.from('users').upsert(
               {
                 id: inviteData.user.id,
-                email: formData.email,
+                email: portalEmail,
                 display_name: `${formData.last_name} ${formData.first_name}`,
               },
               { onConflict: 'id' }
@@ -271,7 +277,7 @@ export async function POST(request: NextRequest) {
 
             provisioning.portal = {
               success: true,
-              email: formData.email,
+              email: portalEmail,
             }
           }
         }

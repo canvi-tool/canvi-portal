@@ -1,9 +1,13 @@
 import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export type RoleName = 'owner' | 'admin' | 'staff'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+/** オーナーメールアドレス（初回自動セットアップ用） */
+const OWNER_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp']
 
 const DEMO_USERS: Record<string, UserWithRole> = {
   owner: {
@@ -53,7 +57,7 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: userData } = await supabase
+  let { data: userData } = await supabase
     .from('users')
     .select(
       `
@@ -63,6 +67,76 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
     )
     .eq('id', user.id)
     .single()
+
+  // Auto-provision: auth user exists but no users table record
+  if (!userData) {
+    const adminClient = createAdminClient()
+    const email = user.email || ''
+    const displayName =
+      user.user_metadata?.display_name ||
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      email.split('@')[0] || ''
+
+    // Create users record
+    const { error: insertError } = await adminClient.from('users').upsert(
+      {
+        id: user.id,
+        email,
+        display_name: displayName,
+      },
+      { onConflict: 'id' }
+    )
+
+    if (insertError) {
+      console.error('Auto-provision users record failed:', insertError)
+      return null
+    }
+
+    // Determine role: owner emails get owner, first user gets owner, others get staff
+    let roleName: RoleName = 'staff'
+    if (OWNER_EMAILS.includes(email.toLowerCase())) {
+      roleName = 'owner'
+    } else {
+      // Check if this is the very first user
+      const { count } = await adminClient
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+      if (count !== null && count <= 1) {
+        roleName = 'owner'
+      }
+    }
+
+    // Get or create role
+    const { data: roleData } = await adminClient
+      .from('roles')
+      .select('id')
+      .eq('name', roleName)
+      .single()
+
+    if (roleData) {
+      await adminClient.from('user_roles').upsert(
+        { user_id: user.id, role_id: roleData.id },
+        { onConflict: 'user_id,role_id' }
+      )
+    }
+
+    console.log(`Auto-provisioned user ${email} with role ${roleName}`)
+
+    // Re-fetch with roles
+    const { data: refetched } = await supabase
+      .from('users')
+      .select(
+        `
+        id, email, display_name,
+        user_roles(role:roles(name))
+      `
+      )
+      .eq('id', user.id)
+      .single()
+
+    userData = refetched
+  }
 
   if (!userData) return null
 

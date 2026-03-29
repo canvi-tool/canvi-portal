@@ -215,12 +215,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           portalResult = { success: true, message: `ロールを「${portalRole}」に変更しました` }
         }
       } else if (createPortalAccount) {
-        // New portal account: invite
+        // New portal account: invite - canviドメインのメールが必要
         const domain = staffEmail.split('@')[1]?.toLowerCase()
         if (!ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')) {
           portalResult = {
             success: false,
-            error: `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ招待できます`,
+            error: `ポータル招待には @${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスが必要です。先にGoogleアカウントを発行するか、メールアドレスを @${ALLOWED_EMAIL_DOMAINS[0]} に変更してください。`,
           }
         } else {
           const { data: inviteData, error: inviteError } =
@@ -229,7 +229,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 display_name: `${formData.last_name} ${formData.first_name}`,
                 invited_role: portalRole,
               },
-              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/callback`,
+              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/setup-password`,
             })
 
           if (inviteError) {
