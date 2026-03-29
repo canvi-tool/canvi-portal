@@ -1,0 +1,321 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
+
+interface StaffInfo {
+  id: string
+  last_name: string
+  first_name: string
+  personal_email: string
+}
+
+type PageState = 'loading' | 'form' | 'submitting' | 'done' | 'error'
+
+export default function OnboardingPage() {
+  const { token } = useParams<{ token: string }>()
+  const [state, setState] = useState<PageState>('loading')
+  const [staffInfo, setStaffInfo] = useState<StaffInfo | null>(null)
+  const [error, setError] = useState('')
+
+  // Form state
+  const [form, setForm] = useState({
+    last_name: '',
+    first_name: '',
+    last_name_kana: '',
+    first_name_kana: '',
+    date_of_birth: '',
+    gender: '',
+    phone: '',
+    postal_code: '',
+    prefecture: '',
+    city: '',
+    address_line1: '',
+    address_line2: '',
+    bank_name: '',
+    bank_branch: '',
+    bank_account_type: '',
+    bank_account_number: '',
+    bank_account_holder: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+  })
+
+  useEffect(() => {
+    async function verify() {
+      try {
+        const res = await fetch(`/api/staff/onboarding/${token}`)
+        if (!res.ok) {
+          setState('error')
+          setError('このリンクは無効または期限切れです。管理者にお問い合わせください。')
+          return
+        }
+        const data: StaffInfo = await res.json()
+        setStaffInfo(data)
+        setForm((prev) => ({
+          ...prev,
+          last_name: data.last_name,
+          first_name: data.first_name,
+        }))
+        setState('form')
+      } catch {
+        setState('error')
+        setError('接続エラーが発生しました。')
+      }
+    }
+    verify()
+  }, [token])
+
+  const updateField = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setState('submitting')
+    setError('')
+
+    try {
+      const res = await fetch(`/api/staff/onboarding/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || '送信に失敗しました')
+        setState('form')
+        return
+      }
+      setState('done')
+    } catch {
+      setError('送信に失敗しました')
+      setState('form')
+    }
+  }
+
+  // Loading
+  if (state === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    )
+  }
+
+  // Error (invalid token)
+  if (state === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-8 pb-8">
+            <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold mb-2">アクセスできません</h2>
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Done
+  if (state === 'done') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-8 pb-8">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold mb-2">登録が完了しました</h2>
+            <p className="text-sm text-muted-foreground">
+              ご入力ありがとうございます。<br />
+              管理者の承認後、Canviアカウント（@canvi.co.jp）が発行され、<br />
+              ログイン情報がメールで届きます。
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Form
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4">
+      <div className="mx-auto max-w-2xl space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-600 text-2xl font-bold text-white shadow-lg">
+            C
+          </div>
+          <h1 className="text-2xl font-bold">Canvi スタッフ登録</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            入職にあたり、以下の情報をご入力ください
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* 基本情報 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">基本情報</CardTitle>
+              <CardDescription>氏名・生年月日など</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="姓" required>
+                  <Input value={form.last_name} onChange={(e) => updateField('last_name', e.target.value)} required />
+                </Field>
+                <Field label="名" required>
+                  <Input value={form.first_name} onChange={(e) => updateField('first_name', e.target.value)} required />
+                </Field>
+                <Field label="姓（カナ）" required>
+                  <Input value={form.last_name_kana} onChange={(e) => updateField('last_name_kana', e.target.value)} placeholder="セイ" required />
+                </Field>
+                <Field label="名（カナ）" required>
+                  <Input value={form.first_name_kana} onChange={(e) => updateField('first_name_kana', e.target.value)} placeholder="メイ" required />
+                </Field>
+                <Field label="生年月日" required>
+                  <Input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} required />
+                </Field>
+                <Field label="性別">
+                  <Select value={form.gender} onValueChange={(v) => updateField('gender', v)}>
+                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">男性</SelectItem>
+                      <SelectItem value="female">女性</SelectItem>
+                      <SelectItem value="other">その他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 連絡先 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">連絡先</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="電話番号" required>
+                  <Input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="090-1234-5678" required />
+                </Field>
+                <Field label="メールアドレス">
+                  <Input value={staffInfo?.personal_email || ''} disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground mt-1">招待時に登録済み</p>
+                </Field>
+                <Field label="郵便番号">
+                  <Input value={form.postal_code} onChange={(e) => updateField('postal_code', e.target.value)} placeholder="123-4567" />
+                </Field>
+                <Field label="都道府県">
+                  <Input value={form.prefecture} onChange={(e) => updateField('prefecture', e.target.value)} placeholder="東京都" />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="住所">
+                    <Input value={form.address_line1} onChange={(e) => updateField('address_line1', e.target.value)} placeholder="市区町村 番地" />
+                  </Field>
+                </div>
+                <div className="sm:col-span-2">
+                  <Field label="建物名・部屋番号">
+                    <Input value={form.address_line2} onChange={(e) => updateField('address_line2', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 緊急連絡先 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">緊急連絡先</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="氏名">
+                  <Input value={form.emergency_contact_name} onChange={(e) => updateField('emergency_contact_name', e.target.value)} placeholder="連絡先の方のお名前" />
+                </Field>
+                <Field label="電話番号">
+                  <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', e.target.value)} placeholder="090-1234-5678" />
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 銀行口座 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">銀行口座（給与振込先）</CardTitle>
+              <CardDescription>任意項目です。後日でも登録可能です。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="銀行名">
+                  <Input value={form.bank_name} onChange={(e) => updateField('bank_name', e.target.value)} />
+                </Field>
+                <Field label="支店名">
+                  <Input value={form.bank_branch} onChange={(e) => updateField('bank_branch', e.target.value)} />
+                </Field>
+                <Field label="口座種別">
+                  <Select value={form.bank_account_type} onValueChange={(v) => updateField('bank_account_type', v)}>
+                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="普通">普通</SelectItem>
+                      <SelectItem value="当座">当座</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="口座番号">
+                  <Input value={form.bank_account_number} onChange={(e) => updateField('bank_account_number', e.target.value)} />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="口座名義（カタカナ）">
+                    <Input value={form.bank_account_holder} onChange={(e) => updateField('bank_account_holder', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {error && (
+            <p className="text-sm text-red-600 text-center">{error}</p>
+          )}
+
+          <div className="flex justify-center">
+            <Button type="submit" size="lg" className="w-full sm:w-auto px-12" disabled={state === 'submitting'}>
+              {state === 'submitting' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              登録内容を送信
+            </Button>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground">
+            送信後、管理者の承認を経てCanviアカウントが発行されます
+          </p>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </Label>
+      {children}
+    </div>
+  )
+}

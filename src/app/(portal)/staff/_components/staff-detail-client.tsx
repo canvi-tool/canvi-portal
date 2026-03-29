@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { StaffStatusBadge } from './staff-status-badge'
+import { ApproveStaffCard } from './approve-staff-card'
 import { Pencil, MoreVertical, UserMinus, RefreshCw } from 'lucide-react'
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -168,6 +169,9 @@ export function StaffDetailClient({
           </div>
         }
       />
+
+      {/* 承認待ちバナー */}
+      <ApproveStaffCard staff={staff} />
 
       <Tabs defaultValue="basic">
         <TabsList>

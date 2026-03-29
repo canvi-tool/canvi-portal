@@ -5,6 +5,8 @@ export const APP_DESCRIPTION = 'Canvi業務総合ポータル'
 export const ALLOWED_EMAIL_DOMAINS = ['canvi.co.jp']
 
 export const STAFF_STATUS_LABELS: Record<string, string> = {
+  pending_registration: '登録待ち',
+  pending_approval: '承認待ち',
   pre_contract: '契約前',
   contract_sent: '契約送付済',
   pending_signature: '締結待ち',

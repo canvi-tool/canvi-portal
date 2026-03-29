@@ -77,6 +77,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // /onboarding と /setup-password は認証不要（公開ページ）
+  if (
+    request.nextUrl.pathname.startsWith('/onboarding') ||
+    request.nextUrl.pathname.startsWith('/setup-password')
+  ) {
+    return supabaseResponse
+  }
+
   if (user && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
