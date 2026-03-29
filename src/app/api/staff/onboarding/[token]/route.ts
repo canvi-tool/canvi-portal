@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { staffOnboardingSchema } from '@/lib/validations/staff'
 import { sendEmail, buildApprovalRequestEmail } from '@/lib/email/send'
 
@@ -11,21 +11,20 @@ interface RouteParams {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { token } = await params
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
 
-    const { data: staff } = await supabase
+    // suspended状態でonboarding_tokenが一致するスタッフを検索
+    const { data: allSuspended } = await supabase
       .from('staff')
       .select('id, last_name, first_name, personal_email, status, custom_fields')
-      .eq('status', 'pending_registration')
-      .single()
+      .eq('status', 'suspended')
+
+    const staff = allSuspended?.find((s) => {
+      const fields = s.custom_fields as Record<string, unknown> | null
+      return fields?.onboarding_token === token && fields?.onboarding_status === 'pending_registration'
+    })
 
     if (!staff) {
-      return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
-    }
-
-    // custom_fieldsからトークンチェック
-    const fields = staff.custom_fields as Record<string, unknown> | null
-    if (fields?.onboarding_token !== token) {
       return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
     }
 
@@ -45,18 +44,17 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { token } = await params
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
 
     // トークンでスタッフ検索
-    // まずpending_registrationのスタッフを全て取得してトークンマッチ
-    const { data: allPending } = await supabase
+    const { data: allSuspended } = await supabase
       .from('staff')
       .select('*')
-      .eq('status', 'pending_registration')
+      .eq('status', 'suspended')
 
-    const staff = allPending?.find((s) => {
+    const staff = allSuspended?.find((s) => {
       const fields = s.custom_fields as Record<string, unknown> | null
-      return fields?.onboarding_token === token
+      return fields?.onboarding_token === token && fields?.onboarding_status === 'pending_registration'
     })
 
     if (!staff) {
@@ -76,7 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const formData = result.data
     const existingFields = (staff.custom_fields as Record<string, unknown>) || {}
 
-    // スタッフレコードを更新
+    // スタッフレコードを更新（statusはsuspendedのまま、onboarding_statusで管理）
     const { error: updateError } = await supabase
       .from('staff')
       .update({
@@ -97,12 +95,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         bank_account_type: formData.bank_account_type || null,
         bank_account_number: formData.bank_account_number || null,
         bank_account_holder: formData.bank_account_holder || null,
-        status: 'pending_approval',
+        emergency_contact_name: formData.emergency_contact_name || null,
+        emergency_contact_phone: formData.emergency_contact_phone || null,
         custom_fields: {
           ...existingFields,
+          onboarding_status: 'pending_approval',
           onboarding_submitted_at: new Date().toISOString(),
-          emergency_contact_name: formData.emergency_contact_name || null,
-          emergency_contact_phone: formData.emergency_contact_phone || null,
         },
         updated_at: new Date().toISOString(),
       })
@@ -115,19 +113,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // オーナーに承認依頼メールを送信
     try {
-      const { data: owners } = await supabase
-        .from('users')
-        .select('email, user_roles(roles(name))')
+      const { data: allUserRoles } = await supabase
+        .from('user_roles')
+        .select('user_id, role:roles(name)')
 
-      const ownerEmails = (owners ?? [])
-        .filter((u) => {
-          const roles = (u.user_roles as { roles: { name: string } | null }[])
-            ?.map((ur) => ur.roles?.name) ?? []
-          return roles.includes('owner')
-        })
-        .map((u) => u.email)
+      const ownerUserIds = (allUserRoles ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((ur: any) => ur.role?.name === 'owner')
+        .map((ur) => ur.user_id)
 
-      if (ownerEmails.length > 0) {
+      if (ownerUserIds.length > 0) {
+        const { data: owners } = await supabase
+          .from('users')
+          .select('email')
+          .in('id', ownerUserIds)
+
+        const ownerEmails = owners?.map((u) => u.email) ?? []
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'
         const emailContent = buildApprovalRequestEmail({
           staffName: `${formData.last_name} ${formData.first_name}`,
