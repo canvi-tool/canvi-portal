@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     const offset = (params.page - 1) * params.limit
     query = query
-      .order('created_at', { ascending: false })
+      .order('staff_code', { ascending: false })
       .range(offset, offset + params.limit - 1)
 
     const { data, error, count } = await query
