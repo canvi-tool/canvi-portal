@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { staffInviteSchema } from '@/lib/validations/staff'
 import { sendEmail, buildOnboardingInviteEmail } from '@/lib/email/send'
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { last_name, first_name, personal_email } = result.data
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
 
     // 同じメールで既に招待済みかチェック
     const { data: existing } = await supabase
