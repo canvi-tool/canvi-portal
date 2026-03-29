@@ -103,9 +103,9 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col bg-slate-900">
       {/* Logo */}
-      <div className={cn('flex h-12 items-center border-b border-slate-700 px-3', collapsed && 'justify-center px-2')}>
-        <Link href="/dashboard" className="flex items-center gap-2" onClick={onNavigate}>
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white text-xs">
+      <div className={cn('flex h-14 items-center border-b border-slate-700 px-4', collapsed && 'justify-center px-2')}>
+        <Link href="/dashboard" className="flex items-center gap-2.5" onClick={onNavigate}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white text-sm">
             C
           </div>
           {!collapsed && (
@@ -129,7 +129,7 @@ function SidebarContent({
       )}
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 px-2 py-2">
+      <ScrollArea className="flex-1 px-2.5 py-3">
         <nav className="flex flex-col gap-0.5">
           {NAV_ITEMS
             .filter((item) => !user?.role || canAccessRoute(user.role, item.href))

@@ -44,7 +44,7 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b bg-background px-3 sm:px-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background px-4 sm:px-5">
       {/* Mobile menu trigger */}
       <MobileSidebar user={user} onSignOut={onSignOut} />
 
