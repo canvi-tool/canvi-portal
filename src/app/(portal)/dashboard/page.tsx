@@ -186,12 +186,12 @@ function KpiCard({
   return (
     <Link href={href}>
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="pt-4 pb-3 px-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <Icon className="h-4 w-4 text-muted-foreground" />
+        <CardContent className="pt-3 pb-2.5 px-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
-          <div className="text-2xl font-bold tracking-tight">{formatted}</div>
+          <div className="text-xl font-bold tracking-tight">{formatted}</div>
         </CardContent>
       </Card>
     </Link>
@@ -254,14 +254,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title={`${greeting}、${displayName}さん`}
         description={`${formatDateShort(today)} の業務概要`}
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2.5 grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="スタッフ数"
           value={d.staffCount}
@@ -289,10 +289,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Main grid */}
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className="grid gap-4 lg:grid-cols-5">
 
         {/* Left column */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4">
 
           {/* Today's Shifts */}
           <Card>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
 
           {/* Quick Actions */}
           <Card>

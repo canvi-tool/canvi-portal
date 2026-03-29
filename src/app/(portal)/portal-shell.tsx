@@ -34,10 +34,10 @@ export function PortalShell({ user, children }: PortalShellProps) {
       <DesktopSidebar user={user} onSignOut={handleSignOut} />
 
       {/* Main content area - offset by sidebar width on desktop */}
-      <div className="lg:pl-64 min-w-0">
+      <div className="lg:pl-56 min-w-0">
         <Header user={user} onSignOut={handleSignOut} />
 
-        <main className="p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">{children}</main>
+        <main className="p-3 sm:p-4 lg:p-6 min-w-0 overflow-x-hidden">{children}</main>
       </div>
     </div>
   )

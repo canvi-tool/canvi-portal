@@ -70,7 +70,7 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
         'hover:bg-white/10',
         isActive
           ? 'bg-indigo-600 text-white'
@@ -79,7 +79,7 @@ function NavLink({
       )}
       title={collapsed ? item.label : undefined}
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      <Icon className="h-4 w-4 shrink-0" />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   )
@@ -103,13 +103,13 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col bg-slate-900">
       {/* Logo */}
-      <div className={cn('flex h-16 items-center border-b border-slate-700 px-4', collapsed && 'justify-center px-2')}>
+      <div className={cn('flex h-12 items-center border-b border-slate-700 px-3', collapsed && 'justify-center px-2')}>
         <Link href="/dashboard" className="flex items-center gap-2" onClick={onNavigate}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white text-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white text-xs">
             C
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-white">{APP_NAME}</span>
+            <span className="text-base font-bold text-white">{APP_NAME}</span>
           )}
         </Link>
       </div>
@@ -129,8 +129,8 @@ function SidebarContent({
       )}
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 px-3 py-4">
-        <nav className="flex flex-col gap-1">
+      <ScrollArea className="flex-1 px-2 py-2">
+        <nav className="flex flex-col gap-0.5">
           {NAV_ITEMS
             .filter((item) => !user?.role || canAccessRoute(user.role, item.href))
             .map((item) => (
@@ -149,16 +149,16 @@ function SidebarContent({
       {onCollapse && (
         <>
           <Separator className="bg-slate-700" />
-          <div className="px-3 py-2">
+          <div className="px-2 py-1.5">
             <button
               onClick={() => onCollapse(!collapsed)}
-              className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex w-full items-center justify-center rounded-md px-2 py-1.5 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
             >
               {collapsed ? (
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               ) : (
                 <>
-                  <ChevronLeft className="h-5 w-5 mr-2" />
+                  <ChevronLeft className="h-4 w-4 mr-1.5" />
                   <span>折りたたむ</span>
                 </>
               )}
@@ -169,18 +169,18 @@ function SidebarContent({
 
       {/* User info + logout */}
       <Separator className="bg-slate-700" />
-      <div className={cn('p-3', collapsed && 'flex justify-center')}>
+      <div className={cn('p-2', collapsed && 'flex justify-center')}>
         {user ? (
-          <div className={cn('flex items-center gap-3', collapsed && 'flex-col')}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+          <div className={cn('flex items-center gap-2', collapsed && 'flex-col')}>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-medium text-white">
               {user.displayName.charAt(0).toUpperCase()}
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium text-white">
+                <p className="truncate text-[13px] font-medium text-white">
                   {user.displayName}
                 </p>
-                <p className="truncate text-xs text-slate-400">{user.email}</p>
+                <p className="truncate text-[11px] text-slate-400">{user.email}</p>
               </div>
             )}
             <button
@@ -207,7 +207,7 @@ export function DesktopSidebar({ user, onSignOut }: SidebarProps) {
     <aside
       className={cn(
         'hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:flex-col transition-all duration-300',
-        collapsed ? 'lg:w-16' : 'lg:w-64'
+        collapsed ? 'lg:w-14' : 'lg:w-56'
       )}
     >
       <SidebarContent
