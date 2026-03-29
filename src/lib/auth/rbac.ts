@@ -55,9 +55,12 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) {
+    console.log('getCurrentUser: no auth user')
+    return null
+  }
 
-  let { data: userData } = await supabase
+  let { data: userData, error: userError } = await supabase
     .from('users')
     .select(
       `
@@ -67,6 +70,8 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
     )
     .eq('id', user.id)
     .single()
+
+  console.log('getCurrentUser:', user.email, 'userData:', userData ? 'found' : 'null', 'error:', userError?.message || 'none')
 
   // Auto-provision: auth user exists but no users table record
   if (!userData) {

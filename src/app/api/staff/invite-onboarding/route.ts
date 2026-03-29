@@ -7,7 +7,10 @@ import type { Json } from '@/lib/types/database'
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireAdmin().catch(() => null)
+    const admin = await requireAdmin().catch((err) => {
+      console.error('requireAdmin failed:', err?.message, err)
+      return null
+    })
     if (!admin) {
       return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 })
     }
