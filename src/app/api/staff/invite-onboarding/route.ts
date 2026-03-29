@@ -28,13 +28,17 @@ export async function POST(request: NextRequest) {
     const { last_name, first_name, personal_email } = result.data
     const supabase = createAdminClient()
 
-    // 同じメールで既に招待済みかチェック
-    const { data: existing } = await supabase
+    // 同じメールで既に招待済みかチェック（custom_fieldsにonboarding_tokenがあるsuspendedレコード）
+    const { data: existingList } = await supabase
       .from('staff')
-      .select('id, status')
+      .select('id, status, custom_fields')
       .eq('personal_email', personal_email)
-      .in('status', ['pending_registration', 'pending_approval'])
-      .maybeSingle()
+      .eq('status', 'suspended')
+
+    const existing = existingList?.find((s) => {
+      const cf = s.custom_fields as Record<string, unknown> | null
+      return cf?.onboarding_token && !cf?.onboarding_completed
+    })
 
     if (existing) {
       return NextResponse.json(
@@ -46,19 +50,21 @@ export async function POST(request: NextRequest) {
     // トークン生成
     const token = crypto.randomUUID()
 
-    // スタッフレコードを仮作成（status = pending_registration）
+    // スタッフレコードを仮作成（status = suspended をオンボーディング中として使用）
     const { data: staff, error } = await supabase
       .from('staff')
       .insert({
         last_name,
         first_name,
-        email: personal_email, // 初期は個人メール、承認後にcanviメールに更新
+        email: personal_email,
         personal_email,
         staff_code: `PENDING-${token.slice(0, 8).toUpperCase()}`,
         employment_type: 'full_time',
-        status: 'pending_registration',
+        status: 'suspended',
+        hire_date: new Date().toISOString().split('T')[0],
         custom_fields: {
           onboarding_token: token,
+          onboarding_status: 'pending_registration',
           invited_at: new Date().toISOString(),
           invited_by: admin.id,
         } as unknown as Json,
