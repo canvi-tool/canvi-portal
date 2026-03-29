@@ -25,7 +25,7 @@ export function PaymentSummaryTable({
     {
       key: 'staff_name',
       header: 'スタッフ名',
-      accessor: (row) => row.staff?.full_name ?? '',
+      accessor: (row) => row.staff ? `${row.staff.last_name} ${row.staff.first_name}` : '',
       cell: (row) => {
         const staff = row.staff
         const ym = yearMonth || row.year_month
@@ -34,7 +34,7 @@ export function PaymentSummaryTable({
             href={`/payments/${ym}/${row.staff_id}`}
             className="font-medium text-primary hover:underline"
           >
-            {staff?.full_name ?? '(不明)'}
+            {staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'}
           </Link>
         )
       },

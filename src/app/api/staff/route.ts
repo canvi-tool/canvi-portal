@@ -27,10 +27,10 @@ export async function GET(request: NextRequest) {
       .from('staff')
       .select('*', { count: 'exact' })
 
-    // Search by name, email, or staff_code in custom_fields
+    // Search by name, email, or staff_code
     if (params.search) {
       query = query.or(
-        `full_name.ilike.%${params.search}%,full_name_kana.ilike.%${params.search}%,email.ilike.%${params.search}%,custom_fields->>staff_code.ilike.%${params.search}%`
+        `last_name.ilike.%${params.search}%,first_name.ilike.%${params.search}%,last_name_kana.ilike.%${params.search}%,first_name_kana.ilike.%${params.search}%,email.ilike.%${params.search}%,staff_code.ilike.%${params.search}%`
       )
     }
 
@@ -95,31 +95,36 @@ export async function POST(request: NextRequest) {
 
     // Build the staff record matching the DB schema
     const staffRecord = {
-      full_name: `${formData.last_name} ${formData.first_name}`,
-      full_name_kana:
-        formData.last_name_kana || formData.first_name_kana
-          ? `${formData.last_name_kana || ''} ${formData.first_name_kana || ''}`.trim()
-          : null,
+      staff_code: formData.staff_code,
+      last_name: formData.last_name,
+      first_name: formData.first_name,
+      last_name_kana: formData.last_name_kana || null,
+      first_name_kana: formData.first_name_kana || null,
+      last_name_eiji: formData.last_name_eiji || null,
+      first_name_eiji: formData.first_name_eiji || null,
       email: formData.email,
+      personal_email: formData.personal_email || null,
       phone: formData.phone || null,
+      gender: formData.gender || null,
       date_of_birth: formData.date_of_birth || null,
+      postal_code: formData.postal_code || null,
+      prefecture: formData.prefecture || null,
+      city: formData.city || null,
+      address_line1: formData.address_line1 || null,
+      address_line2: formData.address_line2 || null,
       employment_type: formData.employment_type,
       status: 'pre_contract' as const,
-      join_date: formData.join_date || null,
+      hire_date: formData.hire_date || null,
+      hourly_rate: formData.hourly_rate ?? null,
+      daily_rate: formData.daily_rate ?? null,
+      monthly_salary: formData.monthly_salary ?? null,
+      transportation_allowance: formData.transportation_allowance ?? null,
+      bank_name: formData.bank_name || null,
+      bank_branch: formData.bank_branch || null,
+      bank_account_type: formData.bank_account_type || null,
+      bank_account_number: formData.bank_account_number || null,
+      bank_account_holder: formData.bank_account_holder || null,
       notes: formData.notes || null,
-      custom_fields: {
-        staff_code: formData.staff_code,
-        last_name: formData.last_name,
-        first_name: formData.first_name,
-        last_name_kana: formData.last_name_kana || '',
-        first_name_kana: formData.first_name_kana || '',
-        address: formData.address || '',
-        bank_name: formData.bank_name || '',
-        bank_branch: formData.bank_branch || '',
-        bank_account_type: formData.bank_account_type || '',
-        bank_account_number: formData.bank_account_number || '',
-        bank_account_holder: formData.bank_account_holder || '',
-      },
     }
 
     const { data: staff, error } = await supabase

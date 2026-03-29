@@ -280,7 +280,7 @@ export default function ContractsPage() {
                     </TableCell>
                     <TableCell>
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {(contract.staff as any)?.full_name || '-'}
+                      {(contract.staff as any) ? `${(contract.staff as any).last_name} ${(contract.staff as any).first_name}` : '-'}
                     </TableCell>
                     <TableCell>
                       <Link

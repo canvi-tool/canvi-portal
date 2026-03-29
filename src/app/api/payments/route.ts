@@ -18,8 +18,10 @@ export async function GET(request: NextRequest) {
         *,
         staff:staff_id (
           id,
-          full_name,
-          full_name_kana,
+          last_name,
+          first_name,
+          last_name_kana,
+          first_name_kana,
           email,
           employment_type,
           status

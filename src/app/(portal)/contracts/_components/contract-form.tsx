@@ -87,7 +87,7 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
     const vars = form.getValues('variables') || {}
     const enrichedVars: Record<string, unknown> = {
       ...vars,
-      staff_name: selectedStaff?.full_name || '',
+      staff_name: selectedStaff ? `${selectedStaff.last_name} ${selectedStaff.first_name}` : '',
       start_date: form.getValues('start_date') || '',
       end_date: form.getValues('end_date') || '',
       title: form.getValues('title') || '',
@@ -136,7 +136,7 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
         const vars = form.getValues('variables') || {}
         const enrichedVars: Record<string, unknown> = {
           ...vars,
-          staff_name: selectedStaff?.full_name || '',
+          staff_name: selectedStaff ? `${selectedStaff.last_name} ${selectedStaff.first_name}` : '',
           start_date: form.getValues('start_date') || '',
           end_date: form.getValues('end_date') || '',
           title: form.getValues('title') || '',
@@ -162,7 +162,7 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
       const vars = values.variables || {}
       const enrichedVars: Record<string, unknown> = {
         ...vars,
-        staff_name: selectedStaff?.full_name || '',
+        staff_name: selectedStaff ? `${selectedStaff.last_name} ${selectedStaff.first_name}` : '',
         start_date: values.start_date || '',
         end_date: values.end_date || '',
         title: values.title || '',
@@ -340,10 +340,10 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
                     )}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm font-medium">
-                      {staff.full_name.charAt(0)}
+                      {staff.last_name.charAt(0)}
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium">{staff.full_name}</div>
+                      <div className="font-medium">{staff.last_name} {staff.first_name}</div>
                       <div className="text-xs text-muted-foreground">{staff.email}</div>
                     </div>
                     <div className="text-xs text-muted-foreground">{staff.employment_type}</div>
@@ -511,7 +511,7 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
           <ContractPreview
             title={form.getValues('title')}
             content={selectedTemplate ? generatedContent : form.getValues('content') || ''}
-            staffName={selectedStaff?.full_name}
+            staffName={selectedStaff ? `${selectedStaff.last_name} ${selectedStaff.first_name}` : undefined}
             startDate={form.getValues('start_date')}
             endDate={form.getValues('end_date')}
           />
@@ -535,7 +535,7 @@ export function ContractForm({ mode, contractId, initialData }: ContractFormProp
                   </div>
                   <div className="flex gap-2">
                     <span className="w-32 font-medium text-muted-foreground">スタッフ:</span>
-                    <span>{selectedStaff?.full_name || '未選択'}</span>
+                    <span>{selectedStaff ? `${selectedStaff.last_name} ${selectedStaff.first_name}` : '未選択'}</span>
                   </div>
                   <div className="flex gap-2">
                     <span className="w-32 font-medium text-muted-foreground">テンプレート:</span>

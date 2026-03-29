@@ -11,7 +11,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from('performance_reports')
-      .select('*, staff:staff_id(id, full_name, email), project:project_id(id, name)')
+      .select('*, staff:staff_id(id, last_name, first_name, email), project:project_id(id, name)')
       .eq('id', id)
       .single()
 
@@ -67,7 +67,7 @@ export async function GET(
 
     return NextResponse.json({
       ...data,
-      staff_name: (data.staff as { full_name?: string } | null)?.full_name || '',
+      staff_name: (() => { const s = data.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       project_name: (data.project as { name?: string } | null)?.name || '',
       work_report_summary: workReportSummary,
       kpi_targets: kpiTargets,

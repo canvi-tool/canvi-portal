@@ -40,9 +40,9 @@ export function AssignmentTable({
     {
       key: 'staff_name',
       header: 'スタッフ名',
-      accessor: (row) => row.staff?.full_name ?? '(不明)',
+      accessor: (row) => row.staff ? `${row.staff.last_name} ${row.staff.first_name}` : '(不明)',
       cell: (row) => (
-        <span className="font-medium">{row.staff?.full_name ?? '(不明)'}</span>
+        <span className="font-medium">{row.staff ? `${row.staff.last_name} ${row.staff.first_name}` : '(不明)'}</span>
       ),
     },
     {

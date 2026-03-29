@@ -4,15 +4,17 @@ import type { Json } from '@/lib/types/database'
 
 interface StaffCsvRow {
   staff_code: string
-  full_name: string
-  full_name_kana?: string
+  last_name: string
+  first_name: string
+  last_name_kana?: string
+  first_name_kana?: string
   email: string
   personal_email?: string
   phone?: string
   date_of_birth?: string
   employment_type?: string
   status?: string
-  join_date?: string
+  hire_date?: string
   address?: string
   bank_name?: string
   bank_branch?: string
@@ -105,13 +107,12 @@ export async function POST(request: NextRequest) {
 async function importStaff(supabase: any, rows: StaffCsvRow[], results: { inserted: number; updated: number; errors: string[] }) {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
-    if (!row.full_name || !row.email) {
-      results.errors.push(`行${i + 2}: full_name と email は必須です`)
+    if (!row.last_name || !row.first_name || !row.email) {
+      results.errors.push(`行${i + 2}: last_name, first_name, email は必須です`)
       continue
     }
 
     const customFields: Record<string, string> = {}
-    if (row.staff_code) customFields.staff_code = row.staff_code
     if (row.address) customFields.address = row.address
     if (row.bank_name) customFields.bank_name = row.bank_name
     if (row.bank_branch) customFields.bank_branch = row.bank_branch
@@ -120,22 +121,18 @@ async function importStaff(supabase: any, rows: StaffCsvRow[], results: { insert
     if (row.bank_account_holder) customFields.bank_account_holder = row.bank_account_holder
     if (row.personal_email) customFields.personal_email = row.personal_email
 
-    // Extract last_name / first_name from full_name for custom_fields
-    const nameParts = row.full_name.split(/\s+/)
-    if (nameParts.length >= 2) {
-      customFields.last_name = nameParts[0]
-      customFields.first_name = nameParts.slice(1).join(' ')
-    }
-
     const staffRecord = {
-      full_name: row.full_name,
-      full_name_kana: row.full_name_kana || null,
+      staff_code: row.staff_code,
+      last_name: row.last_name,
+      first_name: row.first_name,
+      last_name_kana: row.last_name_kana || null,
+      first_name_kana: row.first_name_kana || null,
       email: row.email,
       phone: row.phone || null,
       date_of_birth: row.date_of_birth || null,
       employment_type: row.employment_type || 'contractor',
       status: row.status || 'active',
-      join_date: row.join_date || null,
+      hire_date: row.hire_date || null,
       notes: row.notes || null,
       custom_fields: customFields as unknown as Json,
     }
@@ -176,15 +173,14 @@ async function importStaff(supabase: any, rows: StaffCsvRow[], results: { insert
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function importAssignments(supabase: any, rows: AssignmentCsvRow[], results: { inserted: number; updated: number; errors: string[] }) {
   // Pre-fetch staff and projects for lookup
-  const { data: allStaff } = await supabase.from('staff').select('id, email, custom_fields')
+  const { data: allStaff } = await supabase.from('staff').select('id, email, staff_code')
   const { data: allProjects } = await supabase.from('projects').select('id, name')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const staffByCode = new Map<string, string>()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(allStaff || []).forEach((s: any) => {
-    const cf = s.custom_fields as Record<string, string> | null
-    if (cf?.staff_code) staffByCode.set(cf.staff_code, s.id)
+    if (s.staff_code) staffByCode.set(s.staff_code, s.id)
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const projectByName = new Map<string, string>()
@@ -248,7 +244,7 @@ async function importAssignments(supabase: any, rows: AssignmentCsvRow[], result
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function importCompensation(supabase: any, rows: CompensationCsvRow[], results: { inserted: number; updated: number; errors: string[] }) {
   // Pre-fetch staff, projects, assignments
-  const { data: allStaff } = await supabase.from('staff').select('id, custom_fields')
+  const { data: allStaff } = await supabase.from('staff').select('id, staff_code')
   const { data: allProjects } = await supabase.from('projects').select('id, name')
   const { data: allAssignments } = await supabase.from('project_assignments').select('id, project_id, staff_id')
 
@@ -256,8 +252,7 @@ async function importCompensation(supabase: any, rows: CompensationCsvRow[], res
   const staffByCode = new Map<string, string>()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(allStaff || []).forEach((s: any) => {
-    const cf = s.custom_fields as Record<string, string> | null
-    if (cf?.staff_code) staffByCode.set(cf.staff_code, s.id)
+    if (s.staff_code) staffByCode.set(s.staff_code, s.id)
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const projectByName = new Map<string, string>()

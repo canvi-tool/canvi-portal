@@ -16,11 +16,6 @@ import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
 
-interface CustomFields {
-  staff_code?: string
-  [key: string]: unknown
-}
-
 interface StaffListClientProps {
   initialData: Staff[]
 }
@@ -36,11 +31,12 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
     if (search) {
       const q = search.toLowerCase()
       result = result.filter((s) => {
-        const custom = s.custom_fields as CustomFields | null
-        const staffCode = custom?.staff_code?.toLowerCase() || ''
+        const fullName = `${s.last_name} ${s.first_name}`.toLowerCase()
+        const fullNameKana = `${s.last_name_kana || ''} ${s.first_name_kana || ''}`.toLowerCase()
+        const staffCode = (s.staff_code || '').toLowerCase()
         return (
-          s.full_name.toLowerCase().includes(q) ||
-          (s.full_name_kana || '').toLowerCase().includes(q) ||
+          fullName.includes(q) ||
+          fullNameKana.includes(q) ||
           s.email.toLowerCase().includes(q) ||
           staffCode.includes(q)
         )

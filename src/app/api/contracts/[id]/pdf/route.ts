@@ -40,7 +40,7 @@ export async function GET(
     const pdfData: ContractPdfData = {
       title: contract.title,
       contractNumber: contract.id.slice(0, 8).toUpperCase(),
-      staffName: staff?.full_name || '不明',
+      staffName: staff ? `${staff.last_name} ${staff.first_name}` : '不明',
       staffEmail: staff?.email || undefined,
       content: contract.content || template?.content_template || '契約内容が設定されていません。',
       startDate: contract.start_date,

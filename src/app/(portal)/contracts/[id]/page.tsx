@@ -210,7 +210,7 @@ export default function ContractDetailPage() {
             <div>
               <span className="text-muted-foreground">スタッフ</span>
               <div className="mt-1 font-medium">
-                {staff?.full_name || '-'}
+                {staff ? `${staff.last_name} ${staff.first_name}` : '-'}
               </div>
               {staff?.email && (
                 <div className="text-xs text-muted-foreground">{staff.email}</div>
@@ -257,7 +257,7 @@ export default function ContractDetailPage() {
           <ContractPreview
             title={contract.title}
             content={contract.content || ''}
-            staffName={staff?.full_name}
+            staffName={staff ? `${staff.last_name} ${staff.first_name}` : undefined}
             startDate={contract.start_date}
             endDate={contract.end_date}
             contractId={contract.id}

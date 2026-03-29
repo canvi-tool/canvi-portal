@@ -90,7 +90,7 @@ function AssignmentCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <CardTitle className="text-base">
-              {assignment.staff?.full_name ?? '(不明)'}
+              {assignment.staff ? `${assignment.staff.last_name} ${assignment.staff.first_name}` : '(不明)'}
             </CardTitle>
             {assignment.role && (
               <Badge variant="outline">{assignment.role}</Badge>
@@ -307,7 +307,7 @@ export default function AssignmentsPage({ params }: PageProps) {
                 <SelectContent>
                   {(staffList || []).map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
-                      {staff.full_name} ({staff.email})
+                      {staff.last_name} {staff.first_name} ({staff.email})
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -159,7 +159,7 @@ export default function StaffPaymentDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${staff?.full_name ?? '(不明)'} - ${displayYearMonth}`}
+        title={`${staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'} - ${displayYearMonth}`}
         description="支払い計算の詳細と操作"
         actions={
           <div className="flex items-center gap-2">
@@ -314,10 +314,10 @@ export default function StaffPaymentDetailPage({ params }: PageProps) {
         }
         description={
           confirmAction === 'confirm'
-            ? `${staff?.full_name}の${displayYearMonth}支払い (${payment.total_amount.toLocaleString('ja-JP')}円) を確定しますか？`
+            ? `${staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'}の${displayYearMonth}支払い (${payment.total_amount.toLocaleString('ja-JP')}円) を確定しますか？`
             : confirmAction === 'reject'
-              ? `${staff?.full_name}の${displayYearMonth}支払いを差戻しますか？再計算が必要になる場合があります。`
-              : `${staff?.full_name}の${displayYearMonth}支払い通知を発行しますか？`
+              ? `${staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'}の${displayYearMonth}支払いを差戻しますか？再計算が必要になる場合があります。`
+              : `${staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'}の${displayYearMonth}支払い通知を発行しますか？`
         }
         confirmLabel={
           confirmAction === 'confirm'

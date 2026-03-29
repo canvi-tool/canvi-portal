@@ -95,7 +95,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         *,
         staff:staff_id (
           id,
-          full_name,
+          last_name,
+          first_name,
           email,
           employment_type
         )

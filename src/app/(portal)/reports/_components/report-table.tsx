@@ -40,9 +40,9 @@ export function ReportTable({ data, loading, type }: ReportTableProps) {
       key: 'staff_name',
       header: 'スタッフ名',
       accessor: (row) =>
-        (row.staff as { full_name?: string } | null)?.full_name || '',
+        (() => { const s = row.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       cell: (row) => (
-        <span>{(row.staff as { full_name?: string } | null)?.full_name || '不明'}</span>
+        <span>{(() => { const s = row.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '不明' })()}</span>
       ),
     },
     {

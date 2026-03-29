@@ -28,7 +28,7 @@ export function PaymentDetailCard({ payment }: PaymentDetailCardProps) {
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-sm text-muted-foreground">スタッフ名</dt>
-            <dd className="text-sm font-medium">{staff?.full_name ?? '(不明)'}</dd>
+            <dd className="text-sm font-medium">{staff ? `${staff.last_name} ${staff.first_name}` : '(不明)'}</dd>
           </div>
           <div>
             <dt className="text-sm text-muted-foreground">雇用区分</dt>

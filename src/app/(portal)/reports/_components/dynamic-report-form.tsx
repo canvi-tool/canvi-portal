@@ -119,7 +119,7 @@ export function DynamicReportForm({
                 <SelectContent>
                   {staffList.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
-                      {staff.full_name}
+                      {staff.last_name} {staff.first_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

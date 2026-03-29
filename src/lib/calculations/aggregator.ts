@@ -55,7 +55,7 @@ export function aggregateStaffPayment(
 
   logs.push({
     level: 'info',
-    message: `集計開始: ${staff.full_name} (${staff.employment_type})`,
+    message: `集計開始: ${staff.last_name} ${staff.first_name} (${staff.employment_type})`,
   })
 
   // プロジェクト別にグループ化
@@ -102,7 +102,7 @@ export function aggregateStaffPayment(
 
   return {
     staffId: staff.id,
-    staffName: staff.full_name,
+    staffName: `${staff.last_name} ${staff.first_name}`,
     employmentType: staff.employment_type,
     projects,
     subtotal,

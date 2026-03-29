@@ -248,9 +248,14 @@ export async function POST(request: NextRequest) {
       // Create new staff record
       try {
         const now = new Date().toISOString()
+        // Split the name into last_name and first_name (best effort)
+        const nameParts = extUser.name.split(/\s+/)
         const staffRecord = {
-          full_name: extUser.name,
-          full_name_kana: null as string | null,
+          last_name: nameParts[0] || extUser.name,
+          first_name: nameParts.slice(1).join(' ') || '',
+          last_name_kana: null as string | null,
+          first_name_kana: null as string | null,
+          staff_code: '',
           email: extUser.email,
           employment_type: 'employee' as const,
           status: 'active' as const,

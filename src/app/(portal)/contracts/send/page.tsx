@@ -248,7 +248,7 @@ export default function ContractSendPage() {
                       }
                       return (
                         <tr key={contract.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-3 py-2 font-medium">{staff?.full_name || '-'}</td>
+                          <td className="px-3 py-2 font-medium">{staff ? `${staff.last_name} ${staff.first_name}` : '-'}</td>
                           <td className="px-3 py-2">
                             <Badge variant="outline" className="text-xs">
                               {employmentLabels[staff?.employment_type] || staff?.employment_type || '-'}

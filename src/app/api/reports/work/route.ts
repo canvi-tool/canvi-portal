@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('work_reports')
-      .select('*, staff:staff_id(id, full_name), project:project_id(id, name)')
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
       .order('year_month', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     const result = (data || []).map((report) => ({
       ...report,
-      staff_name: (report.staff as { full_name?: string } | null)?.full_name || '',
+      staff_name: (() => { const s = report.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       project_name: (report.project as { name?: string } | null)?.name || '',
     }))
 

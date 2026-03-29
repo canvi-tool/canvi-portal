@@ -72,7 +72,7 @@ export async function POST(
             sender_user_id: process.env.FREEE_SIGN_SENDER_USER_ID || '',
             recipients: [{
               email: staff.email,
-              name: staff.full_name,
+              name: `${staff.last_name} ${staff.first_name}`,
               message: `${contract.title}の署名をお願いいたします。内容をご確認の上、電子署名をお願いいたします。`,
             }],
           })

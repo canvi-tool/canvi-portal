@@ -60,7 +60,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from('shifts')
-      .select('*, staff:staff_id(id, full_name), project:project_id(id, name)')
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -81,7 +81,7 @@ export async function GET(
 
     return NextResponse.json({
       ...data,
-      staff_name: (data.staff as { full_name?: string } | null)?.full_name || '',
+      staff_name: (() => { const s = data.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       project_name: (data.project as { name?: string } | null)?.name || '',
       approval_history: history || [],
     })

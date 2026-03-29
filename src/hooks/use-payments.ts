@@ -10,7 +10,7 @@ import type { MonthlyCalculationSummary } from '@/lib/calculations/types'
 export type PaymentCalculation = Tables<'payment_calculations'> & {
   staff: Pick<
     Tables<'staff'>,
-    'id' | 'full_name' | 'full_name_kana' | 'email' | 'employment_type' | 'status'
+    'id' | 'last_name' | 'first_name' | 'last_name_kana' | 'first_name_kana' | 'email' | 'employment_type' | 'status'
   > | null
 }
 

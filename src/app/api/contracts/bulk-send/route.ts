@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       if (contract.status !== 'draft') {
         results.push({
           contractId: contract.id,
-          staffName: staff?.full_name || '不明',
+          staffName: staff ? `${staff.last_name} ${staff.first_name}` : '不明',
           email: staff?.email || '',
           status: 'skipped',
           message: `ステータスが「下書き」ではありません（現在: ${contract.status}）`,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       if (!staff?.email) {
         results.push({
           contractId: contract.id,
-          staffName: staff?.full_name || '不明',
+          staffName: staff ? `${staff.last_name} ${staff.first_name}` : '不明',
           email: '',
           status: 'skipped',
           message: 'メールアドレスが未設定です',
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         if (updateError) {
           results.push({
             contractId: contract.id,
-            staffName: staff.full_name,
+            staffName: `${staff.last_name} ${staff.first_name}`,
             email: staff.email,
             status: 'error',
             message: 'ステータス更新に失敗しました',
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
         results.push({
           contractId: contract.id,
-          staffName: staff.full_name,
+          staffName: `${staff.last_name} ${staff.first_name}`,
           email: staff.email,
           status: 'success',
           message: '署名依頼を送信しました（デモ）',
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
           if (!pdfRes.ok) {
             results.push({
               contractId: contract.id,
-              staffName: staff.full_name,
+              staffName: `${staff.last_name} ${staff.first_name}`,
               email: staff.email,
               status: 'error',
               message: 'PDF生成に失敗しました',
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
             sender_user_id: process.env.FREEE_SIGN_SENDER_USER_ID || '',
             recipients: [{
               email: staff.email,
-              name: staff.full_name,
+              name: `${staff.last_name} ${staff.first_name}`,
               message: `${contract.title}の署名をお願いいたします。`,
             }],
           })
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
 
           results.push({
             contractId: contract.id,
-            staffName: staff.full_name,
+            staffName: `${staff.last_name} ${staff.first_name}`,
             email: staff.email,
             status: 'success',
             message: '署名依頼を送信しました',
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
 
           results.push({
             contractId: contract.id,
-            staffName: staff.full_name,
+            staffName: `${staff.last_name} ${staff.first_name}`,
             email: staff.email,
             status: 'success',
             message: '署名依頼を送信しました（API接続エラーのためステータスのみ更新）',
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
 
         results.push({
           contractId: contract.id,
-          staffName: staff.full_name,
+          staffName: `${staff.last_name} ${staff.first_name}`,
           email: staff.email,
           status: 'success',
           message: '署名依頼を送信しました（freee Sign未接続のためステータスのみ更新）',

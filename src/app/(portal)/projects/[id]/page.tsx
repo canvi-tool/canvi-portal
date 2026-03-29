@@ -343,7 +343,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">
-                            {assignment.staff?.full_name ?? '(不明)'}
+                            {assignment.staff ? `${assignment.staff.last_name} ${assignment.staff.first_name}` : '(不明)'}
                           </span>
                           {assignment.role && (
                             <Badge variant="outline">{assignment.role}</Badge>
@@ -449,7 +449,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
                 <SelectContent>
                   {(staffList || []).map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
-                      {staff.full_name} ({staff.email})
+                      {staff.last_name} {staff.first_name} ({staff.email})
                     </SelectItem>
                   ))}
                 </SelectContent>

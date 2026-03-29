@@ -23,8 +23,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         *,
         staff:staff_id (
           id,
-          full_name,
-          full_name_kana,
+          last_name,
+          first_name,
+          last_name_kana,
+          first_name_kana,
           email,
           employment_type,
           status
@@ -52,7 +54,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       .eq('payment_calculation_id', id)
       .order('sort_order', { ascending: true })
 
-    const staff = payment.staff as { id: string; full_name: string; full_name_kana: string | null; email: string; employment_type: string; status: string } | null
+    const staff = payment.staff as { id: string; last_name: string; first_name: string; last_name_kana: string | null; first_name_kana: string | null; email: string; employment_type: string; status: string } | null
 
     // PDF用データ構築
     const pdfData = {
@@ -62,8 +64,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         ? new Date(payment.issued_at).toLocaleDateString('ja-JP')
         : new Date().toLocaleDateString('ja-JP'),
       staff: {
-        name: staff?.full_name ?? '',
-        nameKana: staff?.full_name_kana ?? '',
+        name: staff ? `${staff.last_name} ${staff.first_name}` : '',
+        nameKana: staff ? `${staff.last_name_kana || ''} ${staff.first_name_kana || ''}`.trim() : '',
         email: staff?.email ?? '',
         employmentType: EMPLOYMENT_TYPE_LABELS[staff?.employment_type ?? ''] ?? '',
       },

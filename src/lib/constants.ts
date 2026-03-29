@@ -11,9 +11,11 @@ export const STAFF_STATUS_LABELS: Record<string, string> = {
 }
 
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
-  employee: '社員',
-  contractor: '契約社員',
-  freelancer: 'フリーランス/業務委託',
+  full_time: '正社員',
+  part_time: 'パートタイム',
+  contract: '契約社員',
+  temporary: '派遣社員',
+  freelance: 'フリーランス/業務委託',
 }
 
 export const CONTRACT_STATUS_LABELS: Record<string, string> = {

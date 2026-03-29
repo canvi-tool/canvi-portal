@@ -89,12 +89,12 @@ export function StaffDetailClient({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          staff_code: custom.staff_code || '',
+          staff_code: staff.staff_code || '',
           employment_type: staff.employment_type,
-          last_name: custom.last_name || staff.full_name.split(' ')[0] || '',
-          first_name: custom.first_name || staff.full_name.split(' ')[1] || '',
-          last_name_kana: custom.last_name_kana || '',
-          first_name_kana: custom.first_name_kana || '',
+          last_name: staff.last_name || '',
+          first_name: staff.first_name || '',
+          last_name_kana: staff.last_name_kana || '',
+          first_name_kana: staff.first_name_kana || '',
           email: staff.email,
           phone: staff.phone || '',
           date_of_birth: staff.date_of_birth || '',
@@ -104,7 +104,7 @@ export function StaffDetailClient({
           bank_account_type: custom.bank_account_type || '',
           bank_account_number: custom.bank_account_number || '',
           bank_account_holder: custom.bank_account_holder || '',
-          join_date: staff.join_date || '',
+          hire_date: staff.hire_date || '',
           notes: staff.notes || '',
         }),
       })
@@ -132,8 +132,8 @@ export function StaffDetailClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={staff.full_name}
-        description={`${EMPLOYMENT_TYPE_LABELS[staff.employment_type] ?? staff.employment_type} / ${custom.staff_code || '-'}`}
+        title={`${staff.last_name} ${staff.first_name}`}
+        description={`${EMPLOYMENT_TYPE_LABELS[staff.employment_type] ?? staff.employment_type} / ${staff.staff_code || '-'}`}
         actions={
           <div className="flex items-center gap-2">
             <StaffStatusBadge status={staff.status} />
@@ -186,14 +186,14 @@ export function StaffDetailClient({
                 <CardTitle>個人情報</CardTitle>
               </CardHeader>
               <CardContent>
-                <InfoRow label="スタッフコード" value={custom.staff_code} />
-                <InfoRow label="氏名" value={staff.full_name} />
-                <InfoRow label="氏名（カナ）" value={staff.full_name_kana} />
+                <InfoRow label="スタッフコード" value={staff.staff_code} />
+                <InfoRow label="氏名" value={`${staff.last_name} ${staff.first_name}`} />
+                <InfoRow label="氏名（カナ）" value={`${staff.last_name_kana || ''} ${staff.first_name_kana || ''}`.trim() || null} />
                 <InfoRow label="メール" value={staff.email} />
                 <InfoRow label="電話番号" value={staff.phone} />
                 <InfoRow label="生年月日" value={staff.date_of_birth} />
                 <InfoRow label="住所" value={custom.address} />
-                <InfoRow label="入職日" value={staff.join_date} />
+                <InfoRow label="入職日" value={staff.hire_date} />
               </CardContent>
             </Card>
 

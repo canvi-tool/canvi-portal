@@ -154,14 +154,40 @@ export interface Database {
         Row: {
           id: string
           user_id: string | null
-          full_name: string
-          full_name_kana: string | null
+          staff_code: string
+          last_name: string
+          first_name: string
+          last_name_kana: string | null
+          first_name_kana: string | null
+          last_name_eiji: string | null
+          first_name_eiji: string | null
           email: string
+          personal_email: string | null
           phone: string | null
+          gender: string | null
           date_of_birth: string | null
+          postal_code: string | null
+          prefecture: string | null
+          city: string | null
+          address_line1: string | null
+          address_line2: string | null
           employment_type: string
           status: string
-          join_date: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          daily_rate: number | null
+          monthly_salary: number | null
+          transportation_allowance: number | null
+          bank_name: string | null
+          bank_branch: string | null
+          bank_account_type: string | null
+          bank_account_number: string | null
+          bank_account_holder: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relationship: string | null
+          skills: string[] | null
+          qualifications: string[] | null
           notes: string | null
           custom_fields: Json | null
           created_at: string
@@ -170,14 +196,40 @@ export interface Database {
         Insert: {
           id?: string
           user_id?: string | null
-          full_name: string
-          full_name_kana?: string | null
+          staff_code: string
+          last_name: string
+          first_name: string
+          last_name_kana?: string | null
+          first_name_kana?: string | null
+          last_name_eiji?: string | null
+          first_name_eiji?: string | null
           email: string
+          personal_email?: string | null
           phone?: string | null
+          gender?: string | null
           date_of_birth?: string | null
+          postal_code?: string | null
+          prefecture?: string | null
+          city?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           employment_type: string
           status?: string
-          join_date?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          daily_rate?: number | null
+          monthly_salary?: number | null
+          transportation_allowance?: number | null
+          bank_name?: string | null
+          bank_branch?: string | null
+          bank_account_type?: string | null
+          bank_account_number?: string | null
+          bank_account_holder?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
+          skills?: string[] | null
+          qualifications?: string[] | null
           notes?: string | null
           custom_fields?: Json | null
           created_at?: string
@@ -186,14 +238,40 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string | null
-          full_name?: string
-          full_name_kana?: string | null
+          staff_code?: string
+          last_name?: string
+          first_name?: string
+          last_name_kana?: string | null
+          first_name_kana?: string | null
+          last_name_eiji?: string | null
+          first_name_eiji?: string | null
           email?: string
+          personal_email?: string | null
           phone?: string | null
+          gender?: string | null
           date_of_birth?: string | null
+          postal_code?: string | null
+          prefecture?: string | null
+          city?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           employment_type?: string
           status?: string
-          join_date?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          daily_rate?: number | null
+          monthly_salary?: number | null
+          transportation_allowance?: number | null
+          bank_name?: string | null
+          bank_branch?: string | null
+          bank_account_type?: string | null
+          bank_account_number?: string | null
+          bank_account_holder?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
+          skills?: string[] | null
+          qualifications?: string[] | null
           notes?: string | null
           custom_fields?: Json | null
           created_at?: string

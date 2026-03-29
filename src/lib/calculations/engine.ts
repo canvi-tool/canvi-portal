@@ -143,7 +143,7 @@ export async function calculatePaymentForStaff(
     .in('status', ['active', 'pending'])
 
   if (!assignments || assignments.length === 0) {
-    console.info(`[Engine] ${staff.full_name}: アクティブなアサインメントがありません`)
+    console.info(`[Engine] ${staff.last_name} ${staff.first_name}: アクティブなアサインメントがありません`)
     return []
   }
 
@@ -287,7 +287,7 @@ export async function calculateMonthlyPayments(
     .from('staff')
     .select('*')
     .eq('status', 'active')
-    .order('full_name')
+    .order('last_name')
 
   if (staffError) {
     throw new Error(`スタッフ取得エラー: ${staffError.message}`)
@@ -335,7 +335,7 @@ export async function calculateMonthlyPayments(
         .single()
 
       if (currentCalc && (currentCalc.status === 'confirmed' || currentCalc.status === 'issued')) {
-        console.warn(`[Engine] ${staff.full_name}: 確定済みのため更新スキップ`)
+        console.warn(`[Engine] ${staff.last_name} ${staff.first_name}: 確定済みのため更新スキップ`)
         continue
       }
 

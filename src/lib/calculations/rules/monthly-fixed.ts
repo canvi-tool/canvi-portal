@@ -58,7 +58,7 @@ export function calculateMonthlyFixed(
   const month = context.month
 
   // Check proration
-  const joinDate = context.staff?.join_date
+  const joinDate = context.staff?.hire_date
   let prorated = false
   let prorateRatio = 1
 
@@ -93,7 +93,7 @@ export function calculateMonthlyFixed(
         amount: 0,
         inputData: {
           fixed_amount: fixedAmount,
-          join_date: joinDate,
+          hire_date: joinDate,
           prorated: false,
           prorate_ratio: 0,
         },
@@ -114,7 +114,7 @@ export function calculateMonthlyFixed(
     amount,
     inputData: {
       fixed_amount: fixedAmount,
-      join_date: joinDate ?? null,
+      hire_date: joinDate ?? null,
       prorated,
       prorate_ratio: prorateRatio,
     },

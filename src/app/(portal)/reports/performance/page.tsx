@@ -158,7 +158,7 @@ export default function PerformanceReportsPage() {
               <SelectItem value="all">全スタッフ</SelectItem>
               {staffList.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.full_name}
+                  {s.last_name} {s.first_name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -221,7 +221,7 @@ export default function PerformanceReportsPage() {
                       {report.year_month}
                     </TableCell>
                     <TableCell>
-                      {(report.staff as { full_name?: string } | null)?.full_name || '不明'}
+                      {(() => { const s = report.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '不明' })()}
                     </TableCell>
                     <TableCell>
                       {(report.project as { name?: string } | null)?.name || '未設定'}
@@ -278,7 +278,7 @@ export default function PerformanceReportsPage() {
                 <SelectContent>
                   {staffList.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.full_name}
+                      {s.last_name} {s.first_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

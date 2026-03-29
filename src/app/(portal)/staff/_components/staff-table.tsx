@@ -9,17 +9,6 @@ import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
 
-interface CustomFields {
-  staff_code?: string
-  [key: string]: unknown
-}
-
-function getCustomField(staff: Staff, field: string): string {
-  const custom = staff.custom_fields as CustomFields | null
-  if (!custom) return ''
-  return String(custom[field] ?? '')
-}
-
 interface StaffTableProps {
   data: Staff[]
   loading?: boolean
@@ -32,19 +21,19 @@ export function StaffTable({ data, loading }: StaffTableProps) {
     {
       key: 'staff_code',
       header: 'スタッフコード',
-      accessor: (row) => getCustomField(row, 'staff_code'),
+      accessor: (row) => row.staff_code || '',
       className: 'w-[140px]',
     },
     {
-      key: 'full_name',
+      key: 'name',
       header: '名前',
-      accessor: (row) => row.full_name,
+      accessor: (row) => `${row.last_name} ${row.first_name}`,
       cell: (row) => (
         <button
           className="text-left font-medium text-primary hover:underline"
           onClick={() => router.push(`/staff/${row.id}`)}
         >
-          {row.full_name}
+          {row.last_name} {row.first_name}
         </button>
       ),
     },
@@ -71,12 +60,12 @@ export function StaffTable({ data, loading }: StaffTableProps) {
       className: 'hidden md:table-cell',
     },
     {
-      key: 'join_date',
+      key: 'hire_date',
       header: '入職日',
-      accessor: (row) => row.join_date,
+      accessor: (row) => row.hire_date,
       cell: (row) => (
         <span className="text-muted-foreground">
-          {row.join_date || '-'}
+          {row.hire_date || '-'}
         </span>
       ),
       className: 'hidden lg:table-cell w-[120px]',

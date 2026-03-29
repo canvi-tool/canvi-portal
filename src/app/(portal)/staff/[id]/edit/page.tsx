@@ -49,25 +49,32 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
     )
   }
 
-  // Extract form values from staff record + custom_fields
-  const custom = (staff.custom_fields as Record<string, string>) || {}
+  // Extract form values from staff record
   const defaultValues: Partial<StaffFormValues> = {
-    staff_code: custom.staff_code || '',
+    staff_code: staff.staff_code || '',
     employment_type: staff.employment_type as StaffFormValues['employment_type'],
-    last_name: custom.last_name || staff.full_name.split(' ')[0] || '',
-    first_name: custom.first_name || staff.full_name.split(' ')[1] || '',
-    last_name_kana: custom.last_name_kana || '',
-    first_name_kana: custom.first_name_kana || '',
+    last_name: staff.last_name || '',
+    first_name: staff.first_name || '',
+    last_name_kana: staff.last_name_kana || '',
+    first_name_kana: staff.first_name_kana || '',
     email: staff.email,
     phone: staff.phone || '',
     date_of_birth: staff.date_of_birth || '',
-    address: custom.address || '',
-    bank_name: custom.bank_name || '',
-    bank_branch: custom.bank_branch || '',
-    bank_account_type: custom.bank_account_type || '',
-    bank_account_number: custom.bank_account_number || '',
-    bank_account_holder: custom.bank_account_holder || '',
-    join_date: staff.join_date || '',
+    address_line1: staff.address_line1 || '',
+    address_line2: staff.address_line2 || '',
+    personal_email: staff.personal_email || '',
+    gender: staff.gender || '',
+    postal_code: staff.postal_code || '',
+    prefecture: staff.prefecture || '',
+    city: staff.city || '',
+    last_name_eiji: staff.last_name_eiji || '',
+    first_name_eiji: staff.first_name_eiji || '',
+    bank_name: staff.bank_name || '',
+    bank_branch: staff.bank_branch || '',
+    bank_account_type: staff.bank_account_type || '',
+    bank_account_number: staff.bank_account_number || '',
+    bank_account_holder: staff.bank_account_holder || '',
+    hire_date: staff.hire_date || '',
     notes: staff.notes || '',
   }
 
@@ -75,7 +82,7 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
     <div className="space-y-6">
       <PageHeader
         title="スタッフ編集"
-        description={`${staff.full_name} の情報を編集`}
+        description={`${staff.last_name} ${staff.first_name} の情報を編集`}
       />
       <StaffForm
         defaultValues={defaultValues}

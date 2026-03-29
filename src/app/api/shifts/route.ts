@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('shifts')
-      .select('*, staff:staff_id(id, full_name), project:project_id(id, name)', { count: 'exact' })
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)', { count: 'exact' })
       .is('deleted_at', null)
       .order('shift_date', { ascending: false })
       .order('start_time', { ascending: true })
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
 
     const result = (data || []).map((shift) => ({
       ...shift,
-      staff_name: (shift.staff as { full_name?: string } | null)?.full_name || '',
+      staff_name: (() => { const s = shift.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       project_name: (shift.project as { name?: string } | null)?.name || '',
     }))
 

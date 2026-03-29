@@ -328,15 +328,17 @@ function StaffFieldGuide() {
   return (
     <div className="space-y-3 text-sm">
       <FieldRow name="staff_code" required desc="スタッフコード（一意）" example="S001" />
-      <FieldRow name="full_name" required desc="氏名（姓 名）" example="岡林 太郎" />
-      <FieldRow name="full_name_kana" desc="フリガナ" example="オカバヤシ タロウ" />
+      <FieldRow name="last_name" required desc="姓" example="岡林" />
+      <FieldRow name="first_name" required desc="名" example="太郎" />
+      <FieldRow name="last_name_kana" desc="姓フリガナ" example="オカバヤシ" />
+      <FieldRow name="first_name_kana" desc="名フリガナ" example="タロウ" />
       <FieldRow name="email" required desc="Canviメール（業務用）" example="taro@canvi.co.jp" />
       <FieldRow name="personal_email" desc="個人メール（契約書・支払通知書送付用）" example="taro@gmail.com" />
       <FieldRow name="phone" desc="電話番号" example="090-1234-5678" />
       <FieldRow name="date_of_birth" desc="生年月日" example="1990-05-15" />
       <FieldRow name="employment_type" desc="雇用区分: employee / contractor / freelancer" example="contractor" />
       <FieldRow name="status" desc="ステータス: active / on_leave / suspended / retired" example="active" />
-      <FieldRow name="join_date" desc="入社日" example="2024-04-01" />
+      <FieldRow name="hire_date" desc="入社日" example="2024-04-01" />
       <FieldRow name="address" desc="住所" example="東京都渋谷区..." />
       <FieldRow name="bank_name" desc="銀行名" example="三菱UFJ銀行" />
       <FieldRow name="bank_branch" desc="支店名" example="渋谷支店" />

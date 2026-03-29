@@ -90,16 +90,24 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
       first_name: '',
       last_name_kana: '',
       first_name_kana: '',
+      last_name_eiji: '',
+      first_name_eiji: '',
       email: '',
+      personal_email: '',
       phone: '',
+      gender: '',
       date_of_birth: '',
-      address: '',
+      postal_code: '',
+      prefecture: '',
+      city: '',
+      address_line1: '',
+      address_line2: '',
       bank_name: '',
       bank_branch: '',
       bank_account_type: '',
       bank_account_number: '',
       bank_account_holder: '',
-      join_date: '',
+      hire_date: '',
       notes: '',
       ...defaultValues,
     },
@@ -184,9 +192,11 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                       <SelectValue placeholder="選択してください" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="employee">社員</SelectItem>
-                      <SelectItem value="contractor">契約社員</SelectItem>
-                      <SelectItem value="freelancer">フリーランス/業務委託</SelectItem>
+                      <SelectItem value="full_time">正社員</SelectItem>
+                      <SelectItem value="part_time">パートタイム</SelectItem>
+                      <SelectItem value="contract">契約社員</SelectItem>
+                      <SelectItem value="temporary">派遣社員</SelectItem>
+                      <SelectItem value="freelance">フリーランス/業務委託</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -222,8 +232,8 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               <Input type="date" {...register('date_of_birth')} />
             </FormField>
 
-            <FormField label="入職日" error={errors.join_date?.message}>
-              <Input type="date" {...register('join_date')} />
+            <FormField label="入職日" error={errors.hire_date?.message}>
+              <Input type="date" {...register('hire_date')} />
             </FormField>
           </div>
         </CardContent>
@@ -256,9 +266,17 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               />
             </FormField>
 
+            <FormField label="個人メール" error={errors.personal_email?.message}>
+              <Input
+                type="email"
+                {...register('personal_email')}
+                placeholder="契約書・支払通知書送付用"
+              />
+            </FormField>
+
             <div className="sm:col-span-2">
-              <FormField label="住所" error={errors.address?.message}>
-                <Input {...register('address')} placeholder="住所" />
+              <FormField label="住所" error={errors.address_line1?.message}>
+                <Input {...register('address_line1')} placeholder="住所" />
               </FormField>
             </div>
           </div>
