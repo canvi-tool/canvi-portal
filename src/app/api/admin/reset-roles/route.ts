@@ -17,10 +17,18 @@ export async function POST(request: NextRequest) {
     const targetEmail = 'yuji.okabayashi@canvi.co.jp'
 
     // Step 1: user_roles テーブルを全クリア
-    const { error: deleteError } = await admin
-      .from('user_roles')
-      .delete()
-      .gte('created_at', '1970-01-01') // deleteにはフィルタ必須
+    // まず全レコードのuser_idを取得
+    const { data: allRoles } = await admin.from('user_roles').select('user_id')
+    const allUserIds = [...new Set((allRoles || []).map(r => r.user_id))]
+
+    let deleteError = null
+    if (allUserIds.length > 0) {
+      const result = await admin
+        .from('user_roles')
+        .delete()
+        .in('user_id', allUserIds)
+      deleteError = result.error
+    }
 
     if (deleteError) {
       console.error('Delete user_roles error:', deleteError)
