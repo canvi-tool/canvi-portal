@@ -56,17 +56,20 @@ export default function EditProjectPage({ params }: PageProps) {
     )
   }
 
-  const metadata = project.metadata as Record<string, string> | null
+  const customFields = project.custom_fields as Record<string, string> | null
 
   const defaultValues: Partial<ProjectFormValues> = {
-    project_code: metadata?.project_code || '',
+    project_type: (project.project_type || 'BPO') as ProjectFormValues['project_type'],
+    project_number: project.project_number || '',
+    project_code: project.project_code || '',
     name: project.name,
     description: project.description || '',
     status: project.status as ProjectFormValues['status'],
+    client_id: project.client_id || '',
     client_name: project.client_name || '',
     start_date: project.start_date || '',
     end_date: project.end_date || '',
-    google_calendar_id: metadata?.google_calendar_id || '',
+    google_calendar_id: customFields?.google_calendar_id || '',
   }
 
   return (

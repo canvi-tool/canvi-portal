@@ -169,9 +169,35 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               error={errors.staff_code?.message}
               required
             >
-              <Input
-                {...register('staff_code')}
-                placeholder="例: STF-001"
+              <Controller
+                name="staff_code"
+                control={control}
+                render={({ field }) => {
+                  const prefix = 'S'
+                  const num = field.value?.replace(/^S/, '') || ''
+                  return (
+                    <div className="flex items-center gap-0">
+                      <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 h-9 text-sm text-muted-foreground">
+                        {prefix}
+                      </span>
+                      <Input
+                        value={num}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                          field.onChange(v ? `S${v.padStart(4, '0')}` : '')
+                        }}
+                        onBlur={() => {
+                          if (num && num.replace(/\D/g, '')) {
+                            field.onChange(`S${num.replace(/\D/g, '').padStart(4, '0')}`)
+                          }
+                        }}
+                        placeholder="0001"
+                        className="rounded-l-none w-24"
+                        maxLength={4}
+                      />
+                    </div>
+                  )
+                }}
               />
             </FormField>
 
@@ -197,6 +223,8 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                       <SelectItem value="contract">契約社員</SelectItem>
                       <SelectItem value="temporary">派遣社員</SelectItem>
                       <SelectItem value="freelance">フリーランス/業務委託</SelectItem>
+                      <SelectItem value="executive">役員</SelectItem>
+                      <SelectItem value="other">その他</SelectItem>
                     </SelectContent>
                   </Select>
                 )}

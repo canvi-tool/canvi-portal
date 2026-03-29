@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     let query = supabase.from('projects').select('*').order('created_at', { ascending: false })
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,client_name.ilike.%${search}%,metadata->>project_code.ilike.%${search}%`)
+      query = query.or(`name.ilike.%${search}%,client_name.ilike.%${search}%,project_code.ilike.%${search}%`)
     }
 
     if (status && status !== 'all') {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         .from('project_assignments')
         .select('project_id')
         .in('project_id', projectIds)
-        .eq('status', 'active')
+        .eq('status', 'confirmed')
 
       if (assignments) {
         assignmentCounts = assignments.reduce(
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { project_code, google_calendar_id, ...rest } = parsed.data
+    const { project_code, project_type, project_number, google_calendar_id, client_id, ...rest } = parsed.data
 
     const {
       data: { user },
@@ -81,14 +81,17 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('projects')
       .insert({
+        project_code: project_code || `${project_type}-${project_number}`,
+        project_type,
+        project_number,
         name: rest.name,
         description: rest.description || null,
         status: rest.status,
+        client_id: client_id || null,
         client_name: rest.client_name || null,
         start_date: rest.start_date || null,
         end_date: rest.end_date || null,
-        metadata: {
-          project_code,
+        custom_fields: {
           google_calendar_id: google_calendar_id || null,
         },
         created_by: user?.id || null,

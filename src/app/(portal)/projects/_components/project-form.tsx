@@ -1,6 +1,7 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { useState, useEffect } from 'react'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,8 +15,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
-import { PROJECT_STATUS_LABELS } from '@/lib/constants'
+import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
 import { Loader2 } from 'lucide-react'
+
+interface Client {
+  id: string
+  client_code: string
+  name: string
+}
 
 interface ProjectFormProps {
   defaultValues?: Partial<ProjectFormValues>
@@ -32,19 +39,25 @@ export function ProjectForm({
   isSubmitting = false,
   submitLabel = '保存',
 }: ProjectFormProps) {
+  const [clients, setClients] = useState<Client[]>([])
+
   const {
     register,
     handleSubmit,
+    control,
     setValue,
     watch,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
     defaultValues: {
+      project_type: 'BPO',
+      project_number: '',
       project_code: '',
       name: '',
       description: '',
       status: 'planning',
+      client_id: '',
       client_name: '',
       start_date: '',
       end_date: '',
@@ -54,22 +67,87 @@ export function ProjectForm({
   })
 
   const statusValue = watch('status')
+  const projectType = watch('project_type')
+  const projectNumber = watch('project_number')
+
+  // Auto-generate project_code from type + number
+  useEffect(() => {
+    if (projectType && projectNumber) {
+      setValue('project_code', `${projectType}-${projectNumber}`)
+    }
+  }, [projectType, projectNumber, setValue])
+
+  // Fetch clients
+  useEffect(() => {
+    fetch('/api/clients?limit=100')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.data) setClients(res.data)
+        else if (Array.isArray(res)) setClients(res)
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
-      {/* PJコード */}
+      {/* PJコード（種別 + 番号） */}
       <div className="space-y-2">
-        <Label htmlFor="project_code">
+        <Label>
           PJコード <span className="text-destructive">*</span>
         </Label>
-        <Input
-          id="project_code"
-          placeholder="例: PJ-2026-001"
-          {...register('project_code')}
-          aria-invalid={!!errors.project_code}
-        />
-        {errors.project_code && (
-          <p className="text-sm text-destructive">{errors.project_code.message}</p>
+        <div className="flex items-center gap-2">
+          <Controller
+            name="project_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(val) => field.onChange(val)}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue placeholder="種別" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <span className="text-muted-foreground">-</span>
+          <Controller
+            name="project_number"
+            control={control}
+            render={({ field }) => (
+              <Input
+                value={field.value}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, '').slice(0, 3)
+                  field.onChange(v)
+                }}
+                onBlur={() => {
+                  if (field.value) {
+                    field.onChange(field.value.padStart(3, '0'))
+                  }
+                }}
+                placeholder="001"
+                className="w-20"
+                maxLength={3}
+              />
+            )}
+          />
+          <span className="text-sm text-muted-foreground">
+            → {projectType}-{projectNumber || '___'}
+          </span>
+        </div>
+        {errors.project_type && (
+          <p className="text-sm text-destructive">{errors.project_type.message}</p>
+        )}
+        {errors.project_number && (
+          <p className="text-sm text-destructive">{errors.project_number.message}</p>
         )}
       </div>
 
@@ -129,18 +207,39 @@ export function ProjectForm({
         )}
       </div>
 
-      {/* クライアント名 */}
+      {/* クライアント */}
       <div className="space-y-2">
-        <Label htmlFor="client_name">クライアント名</Label>
-        <Input
-          id="client_name"
-          placeholder="クライアント名を入力"
-          {...register('client_name')}
-          aria-invalid={!!errors.client_name}
+        <Label>クライアント</Label>
+        <Controller
+          name="client_id"
+          control={control}
+          render={({ field }) => (
+            <Select
+              value={field.value || undefined}
+              onValueChange={(val) => {
+                field.onChange(val === '__none__' ? '' : val)
+                const client = clients.find((c) => c.id === val)
+                if (client) {
+                  setValue('client_name', client.name)
+                } else {
+                  setValue('client_name', '')
+                }
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="クライアントを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">（なし）</SelectItem>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}（{c.client_code}）
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         />
-        {errors.client_name && (
-          <p className="text-sm text-destructive">{errors.client_name.message}</p>
-        )}
       </div>
 
       {/* 日付 */}
@@ -153,9 +252,6 @@ export function ProjectForm({
             {...register('start_date')}
             aria-invalid={!!errors.start_date}
           />
-          {errors.start_date && (
-            <p className="text-sm text-destructive">{errors.start_date.message}</p>
-          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="end_date">終了日</Label>
@@ -165,9 +261,6 @@ export function ProjectForm({
             {...register('end_date')}
             aria-invalid={!!errors.end_date}
           />
-          {errors.end_date && (
-            <p className="text-sm text-destructive">{errors.end_date.message}</p>
-          )}
         </div>
       </div>
 
@@ -178,11 +271,7 @@ export function ProjectForm({
           id="google_calendar_id"
           placeholder="カレンダーIDを入力"
           {...register('google_calendar_id')}
-          aria-invalid={!!errors.google_calendar_id}
         />
-        {errors.google_calendar_id && (
-          <p className="text-sm text-destructive">{errors.google_calendar_id.message}</p>
-        )}
       </div>
 
       {/* Actions */}

@@ -34,15 +34,14 @@ export default function ProjectsPage() {
     {
       key: 'project_code',
       header: 'PJコード',
-      accessor: (row) => (row.metadata as Record<string, string> | null)?.project_code ?? '',
+      accessor: (row) => row.project_code ?? '',
       cell: (row) => {
-        const code = (row.metadata as Record<string, string> | null)?.project_code
         return (
           <Link
             href={`/projects/${row.id}`}
             className="font-mono text-sm text-primary hover:underline"
           >
-            {code || '-'}
+            {row.project_code || '-'}
           </Link>
         )
       },

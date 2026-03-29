@@ -16,6 +16,21 @@ export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   contract: '契約社員',
   temporary: '派遣社員',
   freelance: 'フリーランス/業務委託',
+  executive: '役員',
+  other: 'その他',
+}
+
+export const PROJECT_TYPE_OPTIONS = [
+  { value: 'BPO', label: 'BPO' },
+  { value: 'RPO', label: 'RPO' },
+  { value: 'ETC', label: 'ETC' },
+] as const
+
+export type ProjectType = typeof PROJECT_TYPE_OPTIONS[number]['value']
+
+export const CLIENT_STATUS_LABELS: Record<string, string> = {
+  active: '有効',
+  inactive: '無効',
 }
 
 export const CONTRACT_STATUS_LABELS: Record<string, string> = {
@@ -131,6 +146,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
   { label: 'スタッフ管理', href: '/staff', icon: 'Users' },
+  { label: 'クライアント管理', href: '/clients', icon: 'Building2' },
   { label: '契約管理', href: '/contracts', icon: 'FileText' },
   { label: 'プロジェクト', href: '/projects', icon: 'Briefcase' },
   { label: '書類管理', href: '/documents', icon: 'FileStack' },

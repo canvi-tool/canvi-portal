@@ -1,11 +1,14 @@
 import { z } from 'zod'
 
 export const projectFormSchema = z.object({
-  project_code: z
+  project_type: z.enum(['BPO', 'RPO', 'ETC'], {
+    message: 'PJ種別を選択してください',
+  }),
+  project_number: z
     .string()
-    .min(1, 'PJコードは必須です')
-    .max(50, 'PJコードは50文字以内で入力してください')
-    .regex(/^[A-Za-z0-9_-]+$/, 'PJコードは半角英数字・ハイフン・アンダースコアのみ使用できます'),
+    .min(1, '番号は必須です')
+    .regex(/^\d{3}$/, '001〜999の3桁で入力してください'),
+  project_code: z.string(),
   name: z
     .string()
     .min(1, 'PJ名は必須です')
@@ -18,6 +21,10 @@ export const projectFormSchema = z.object({
   status: z.enum(['planning', 'active', 'paused', 'completed', 'archived'], {
     message: 'ステータスを選択してください',
   }),
+  client_id: z
+    .string()
+    .optional()
+    .or(z.literal('')),
   client_name: z
     .string()
     .max(200, 'クライアント名は200文字以内で入力してください')

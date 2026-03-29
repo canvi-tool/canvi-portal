@@ -157,14 +157,14 @@ export default function ProjectDetailPage({ params }: PageProps) {
     )
   }
 
-  const metadata = project.metadata as Record<string, string> | null
+  const customFields = project.custom_fields as Record<string, string> | null
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title={project.name}
-        description={metadata?.project_code ? `PJコード: ${metadata.project_code}` : undefined}
+        description={project.project_code ? `PJコード: ${project.project_code}` : undefined}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => router.push('/projects')}>
@@ -257,7 +257,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">PJコード</p>
-                  <p className="text-sm font-mono">{metadata?.project_code || '-'}</p>
+                  <p className="text-sm font-mono">{project.project_code || '-'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">PJ名</p>
@@ -281,7 +281,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-xs text-muted-foreground">Google Calendar ID</p>
-                  <p className="text-sm font-mono">{metadata?.google_calendar_id || '-'}</p>
+                  <p className="text-sm font-mono">{customFields?.google_calendar_id || '-'}</p>
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-xs text-muted-foreground">作成日</p>

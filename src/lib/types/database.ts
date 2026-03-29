@@ -287,6 +287,60 @@ export interface Database {
           },
         ]
       }
+      clients: {
+        Row: {
+          id: string
+          client_code: string
+          name: string
+          name_kana: string | null
+          contact_person: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          address: string | null
+          industry: string | null
+          notes: string | null
+          status: string
+          custom_fields: Json | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          client_code: string
+          name: string
+          name_kana?: string | null
+          contact_person?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          industry?: string | null
+          notes?: string | null
+          status?: string
+          custom_fields?: Json | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          client_code?: string
+          name?: string
+          name_kana?: string | null
+          contact_person?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          industry?: string | null
+          notes?: string | null
+          status?: string
+          custom_fields?: Json | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: []
+      }
       contract_templates: {
         Row: {
           id: string
@@ -410,12 +464,17 @@ export interface Database {
       projects: {
         Row: {
           id: string
+          project_code: string
+          project_type: string
+          project_number: string
           name: string
           description: string | null
           status: string
           start_date: string | null
           end_date: string | null
+          client_id: string | null
           client_name: string | null
+          custom_fields: Json | null
           metadata: Json | null
           shift_approval_mode: 'AUTO' | 'APPROVAL'
           created_by: string | null
@@ -424,12 +483,17 @@ export interface Database {
         }
         Insert: {
           id?: string
+          project_code: string
+          project_type: string
+          project_number: string
           name: string
           description?: string | null
           status?: string
           start_date?: string | null
           end_date?: string | null
+          client_id?: string | null
           client_name?: string | null
+          custom_fields?: Json | null
           metadata?: Json | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           created_by?: string | null
@@ -438,12 +502,17 @@ export interface Database {
         }
         Update: {
           id?: string
+          project_code?: string
+          project_type?: string
+          project_number?: string
           name?: string
           description?: string | null
           status?: string
           start_date?: string | null
           end_date?: string | null
+          client_id?: string | null
           client_name?: string | null
+          custom_fields?: Json | null
           metadata?: Json | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           created_by?: string | null
