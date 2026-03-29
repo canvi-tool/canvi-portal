@@ -66,7 +66,7 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
     .select(
       `
       id, email, display_name,
-      user_roles(role:roles(name))
+      user_roles!user_roles_user_id_fkey(role:roles(name))
     `
     )
     .eq('id', user.id)
@@ -135,7 +135,7 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
       .select(
         `
         id, email, display_name,
-        user_roles(role:roles(name))
+        user_roles!user_roles_user_id_fkey(role:roles(name))
       `
       )
       .eq('id', user.id)
