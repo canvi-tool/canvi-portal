@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { last_name, first_name, personal_email } = result.data
+    const { last_name, first_name, personal_email, employment_type } = result.data
     const supabase = createAdminClient()
 
     // 同じメールで既に招待済みかチェック（custom_fieldsにonboarding_tokenがあるsuspendedレコード）
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         email: personal_email,
         personal_email,
         staff_code: `PENDING-${token.slice(0, 8).toUpperCase()}`,
-        employment_type: 'full_time',
+        employment_type,
         status: 'suspended',
         hire_date: new Date().toISOString().split('T')[0],
         custom_fields: {

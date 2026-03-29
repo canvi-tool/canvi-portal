@@ -11,8 +11,23 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader2, Mail, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  full_time: '正社員',
+  part_time: 'パートタイム',
+  contract: '契約社員',
+  temporary: '派遣社員',
+  freelance: 'フリーランス/業務委託',
+}
 
 interface InviteOnboardingDialogProps {
   open: boolean
@@ -23,12 +38,17 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
   const [email, setEmail] = useState('')
+  const [employmentType, setEmploymentType] = useState('')
   const [loading, setLoading] = useState(false)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!employmentType) {
+      toast.error('雇用区分を選択してください')
+      return
+    }
     setLoading(true)
     setResultUrl(null)
 
@@ -40,6 +60,7 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
           last_name: lastName,
           first_name: firstName,
           personal_email: email,
+          employment_type: employmentType,
         }),
       })
       const data = await res.json()
@@ -66,11 +87,11 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
 
   const handleClose = () => {
     onOpenChange(false)
-    // Reset after close animation
     setTimeout(() => {
       setLastName('')
       setFirstName('')
       setEmail('')
+      setEmploymentType('')
       setResultUrl(null)
       setCopied(false)
     }, 200)
@@ -103,6 +124,26 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>雇用区分 <span className="text-red-500">*</span></Label>
+              <Select value={employmentType} onValueChange={setEmploymentType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="選択してください" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {employmentType === 'freelance'
+                  ? '業務委託の場合、住所・銀行口座などは任意項目になります'
+                  : employmentType
+                    ? '社員の場合、住所・緊急連絡先・銀行口座が必須になります'
+                    : '雇用区分によって登録フォームの必須項目が変わります'}
+              </p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>姓 <span className="text-red-500">*</span></Label>
@@ -130,7 +171,7 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={handleClose}>キャンセル</Button>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || !employmentType}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 招待メールを送信
               </Button>

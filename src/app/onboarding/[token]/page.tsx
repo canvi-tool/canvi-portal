@@ -13,24 +13,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 interface StaffInfo {
   id: string
   last_name: string
   first_name: string
   personal_email: string
+  employment_type: string
 }
 
 type PageState = 'loading' | 'form' | 'submitting' | 'done' | 'error'
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  full_time: '正社員',
+  part_time: 'パートタイム',
+  contract: '契約社員',
+  temporary: '派遣社員',
+  freelance: 'フリーランス/業務委託',
+}
+
+/** 社員系かどうか（社員・パート・契約・派遣） */
+function isEmployeeType(type: string): boolean {
+  return ['full_time', 'part_time', 'contract', 'temporary'].includes(type)
+}
 
 export default function OnboardingPage() {
   const { token } = useParams<{ token: string }>()
   const [state, setState] = useState<PageState>('loading')
   const [staffInfo, setStaffInfo] = useState<StaffInfo | null>(null)
   const [error, setError] = useState('')
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
-  // Form state
   const [form, setForm] = useState({
     last_name: '',
     first_name: '',
@@ -52,6 +66,8 @@ export default function OnboardingPage() {
     emergency_contact_name: '',
     emergency_contact_phone: '',
   })
+
+  const isEmployee = staffInfo ? isEmployeeType(staffInfo.employment_type) : false
 
   useEffect(() => {
     async function verify() {
@@ -80,10 +96,54 @@ export default function OnboardingPage() {
 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
+    // Clear validation error when user types
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    }
+  }
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {}
+
+    // 共通必須
+    if (!form.last_name) errors.last_name = '姓は必須です'
+    if (!form.first_name) errors.first_name = '名は必須です'
+    if (!form.last_name_kana) errors.last_name_kana = '姓（カナ）は必須です'
+    if (!form.first_name_kana) errors.first_name_kana = '名（カナ）は必須です'
+    if (!form.phone) errors.phone = '電話番号は必須です'
+
+    // 社員系のみ必須
+    if (isEmployee) {
+      if (!form.date_of_birth) errors.date_of_birth = '生年月日は必須です'
+      if (!form.postal_code) errors.postal_code = '郵便番号は必須です'
+      if (!form.prefecture) errors.prefecture = '都道府県は必須です'
+      if (!form.address_line1) errors.address_line1 = '住所は必須です'
+      if (!form.emergency_contact_name) errors.emergency_contact_name = '緊急連絡先の氏名は必須です'
+      if (!form.emergency_contact_phone) errors.emergency_contact_phone = '緊急連絡先の電話番号は必須です'
+      if (!form.bank_name) errors.bank_name = '銀行名は必須です'
+      if (!form.bank_branch) errors.bank_branch = '支店名は必須です'
+      if (!form.bank_account_number) errors.bank_account_number = '口座番号は必須です'
+      if (!form.bank_account_holder) errors.bank_account_holder = '口座名義は必須です'
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!validateForm()) {
+      // Scroll to first error
+      const firstError = document.querySelector('[data-error="true"]')
+      firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
     setState('submitting')
     setError('')
 
@@ -149,6 +209,8 @@ export default function OnboardingPage() {
     )
   }
 
+  const employmentLabel = staffInfo ? EMPLOYMENT_TYPE_LABELS[staffInfo.employment_type] || staffInfo.employment_type : ''
+
   // Form
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4">
@@ -162,7 +224,22 @@ export default function OnboardingPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             入職にあたり、以下の情報をご入力ください
           </p>
+          {employmentLabel && (
+            <div className="mt-3 inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-950 px-4 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+              雇用区分：{employmentLabel}
+            </div>
+          )}
         </div>
+
+        {/* 必須項目の説明 */}
+        {!isEmployee && (
+          <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
+            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              業務委託の方は、基本情報と電話番号のみ必須です。住所・銀行口座・緊急連絡先は任意でご入力ください。
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 基本情報 */}
@@ -173,20 +250,20 @@ export default function OnboardingPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="姓" required>
-                  <Input value={form.last_name} onChange={(e) => updateField('last_name', e.target.value)} required />
+                <Field label="姓" required error={validationErrors.last_name}>
+                  <Input value={form.last_name} onChange={(e) => updateField('last_name', e.target.value)} />
                 </Field>
-                <Field label="名" required>
-                  <Input value={form.first_name} onChange={(e) => updateField('first_name', e.target.value)} required />
+                <Field label="名" required error={validationErrors.first_name}>
+                  <Input value={form.first_name} onChange={(e) => updateField('first_name', e.target.value)} />
                 </Field>
-                <Field label="姓（カナ）" required>
-                  <Input value={form.last_name_kana} onChange={(e) => updateField('last_name_kana', e.target.value)} placeholder="セイ" required />
+                <Field label="姓（カナ）" required error={validationErrors.last_name_kana}>
+                  <Input value={form.last_name_kana} onChange={(e) => updateField('last_name_kana', e.target.value)} placeholder="セイ" />
                 </Field>
-                <Field label="名（カナ）" required>
-                  <Input value={form.first_name_kana} onChange={(e) => updateField('first_name_kana', e.target.value)} placeholder="メイ" required />
+                <Field label="名（カナ）" required error={validationErrors.first_name_kana}>
+                  <Input value={form.first_name_kana} onChange={(e) => updateField('first_name_kana', e.target.value)} placeholder="メイ" />
                 </Field>
-                <Field label="生年月日" required>
-                  <Input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} required />
+                <Field label="生年月日" required={isEmployee} error={validationErrors.date_of_birth}>
+                  <Input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} />
                 </Field>
                 <Field label="性別">
                   <Select value={form.gender} onValueChange={(v) => updateField('gender', v)}>
@@ -209,21 +286,21 @@ export default function OnboardingPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="電話番号" required>
-                  <Input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="090-1234-5678" required />
+                <Field label="電話番号" required error={validationErrors.phone}>
+                  <Input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="090-1234-5678" />
                 </Field>
                 <Field label="メールアドレス">
                   <Input value={staffInfo?.personal_email || ''} disabled className="bg-muted" />
                   <p className="text-xs text-muted-foreground mt-1">招待時に登録済み</p>
                 </Field>
-                <Field label="郵便番号">
+                <Field label="郵便番号" required={isEmployee} error={validationErrors.postal_code}>
                   <Input value={form.postal_code} onChange={(e) => updateField('postal_code', e.target.value)} placeholder="123-4567" />
                 </Field>
-                <Field label="都道府県">
+                <Field label="都道府県" required={isEmployee} error={validationErrors.prefecture}>
                   <Input value={form.prefecture} onChange={(e) => updateField('prefecture', e.target.value)} placeholder="東京都" />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="住所">
+                  <Field label="住所" required={isEmployee} error={validationErrors.address_line1}>
                     <Input value={form.address_line1} onChange={(e) => updateField('address_line1', e.target.value)} placeholder="市区町村 番地" />
                   </Field>
                 </div>
@@ -240,13 +317,14 @@ export default function OnboardingPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">緊急連絡先</CardTitle>
+              {!isEmployee && <CardDescription>任意項目です</CardDescription>}
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="氏名">
+                <Field label="氏名" required={isEmployee} error={validationErrors.emergency_contact_name}>
                   <Input value={form.emergency_contact_name} onChange={(e) => updateField('emergency_contact_name', e.target.value)} placeholder="連絡先の方のお名前" />
                 </Field>
-                <Field label="電話番号">
+                <Field label="電話番号" required={isEmployee} error={validationErrors.emergency_contact_phone}>
                   <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', e.target.value)} placeholder="090-1234-5678" />
                 </Field>
               </div>
@@ -257,14 +335,16 @@ export default function OnboardingPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">銀行口座（給与振込先）</CardTitle>
-              <CardDescription>任意項目です。後日でも登録可能です。</CardDescription>
+              <CardDescription>
+                {isEmployee ? '給与振込に必要です' : '任意項目です。後日でも登録可能です。'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="銀行名">
+                <Field label="銀行名" required={isEmployee} error={validationErrors.bank_name}>
                   <Input value={form.bank_name} onChange={(e) => updateField('bank_name', e.target.value)} />
                 </Field>
-                <Field label="支店名">
+                <Field label="支店名" required={isEmployee} error={validationErrors.bank_branch}>
                   <Input value={form.bank_branch} onChange={(e) => updateField('bank_branch', e.target.value)} />
                 </Field>
                 <Field label="口座種別">
@@ -276,11 +356,11 @@ export default function OnboardingPage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="口座番号">
+                <Field label="口座番号" required={isEmployee} error={validationErrors.bank_account_number}>
                   <Input value={form.bank_account_number} onChange={(e) => updateField('bank_account_number', e.target.value)} />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="口座名義（カタカナ）">
+                  <Field label="口座名義（カタカナ）" required={isEmployee} error={validationErrors.bank_account_holder}>
                     <Input value={form.bank_account_holder} onChange={(e) => updateField('bank_account_holder', e.target.value)} />
                   </Field>
                 </div>
@@ -308,14 +388,25 @@ export default function OnboardingPage() {
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string
+  required?: boolean
+  error?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" data-error={error ? 'true' : undefined}>
       <Label className="text-sm">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </Label>
       {children}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
 }

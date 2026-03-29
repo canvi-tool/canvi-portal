@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { staffOnboardingSchema } from '@/lib/validations/staff'
+import { staffOnboardingSchema, employeeOnboardingSchema, isEmployeeType } from '@/lib/validations/staff'
 import { sendEmail, buildApprovalRequestEmail } from '@/lib/email/send'
 
 interface RouteParams {
@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     // suspended状態でonboarding_tokenが一致するスタッフを検索
     const { data: allSuspended } = await supabase
       .from('staff')
-      .select('id, last_name, first_name, personal_email, status, custom_fields')
+      .select('id, last_name, first_name, personal_email, employment_type, status, custom_fields')
       .eq('status', 'suspended')
 
     const staff = allSuspended?.find((s) => {
@@ -33,6 +33,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       last_name: staff.last_name,
       first_name: staff.first_name,
       personal_email: staff.personal_email,
+      employment_type: staff.employment_type,
     })
   } catch (err) {
     console.error('Onboarding GET error:', err)
@@ -62,7 +63,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const result = staffOnboardingSchema.safeParse(body)
+    // 雇用区分に応じたバリデーション
+    const schema = isEmployeeType(staff.employment_type) ? employeeOnboardingSchema : staffOnboardingSchema
+    const result = schema.safeParse(body)
 
     if (!result.success) {
       return NextResponse.json(
