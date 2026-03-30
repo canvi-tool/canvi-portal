@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     })
 
     // オンボーディングURLを生成
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
     const onboardingUrl = `${siteUrl}/onboarding/${token}`
 
     // 招待メール送信

@@ -229,7 +229,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 display_name: `${formData.last_name} ${formData.first_name}`,
                 invited_role: portalRole,
               },
-              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/setup-password`,
+              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'}/setup-password`,
             })
 
           if (inviteError) {

@@ -132,7 +132,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           .in('id', ownerUserIds)
 
         const ownerEmails = owners?.map((u) => u.email) ?? []
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
         const emailContent = buildApprovalRequestEmail({
           staffName: `${formData.last_name} ${formData.first_name}`,
           approvalUrl: `${siteUrl}/staff/${staff.id}`,

@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (canviEmail) {
       try {
         const adminClient = createAdminClient()
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
 
         const { data: inviteData, error: inviteError } =
           await adminClient.auth.admin.inviteUserByEmail(canviEmail, {
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // ③ 個人メール宛にアカウント発行完了通知
       if (staff.personal_email && canviEmail) {
         try {
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
           const emailContent = buildAccountActivatedEmail({
             staffName: `${staff.last_name} ${staff.first_name}`,
             canviEmail,

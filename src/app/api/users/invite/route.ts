@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
           display_name,
           invited_role: role,
         },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal-b9br.vercel.app'}/setup-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'}/setup-password`,
       })
 
     if (inviteError) {
