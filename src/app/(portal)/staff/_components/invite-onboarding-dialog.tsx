@@ -68,7 +68,13 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
         toast.error(data.error || '招待に失敗しました')
         return
       }
-      toast.success(data.message || '招待メールを送信しました')
+      if (data.email_sent) {
+        toast.success(data.message || '招待メールを送信しました')
+      } else {
+        toast.warning(data.message || 'メール送信に失敗しましたが、URLは生成されました', {
+          duration: 8000,
+        })
+      }
       setResultUrl(data.onboarding_url)
     } catch {
       toast.error('招待に失敗しました')

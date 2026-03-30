@@ -94,24 +94,32 @@ export async function POST(request: NextRequest) {
     const onboardingUrl = `${siteUrl}/onboarding/${token}`
 
     // 招待メール送信
+    let emailSent = false
+    let emailError: string | null = null
     try {
       const emailContent = buildOnboardingInviteEmail({
         staffName: `${last_name} ${first_name}`,
         onboardingUrl,
       })
-      await sendEmail({
+      const result = await sendEmail({
         to: personal_email,
         ...emailContent,
       })
+      emailSent = true
+      console.log('Invite email sent:', result)
     } catch (emailErr) {
+      emailError = emailErr instanceof Error ? emailErr.message : String(emailErr)
       console.error('Invite email send error:', emailErr)
-      // メール失敗してもスタッフレコードは作成済み → URLは返す
     }
 
     return NextResponse.json({
       id: staff.id,
       onboarding_url: onboardingUrl,
-      message: `${personal_email} に招待メールを送信しました`,
+      email_sent: emailSent,
+      email_error: emailError,
+      message: emailSent
+        ? `${personal_email} に招待メールを送信しました`
+        : `スタッフレコードは作成しましたが、メール送信に失敗しました: ${emailError}`,
     }, { status: 201 })
   } catch (err) {
     console.error('Staff invite error:', err)
