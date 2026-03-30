@@ -16,15 +16,57 @@ interface SendEmailOptions {
   to: string
   subject: string
   html: string
+  text?: string
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailOptions) {
+/** HTMLをフルドキュメントでラップ（charset指定で文字化け防止） */
+function wrapHtml(bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Canvi Portal</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;">
+${bodyHtml}
+</body>
+</html>`
+}
+
+/** HTMLからプレーンテキストを抽出 */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<hr[^>]*>/gi, '\n---\n')
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>[^<]*<\/a>/gi, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   const resend = getResendClient()
+  const fullHtml = wrapHtml(html)
+  const plainText = text || htmlToText(html)
+
   const { data, error } = await resend.emails.send({
     from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to,
     subject,
-    html,
+    html: fullHtml,
+    text: plainText,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
   })
 
   if (error) {
