@@ -15,6 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import {
   ESTIMATE_STATUS_LABELS,
@@ -428,7 +429,7 @@ export default function DocumentsPage() {
           </div>
           <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? 'all')}>
             <SelectTrigger className="w-40">
-              <SelectValue />
+              <SelectValueWithLabel value={statusFilter} labels={{ all: 'すべて', ...currentStatusLabels }} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">すべて</SelectItem>

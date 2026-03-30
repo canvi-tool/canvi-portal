@@ -13,7 +13,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
+import { CLIENT_STATUS_LABELS } from '@/lib/constants'
 import {
   Card,
   CardContent,
@@ -107,7 +109,7 @@ export function ClientForm({ defaultValues, onSubmit, isLoading }: ClientFormPro
                     onValueChange={(val) => field.onChange(val)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="選択してください" />
+                      <SelectValueWithLabel value={field.value} labels={CLIENT_STATUS_LABELS} placeholder="選択してください" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">有効</SelectItem>

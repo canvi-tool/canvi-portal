@@ -16,6 +16,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PROJECT_STATUS_LABELS } from '@/lib/constants'
 import { useProjects, useBulkUpdateProjectStatus, type Project } from '@/hooks/use-projects'
@@ -147,7 +148,7 @@ export default function ProjectsPage() {
         </div>
         <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? 'all')}>
           <SelectTrigger className="w-40">
-            <SelectValue />
+            <SelectValueWithLabel value={statusFilter} labels={{ all: 'すべて', ...PROJECT_STATUS_LABELS }} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">すべて</SelectItem>

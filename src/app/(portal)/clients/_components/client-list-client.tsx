@@ -9,6 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 import { ClientTable } from './client-table'
@@ -94,7 +95,7 @@ export function ClientListClient({ initialData }: ClientListClientProps) {
           onValueChange={(val) => setStatusFilter(val || null)}
         >
           <SelectTrigger>
-            <SelectValue placeholder="ステータス" />
+            <SelectValueWithLabel value={statusFilter} labels={{ '': 'すべて', ...CLIENT_STATUS_LABELS }} placeholder="ステータス" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">すべて</SelectItem>

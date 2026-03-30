@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
@@ -267,7 +268,7 @@ export default function OnboardingPage() {
                 </Field>
                 <Field label="性別">
                   <Select value={form.gender} onValueChange={(v) => updateField('gender', v)}>
-                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                    <SelectTrigger><SelectValueWithLabel value={form.gender} placeholder="選択" labels={{ male: '男性', female: '女性', other: 'その他' }} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="male">男性</SelectItem>
                       <SelectItem value="female">女性</SelectItem>

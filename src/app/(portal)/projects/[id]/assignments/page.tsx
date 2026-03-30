@@ -18,6 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import {
   Dialog,
@@ -327,7 +328,7 @@ export default function AssignmentsPage({ params }: PageProps) {
               <Label>ステータス</Label>
               <Select value={newStatus} onValueChange={(val) => setNewStatus(val ?? 'active')}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValueWithLabel value={newStatus} labels={ASSIGNMENT_STATUS_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(ASSIGNMENT_STATUS_LABELS).map(([value, label]) => (

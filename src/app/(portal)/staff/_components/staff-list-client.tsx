@@ -9,6 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 import { StaffTable } from './staff-table'
@@ -101,7 +102,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
           onValueChange={(val) => setStatusFilter(val || null)}
         >
           <SelectTrigger>
-            <SelectValue placeholder="ステータス" />
+            <SelectValueWithLabel value={statusFilter} labels={STAFF_STATUS_LABELS} placeholder="ステータス" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">すべて</SelectItem>
@@ -118,7 +119,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
           onValueChange={(val) => setEmploymentFilter(val || null)}
         >
           <SelectTrigger>
-            <SelectValue placeholder="雇用区分" />
+            <SelectValueWithLabel value={employmentFilter} labels={EMPLOYMENT_TYPE_LABELS} placeholder="雇用区分" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">すべて</SelectItem>

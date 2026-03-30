@@ -18,6 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -321,7 +322,7 @@ export default function FormSalesPage() {
                   <Label className="text-xs">トーン</Label>
                   <Select value={form.tone} onValueChange={(v) => updateField('tone', v)}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValueWithLabel value={form.tone} labels={{ formal: 'フォーマル', friendly: 'フレンドリー', concise: '簡潔' }} />
                     </SelectTrigger>
                     <SelectContent>
                       {TONE_OPTIONS.map((opt) => (
@@ -336,7 +337,7 @@ export default function FormSalesPage() {
                   <Label className="text-xs">CTA（行動喚起）</Label>
                   <Select value={form.cta} onValueChange={(v) => updateField('cta', v)}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValueWithLabel value={form.cta} labels={{ meeting: 'ミーティング設定', call: '電話でのご相談', document: '資料送付', trial: '無料トライアル' }} />
                     </SelectTrigger>
                     <SelectContent>
                       {CTA_OPTIONS.map((opt) => (
@@ -357,7 +358,7 @@ export default function FormSalesPage() {
                     onValueChange={(v) => updateField('maxChars', Number(v))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValueWithLabel value={String(form.maxChars)} labels={{ '200': '200文字', '300': '300文字', '400': '400文字', '600': '600文字', '800': '800文字', '1000': '1000文字' }} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="200">200文字</SelectItem>
@@ -376,7 +377,7 @@ export default function FormSalesPage() {
                     onValueChange={(v) => updateField('variations', Number(v))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValueWithLabel value={String(form.variations)} labels={{ '1': '1パターン', '2': '2パターン', '3': '3パターン', '5': '5パターン' }} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">1パターン</SelectItem>

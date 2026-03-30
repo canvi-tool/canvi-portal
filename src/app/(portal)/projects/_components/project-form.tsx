@@ -13,6 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
@@ -105,7 +106,7 @@ export function ProjectForm({
                 onValueChange={(val) => field.onChange(val)}
               >
                 <SelectTrigger className="w-28">
-                  <SelectValue placeholder="種別" />
+                  <SelectValueWithLabel value={field.value} labels={Object.fromEntries(PROJECT_TYPE_OPTIONS.map(o => [o.value, o.label]))} placeholder="種別" />
                 </SelectTrigger>
                 <SelectContent>
                   {PROJECT_TYPE_OPTIONS.map((opt) => (
@@ -192,7 +193,7 @@ export function ProjectForm({
           onValueChange={(val) => val && setValue('status', val as ProjectFormValues['status'])}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="ステータスを選択" />
+            <SelectValueWithLabel value={statusValue} labels={PROJECT_STATUS_LABELS} placeholder="ステータスを選択" />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (

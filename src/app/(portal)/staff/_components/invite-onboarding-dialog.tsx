@@ -17,6 +17,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, Mail, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
@@ -134,7 +135,7 @@ export function InviteOnboardingDialog({ open, onOpenChange }: InviteOnboardingD
               <Label>雇用区分 <span className="text-red-500">*</span></Label>
               <Select value={employmentType} onValueChange={setEmploymentType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
+                  <SelectValueWithLabel value={employmentType} labels={EMPLOYMENT_TYPE_LABELS} placeholder="選択してください" />
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([value, label]) => (

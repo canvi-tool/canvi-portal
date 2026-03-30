@@ -34,6 +34,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
 import { cn } from '@/lib/utils'
@@ -491,7 +492,7 @@ export default function WorkReportsPage() {
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-[120px] h-8 text-xs">
-            <SelectValue placeholder="全状態" />
+            <SelectValueWithLabel value={filterStatus} placeholder="全状態" labels={{ all: '全状態', draft: '下書き', submitted: '提出済', approved: '承認済' }} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全状態</SelectItem>

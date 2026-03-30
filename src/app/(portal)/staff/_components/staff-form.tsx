@@ -15,7 +15,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
+import { EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
 import {
   Card,
   CardContent,
@@ -232,20 +234,16 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                 control={control}
                 render={({ field }) => (
                   <Select
-                    value={field.value ?? null}
+                    value={field.value || null}
                     onValueChange={(val) => field.onChange(val)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="選択してください" />
+                      <SelectValueWithLabel value={field.value} labels={EMPLOYMENT_TYPE_LABELS} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="full_time">正社員</SelectItem>
-                      <SelectItem value="part_time">パートタイム</SelectItem>
-                      <SelectItem value="contract">契約社員</SelectItem>
-                      <SelectItem value="temporary">派遣社員</SelectItem>
-                      <SelectItem value="freelance">フリーランス/業務委託</SelectItem>
-                      <SelectItem value="executive">役員</SelectItem>
-                      <SelectItem value="other">その他</SelectItem>
+                      {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -465,7 +463,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                   onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
                 >
                   <SelectTrigger className="w-full max-w-xs">
-                    <SelectValue />
+                    <SelectValueWithLabel value={portalRole} labels={{ owner: 'オーナー', admin: '管理者', staff: 'スタッフ' }} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="owner">オーナー</SelectItem>
@@ -504,7 +502,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                       onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
                     >
                       <SelectTrigger className="w-full max-w-xs">
-                        <SelectValue />
+                        <SelectValueWithLabel value={portalRole} labels={{ owner: 'オーナー', admin: '管理者', staff: 'スタッフ' }} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="owner">オーナー</SelectItem>
@@ -551,7 +549,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                     onValueChange={(val) => field.onChange(val)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="選択してください" />
+                      <SelectValueWithLabel value={field.value} labels={{ '普通': '普通', '当座': '当座' }} placeholder="選択してください" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="普通">普通</SelectItem>

@@ -39,6 +39,30 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   )
 }
 
+/** ラベルマップ付きSelectValue — 英字value → 日本語ラベルを確実に表示 */
+function SelectValueWithLabel({
+  value,
+  labels,
+  placeholder = '選択してください',
+  className,
+}: {
+  value: string | null | undefined
+  labels: Record<string, string>
+  placeholder?: string
+  className?: string
+}) {
+  const label = value ? labels[value] ?? value : null
+  return (
+    <span
+      data-slot="select-value"
+      data-placeholder={!label ? '' : undefined}
+      className={cn("flex flex-1 text-left line-clamp-1", !label && "text-muted-foreground", className)}
+    >
+      {label || placeholder}
+    </span>
+  )
+}
+
 function SelectTrigger({
   className,
   size = "default",
@@ -209,4 +233,5 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 }

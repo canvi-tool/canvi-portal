@@ -11,6 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { PaymentSummaryTable } from './_components/payment-summary-table'
@@ -104,7 +105,7 @@ export default function PaymentsPage() {
         <div className="w-40">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
-              <SelectValue placeholder="ステータス" />
+              <SelectValueWithLabel value={statusFilter} placeholder="ステータス" labels={{ all: '全て', ...PAYMENT_STATUS_LABELS }} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全て</SelectItem>

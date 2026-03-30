@@ -11,6 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import {
   Bell,
@@ -259,7 +260,7 @@ export default function AlertsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger size="sm">
-            <SelectValue placeholder="種類で絞り込み" />
+            <SelectValueWithLabel value={typeFilter} placeholder="種類で絞り込み" labels={{ all: '全ての種類', ...TYPE_LABELS }} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ての種類</SelectItem>
@@ -273,7 +274,7 @@ export default function AlertsPage() {
 
         <Select value={severityFilter} onValueChange={setSeverityFilter}>
           <SelectTrigger size="sm">
-            <SelectValue placeholder="重要度で絞り込み" />
+            <SelectValueWithLabel value={severityFilter} placeholder="重要度で絞り込み" labels={{ all: '全ての重要度', ...SEVERITY_LABELS }} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ての重要度</SelectItem>
@@ -285,7 +286,7 @@ export default function AlertsPage() {
 
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
           <SelectTrigger size="sm">
-            <SelectValue placeholder="ステータスで絞り込み" />
+            <SelectValueWithLabel value={statusFilter} placeholder="ステータスで絞り込み" labels={{ all: '全て', unread: '未読', unresolved: '未解決', resolved: '解決済' }} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全て</SelectItem>
