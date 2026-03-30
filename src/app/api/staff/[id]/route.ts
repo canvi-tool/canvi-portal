@@ -305,19 +305,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Logical deletion: update status to 'retired' and add a timestamp in custom_fields
-    const existingCustom = (oldStaff.custom_fields as Record<string, unknown>) || {}
-    const { error } = await supabase
-      .from('staff')
-      .update({
-        status: 'retired',
-        custom_fields: {
-          ...existingCustom,
-          deleted_at: new Date().toISOString(),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+    // Googleアカウント未発行（user_id null）かつオンボーディング中なら物理削除
+    const cf = (oldStaff.custom_fields as Record<string, unknown>) || {}
+    const isOnboarding = !oldStaff.user_id &&
+      ['pending_registration', 'pending_approval'].includes(cf.onboarding_status as string)
+
+    const { error } = isOnboarding
+      ? await supabase.from('staff').delete().eq('id', id)
+      : await supabase.from('staff').update({
+          status: 'retired',
+          custom_fields: { ...cf, deleted_at: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        }).eq('id', id)
 
     if (error) {
       console.error('Staff delete error:', error)

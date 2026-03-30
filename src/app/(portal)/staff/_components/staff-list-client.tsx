@@ -15,6 +15,7 @@ import { StaffTable } from './staff-table'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { STAFF_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
 import { useBulkUpdateStaffStatus } from '@/hooks/use-staff'
+import { getEffectiveStatus } from './staff-status-badge'
 import { toast } from 'sonner'
 import type { Tables } from '@/lib/types/database'
 
@@ -57,7 +58,10 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
     }
 
     if (statusFilter) {
-      result = result.filter((s) => s.status === statusFilter)
+      result = result.filter((s) => {
+        const cf = s.custom_fields as Record<string, unknown> | null
+        return getEffectiveStatus(s.status, cf) === statusFilter
+      })
     }
 
     if (employmentFilter) {

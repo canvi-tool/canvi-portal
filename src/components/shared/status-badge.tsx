@@ -17,6 +17,8 @@ const DEFAULT_VARIANT_MAP: Record<string, BadgeVariant> = {
   draft: 'outline',
   planning: 'outline',
   pre_contract: 'outline',
+  pending_registration: 'secondary',
+  pending_approval: 'secondary',
   pending_signature: 'secondary',
   contract_sent: 'secondary',
   submitted: 'secondary',
