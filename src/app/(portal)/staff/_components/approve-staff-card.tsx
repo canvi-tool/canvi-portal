@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
+import { getEffectiveStatus } from './staff-status-badge'
 import type { Tables } from '@/lib/types/database'
 
 interface ApproveStaffCardProps {
@@ -35,8 +36,10 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
   const [orgUnit, setOrgUnit] = useState('/スタッフ')
   const [staffCode, setStaffCode] = useState('')
 
-  // Only show for pending_approval status
-  if (staff.status !== 'pending_approval') return null
+  // custom_fieldsのonboarding_statusを考慮して承認待ちか判定
+  const cf = staff.custom_fields as Record<string, unknown> | null
+  const effectiveStatus = getEffectiveStatus(staff.status, cf)
+  if (effectiveStatus !== 'pending_approval') return null
 
   const handleApprove = async () => {
     if (!emailPrefix) {

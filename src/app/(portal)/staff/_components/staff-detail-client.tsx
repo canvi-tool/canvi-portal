@@ -137,7 +137,7 @@ export function StaffDetailClient({
         description={`${EMPLOYMENT_TYPE_LABELS[staff.employment_type] ?? staff.employment_type} / ${staff.staff_code || '-'}`}
         actions={
           <div className="flex items-center gap-2">
-            <StaffStatusBadge status={staff.status} />
+            <StaffStatusBadge status={staff.status} customFields={staff.custom_fields as Record<string, unknown> | null} />
             <Button variant="outline" render={<Link href={`/staff/${staff.id}/edit`} />}>
               <Pencil className="h-4 w-4 mr-2" />
               編集
@@ -194,9 +194,13 @@ export function StaffDetailClient({
                 <InfoRow label="氏名" value={`${staff.last_name} ${staff.first_name}`} />
                 <InfoRow label="氏名（カナ）" value={`${staff.last_name_kana || ''} ${staff.first_name_kana || ''}`.trim() || null} />
                 <InfoRow label="メール" value={staff.email} />
+                {staff.personal_email && <InfoRow label="個人メール" value={staff.personal_email} />}
                 <InfoRow label="電話番号" value={staff.phone} />
                 <InfoRow label="生年月日" value={staff.date_of_birth} />
-                <InfoRow label="住所" value={custom.address} />
+                <InfoRow label="性別" value={staff.gender === 'male' ? '男性' : staff.gender === 'female' ? '女性' : staff.gender || null} />
+                <InfoRow label="郵便番号" value={staff.postal_code} />
+                <InfoRow label="都道府県" value={staff.prefecture} />
+                <InfoRow label="住所" value={[staff.city, staff.address_line1, staff.address_line2].filter(Boolean).join(' ') || null} />
                 <InfoRow label="入職日" value={staff.hire_date} />
               </CardContent>
             </Card>
@@ -206,13 +210,26 @@ export function StaffDetailClient({
                 <CardTitle>銀行口座</CardTitle>
               </CardHeader>
               <CardContent>
-                <InfoRow label="銀行名" value={custom.bank_name} />
-                <InfoRow label="支店名" value={custom.bank_branch} />
-                <InfoRow label="口座種別" value={custom.bank_account_type} />
-                <InfoRow label="口座番号" value={custom.bank_account_number} />
-                <InfoRow label="口座名義" value={custom.bank_account_holder} />
+                <InfoRow label="銀行名" value={staff.bank_name} />
+                <InfoRow label="支店名" value={staff.bank_branch} />
+                <InfoRow label="口座種別" value={staff.bank_account_type} />
+                <InfoRow label="口座番号" value={staff.bank_account_number} />
+                <InfoRow label="口座名義" value={staff.bank_account_holder} />
               </CardContent>
             </Card>
+
+            {(staff.emergency_contact_name || staff.emergency_contact_phone) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>緊急連絡先</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <InfoRow label="氏名" value={staff.emergency_contact_name} />
+                  <InfoRow label="電話番号" value={staff.emergency_contact_phone} />
+                  <InfoRow label="続柄" value={staff.emergency_contact_relationship} />
+                </CardContent>
+              </Card>
+            )}
 
             {staff.notes && (
               <Card className="lg:col-span-2">

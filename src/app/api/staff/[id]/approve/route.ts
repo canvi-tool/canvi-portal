@@ -35,7 +35,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'スタッフが見つかりません' }, { status: 404 })
     }
 
-    if (staff.status !== 'pending_approval') {
+    // suspended + custom_fields.onboarding_status === 'pending_approval' で承認待ちを判定
+    const cf = (staff.custom_fields as Record<string, unknown>) || {}
+    const isPendingApproval =
+      (staff.status === 'suspended' && cf.onboarding_status === 'pending_approval') ||
+      staff.status === 'pending_approval'
+
+    if (!isPendingApproval) {
       return NextResponse.json(
         { error: 'このスタッフは承認待ち状態ではありません' },
         { status: 400 }
@@ -146,17 +152,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // ④ スタッフレコード更新（承認完了）
-    const existingFields = (staff.custom_fields as Record<string, unknown>) || {}
     const nextStaffCode = body.staff_code as string | undefined
 
     const { error: updateError } = await supabase
       .from('staff')
       .update({
-        status: 'pre_contract',
+        status: 'active',
         email: canviEmail || staff.email,
         ...(nextStaffCode ? { staff_code: nextStaffCode } : {}),
         custom_fields: {
-          ...existingFields,
+          ...cf,
+          onboarding_status: 'completed',
           approved_at: new Date().toISOString(),
           approved_by: admin.id,
           google_email: canviEmail || null,
