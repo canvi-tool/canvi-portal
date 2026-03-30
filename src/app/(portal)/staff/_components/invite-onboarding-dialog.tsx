@@ -16,7 +16,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, Mail, Copy, Check } from 'lucide-react'
