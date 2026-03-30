@@ -5,6 +5,7 @@ import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
 import { createUser as createZoomUser } from '@/lib/integrations/zoom'
+import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import type { Json } from '@/lib/types/database'
 
@@ -95,9 +96,15 @@ export async function POST(request: NextRequest) {
     const formData = result.data
     const supabase = await createServerSupabaseClient()
 
+    // スタッフコードが空 or 未指定の場合は自動採番
+    let staffCode = formData.staff_code
+    if (!staffCode || staffCode.trim() === '') {
+      staffCode = await generateNextStaffCode(supabase)
+    }
+
     // Build the staff record matching the DB schema
     const staffRecord = {
-      staff_code: formData.staff_code,
+      staff_code: staffCode,
       last_name: formData.last_name,
       first_name: formData.first_name,
       last_name_kana: formData.last_name_kana || null,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { staffInviteSchema } from '@/lib/validations/staff'
+import { generateNextStaffCode } from '@/lib/staff-code'
 import { sendEmail, buildOnboardingInviteEmail } from '@/lib/email/send'
 import type { Json } from '@/lib/types/database'
 
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
     // トークン生成
     const token = crypto.randomUUID()
 
+    // スタッフコード自動採番（S0001〜S9999の空き番号）
+    const staffCode = await generateNextStaffCode(supabase)
+
     // スタッフレコードを仮作成（status = suspended をオンボーディング中として使用）
     const { data: staff, error } = await supabase
       .from('staff')
@@ -58,7 +62,7 @@ export async function POST(request: NextRequest) {
         first_name,
         email: personal_email,
         personal_email,
-        staff_code: `PENDING-${token.slice(0, 8).toUpperCase()}`,
+        staff_code: staffCode,
         employment_type,
         status: 'suspended',
         hire_date: new Date().toISOString().split('T')[0],

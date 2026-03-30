@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const staffFormSchema = z.object({
-  staff_code: z.string().min(1, 'スタッフコードは必須です'),
+  staff_code: z.string(),
   employment_type: z.enum(['full_time', 'part_time', 'contract', 'temporary', 'freelance', 'executive', 'other'], {
     error: '雇用区分を選択してください',
   }),

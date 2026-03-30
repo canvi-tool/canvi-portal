@@ -87,11 +87,13 @@ const ZOOM_LICENSE_TYPES = [
 ]
 
 export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true, currentPortalRole, hasPortalAccount }: StaffFormProps) {
+  const isEditing = !!defaultValues?.staff_code
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<StaffFormValues>({
     resolver: zodResolver(staffFormSchema),
@@ -124,6 +126,22 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
       ...defaultValues,
     },
   })
+
+  // 新規登録時にスタッフコードを自動取得
+  useEffect(() => {
+    if (!isEditing) {
+      fetch('/api/staff/next-code')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.staff_code) {
+            setValue('staff_code', data.staff_code)
+          }
+        })
+        .catch(() => {
+          // エラー時は手動入力に任せる
+        })
+    }
+  }, [isEditing, setValue])
 
   // Provisioning state (separate from zod schema)
   const [createGoogle, setCreateGoogle] = useState(false)
@@ -190,7 +208,6 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
             <FormField
               label="スタッフコード"
               error={errors.staff_code?.message}
-              required
             >
               <Controller
                 name="staff_code"
@@ -199,25 +216,30 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                   const prefix = 'S'
                   const num = field.value?.replace(/^S/, '') || ''
                   return (
-                    <div className="flex items-center gap-0">
-                      <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 h-9 text-sm text-muted-foreground">
-                        {prefix}
-                      </span>
-                      <Input
-                        value={num}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, '').slice(0, 4)
-                          field.onChange(v ? `S${v.padStart(4, '0')}` : '')
-                        }}
-                        onBlur={() => {
-                          if (num && num.replace(/\D/g, '')) {
-                            field.onChange(`S${num.replace(/\D/g, '').padStart(4, '0')}`)
-                          }
-                        }}
-                        placeholder="0001"
-                        className="rounded-l-none w-24"
-                        maxLength={4}
-                      />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-0">
+                        <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 h-9 text-sm text-muted-foreground">
+                          {prefix}
+                        </span>
+                        <Input
+                          value={num}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                            field.onChange(v ? `S${v.padStart(4, '0')}` : '')
+                          }}
+                          onBlur={() => {
+                            if (num && num.replace(/\D/g, '')) {
+                              field.onChange(`S${num.replace(/\D/g, '').padStart(4, '0')}`)
+                            }
+                          }}
+                          placeholder="自動採番"
+                          className="rounded-l-none w-24"
+                          maxLength={4}
+                        />
+                      </div>
+                      {!isEditing && (
+                        <p className="text-xs text-muted-foreground">空欄の場合、次の空き番号が自動で割り振られます</p>
+                      )}
                     </div>
                   )
                 }}
