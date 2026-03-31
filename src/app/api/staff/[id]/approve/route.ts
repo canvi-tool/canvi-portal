@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
-import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
+import { createUser as createGoogleUser, resolveAvailableEmail } from '@/lib/integrations/google-workspace'
 import { sendEmail, buildAccountActivatedEmail } from '@/lib/email/send'
 import type { Json } from '@/lib/types/database'
 
@@ -55,17 +55,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     let canviEmail = ''
 
-    // ① Google Workspaceアカウント作成
+    // ① Google Workspaceアカウント作成（重複時は自動採番）
     if (googleEmailPrefix) {
       try {
-        canviEmail = `${googleEmailPrefix}@canvi.co.jp`
+        const domain = process.env.GOOGLE_WORKSPACE_DOMAIN || 'canvi.co.jp'
+        // 重複チェック: prefix@domain → prefix002@domain → prefix003@domain ...
+        const { email: resolvedEmail, suffix } = await resolveAvailableEmail(googleEmailPrefix, domain)
+        canviEmail = resolvedEmail
+
         const googleUser = await createGoogleUser({
           email: canviEmail,
           givenName: staff.first_name,
           familyName: staff.last_name,
           orgUnitPath: googleOrgUnit,
         })
-        results.google = { success: true, email: googleUser.primaryEmail }
+        results.google = {
+          success: true,
+          email: googleUser.primaryEmail,
+          ...(suffix ? { note: `同名ユーザーが存在するため ${suffix} を付与しました` } : {}),
+        } as { success: boolean; email?: string; error?: string }
         canviEmail = googleUser.primaryEmail
       } catch (err) {
         console.error('Google account creation error:', err)

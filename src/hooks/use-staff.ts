@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { StaffFormValues } from '@/lib/validations/staff'
-import type { ProvisioningData, PortalAccountData } from '@/app/(portal)/staff/_components/staff-form'
+import type { ProvisioningData } from '@/app/(portal)/staff/_components/staff-form'
 import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
@@ -60,10 +60,9 @@ async function fetchStaff(id: string): Promise<Staff & { contracts: Tables<'cont
 interface CreateStaffInput {
   formData: StaffFormValues
   provisioning?: ProvisioningData
-  portalAccount?: PortalAccountData
 }
 
-async function createStaff({ formData, provisioning, portalAccount }: CreateStaffInput): Promise<CreateStaffResponse> {
+async function createStaff({ formData, provisioning }: CreateStaffInput): Promise<CreateStaffResponse> {
   const res = await fetch('/api/staff', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -76,10 +75,6 @@ async function createStaff({ formData, provisioning, portalAccount }: CreateStaf
         create_zoom_account: provisioning.create_zoom_account,
         zoom_license_type: provisioning.zoom_license_type,
       } : {}),
-      ...(portalAccount ? {
-        create_portal_account: portalAccount.create_portal_account,
-        portal_role: portalAccount.portal_role,
-      } : {}),
     }),
   })
   if (!res.ok) {
@@ -89,17 +84,11 @@ async function createStaff({ formData, provisioning, portalAccount }: CreateStaf
   return res.json()
 }
 
-async function updateStaff({ id, data, portalAccount }: { id: string; data: StaffFormValues; portalAccount?: PortalAccountData }): Promise<Staff> {
+async function updateStaff({ id, data }: { id: string; data: StaffFormValues }): Promise<Staff> {
   const res = await fetch(`/api/staff/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...data,
-      ...(portalAccount ? {
-        create_portal_account: portalAccount.create_portal_account,
-        portal_role: portalAccount.portal_role,
-      } : {}),
-    }),
+    body: JSON.stringify(data),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'スタッフの更新に失敗しました' }))
@@ -146,7 +135,7 @@ export function useCreateStaff() {
 export function useUpdateStaff(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ data, portalAccount }: { data: StaffFormValues; portalAccount?: PortalAccountData }) => updateStaff({ id, data, portalAccount }),
+    mutationFn: ({ data }: { data: StaffFormValues }) => updateStaff({ id, data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', 'list'] })
       queryClient.invalidateQueries({ queryKey: ['staff', 'detail', id] })

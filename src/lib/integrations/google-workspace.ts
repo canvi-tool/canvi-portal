@@ -299,6 +299,55 @@ export async function listUsers(
 }
 
 /**
+ * ユーザーが存在するかチェック（存在すればtrue）
+ */
+export async function userExists(email: string): Promise<boolean> {
+  if (DEMO_MODE) {
+    return DEMO_USERS.some((u) => u.primaryEmail === email)
+  }
+
+  try {
+    await apiRequest<Record<string, unknown>>('GET', `/users/${encodeURIComponent(email)}`)
+    return true
+  } catch (err) {
+    if (err instanceof GoogleWorkspaceError && err.statusCode === 404) {
+      return false
+    }
+    throw err
+  }
+}
+
+/**
+ * 重複しないメールアドレスを自動解決
+ * 基本: prefix@domain → 重複時: prefix002@domain, prefix003@domain ...
+ */
+export async function resolveAvailableEmail(
+  prefix: string,
+  domain: string
+): Promise<{ email: string; suffix: string | null }> {
+  // まず番号なしで試行
+  const baseEmail = `${prefix}@${domain}`
+  if (!(await userExists(baseEmail))) {
+    return { email: baseEmail, suffix: null }
+  }
+
+  // 002から順に試行
+  for (let i = 2; i <= 99; i++) {
+    const suffix = String(i).padStart(3, '0')
+    const candidateEmail = `${prefix}${suffix}@${domain}`
+    if (!(await userExists(candidateEmail))) {
+      return { email: candidateEmail, suffix }
+    }
+  }
+
+  throw new GoogleWorkspaceError(
+    'EMAIL_EXHAUSTED',
+    `利用可能なメールアドレスが見つかりません: ${prefix}@${domain}`,
+    409
+  )
+}
+
+/**
  * ユーザー詳細を取得
  */
 export async function getUser(email: string): Promise<GoogleWorkspaceUser> {

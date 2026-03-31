@@ -147,6 +147,11 @@ export async function fetchAddressFromPostalCode(postalCode: string): Promise<Po
 }
 
 // ====== ユーティリティ ======
+/** ひらがな→カタカナ変換（公開） */
+export function toKatakana(str: string): string {
+  return hiraganaToKatakana(str)
+}
+
 /** ひらがな→カタカナ変換 */
 function hiraganaToKatakana(str: string): string {
   return str.replace(/[\u3041-\u3096]/g, (ch) =>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ interface ApproveStaffCardProps {
 }
 
 const ORG_UNITS = [
+  { value: '/', label: 'canvi.co.jp（ルート）' },
   { value: '/管理部', label: '管理部' },
   { value: '/営業部', label: '営業部' },
   { value: '/開発部', label: '開発部' },
@@ -33,12 +34,21 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [emailPrefix, setEmailPrefix] = useState('')
-  const [orgUnit, setOrgUnit] = useState('/スタッフ')
+  const [orgUnit, setOrgUnit] = useState('/')
   const [staffCode, setStaffCode] = useState(staff.staff_code || '')
 
   // custom_fieldsのonboarding_statusを考慮して承認待ちか判定
   const cf = staff.custom_fields as Record<string, unknown> | null
   const effectiveStatus = getEffectiveStatus(staff.status, cf)
+
+  // ローマ字名からメールプレフィックスを自動生成: first_name.last_name（番号なし）
+  useEffect(() => {
+    if (staff.last_name_eiji && staff.first_name_eiji && !emailPrefix) {
+      const prefix = `${staff.first_name_eiji.toLowerCase()}.${staff.last_name_eiji.toLowerCase()}`
+      setEmailPrefix(prefix)
+    }
+  }, [staff.last_name_eiji, staff.first_name_eiji, emailPrefix])
+
   if (effectiveStatus !== 'pending_approval') return null
 
   const handleApprove = async () => {
@@ -72,14 +82,21 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
         warnings.push(`ポータル: ${data.results.portal.error}`)
       }
 
+      const googleNote = data.results?.google?.note as string | undefined
+
       if (warnings.length > 0) {
         toast.warning('承認しましたが、一部の処理に失敗しました', {
           description: warnings.join('\n'),
           duration: 8000,
         })
       } else {
+        const desc = [
+          data.google_email ? `Googleアカウント: ${data.google_email}` : '',
+          googleNote || '',
+        ].filter(Boolean).join('\n')
         toast.success('承認が完了しました', {
-          description: data.google_email ? `Googleアカウント: ${data.google_email}` : undefined,
+          description: desc || undefined,
+          duration: googleNote ? 8000 : 4000,
         })
       }
 
@@ -125,13 +142,20 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
               <Input
                 value={emailPrefix}
                 onChange={(e) => setEmailPrefix(e.target.value.toLowerCase())}
-                placeholder="yamada.taro"
+                placeholder="taro.yamada"
                 className="rounded-r-none"
               />
               <span className="inline-flex items-center rounded-r-md border border-l-0 border-input bg-muted px-3 h-9 text-sm text-muted-foreground whitespace-nowrap">
                 @canvi.co.jp
               </span>
             </div>
+            {staff.first_name_eiji && staff.last_name_eiji && (
+              <p className="text-xs text-muted-foreground">
+                ローマ字名から自動生成: {staff.first_name_eiji.toLowerCase()}.{staff.last_name_eiji.toLowerCase()}
+                <br />
+                ※同名ユーザーが既に存在する場合は自動で002〜の連番が付与されます
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>組織部門</Label>

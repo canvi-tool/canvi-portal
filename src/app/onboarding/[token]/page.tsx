@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,15 +14,26 @@ import {
   SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Upload, X } from 'lucide-react'
 import {
   formatBankAccountNumber,
-  formatBankAccountHolder,
   normalizeBankAccountHolder,
+  toKatakana,
   formatPostalCode,
   formatPhoneNumber,
   fetchAddressFromPostalCode,
 } from '@/lib/form-helpers'
+import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES } from '@/lib/validations/staff'
+
+const PREFECTURES = [
+  '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+  '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+  '新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県',
+  '静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県',
+  '奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県',
+  '徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県',
+  '熊本県','大分県','宮崎県','鹿児島県','沖縄県',
+]
 
 interface StaffInfo {
   id: string
@@ -59,6 +70,8 @@ export default function OnboardingPage() {
     first_name: '',
     last_name_kana: '',
     first_name_kana: '',
+    last_name_eiji: '',
+    first_name_eiji: '',
     date_of_birth: '',
     gender: '',
     phone: '',
@@ -74,7 +87,18 @@ export default function OnboardingPage() {
     bank_account_holder: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    emergency_contact_relationship_other: '',
   })
+
+  // 本人確認書類（社員系のみ）
+  const [idDocType, setIdDocType] = useState('')
+  const [idDocFront, setIdDocFront] = useState<File | null>(null)
+  const [idDocBack, setIdDocBack] = useState<File | null>(null)
+  const [idDocFrontPreview, setIdDocFrontPreview] = useState<string | null>(null)
+  const [idDocBackPreview, setIdDocBackPreview] = useState<string | null>(null)
+  const frontInputRef = useRef<HTMLInputElement>(null)
+  const backInputRef = useRef<HTMLInputElement>(null)
 
   const isEmployee = staffInfo ? isEmployeeType(staffInfo.employment_type) : false
 
@@ -105,7 +129,6 @@ export default function OnboardingPage() {
 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
-    // Clear validation error when user types
     if (validationErrors[field]) {
       setValidationErrors((prev) => {
         const next = { ...prev }
@@ -115,28 +138,86 @@ export default function OnboardingPage() {
     }
   }
 
+  const handleFileSelect = (type: 'front' | 'back', file: File | null) => {
+    if (type === 'front') {
+      setIdDocFront(file)
+      if (file) {
+        const url = URL.createObjectURL(file)
+        setIdDocFrontPreview(url)
+      } else {
+        setIdDocFrontPreview(null)
+      }
+      if (validationErrors.id_doc_front) {
+        setValidationErrors((prev) => { const next = { ...prev }; delete next.id_doc_front; return next })
+      }
+    } else {
+      setIdDocBack(file)
+      if (file) {
+        const url = URL.createObjectURL(file)
+        setIdDocBackPreview(url)
+      } else {
+        setIdDocBackPreview(null)
+      }
+      if (validationErrors.id_doc_back) {
+        setValidationErrors((prev) => { const next = { ...prev }; delete next.id_doc_back; return next })
+      }
+    }
+  }
+
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
 
     // 全員共通必須
     if (!form.last_name) errors.last_name = '姓は必須です'
     if (!form.first_name) errors.first_name = '名は必須です'
-    if (!form.last_name_kana) errors.last_name_kana = '姓（カナ）は必須です'
-    if (!form.first_name_kana) errors.first_name_kana = '名（カナ）は必須です'
+    if (!form.last_name_kana) {
+      errors.last_name_kana = '姓（カナ）は必須です'
+    } else if (!/^[\u30A0-\u30FFー]+$/.test(form.last_name_kana)) {
+      errors.last_name_kana = 'カタカナで入力してください'
+    }
+    if (!form.first_name_kana) {
+      errors.first_name_kana = '名（カナ）は必須です'
+    } else if (!/^[\u30A0-\u30FFー]+$/.test(form.first_name_kana)) {
+      errors.first_name_kana = 'カタカナで入力してください'
+    }
+    if (!form.last_name_eiji) {
+      errors.last_name_eiji = '姓（ローマ字）は必須です'
+    } else if (!/^[a-z]+$/i.test(form.last_name_eiji)) {
+      errors.last_name_eiji = 'アルファベット小文字で入力してください'
+    }
+    if (!form.first_name_eiji) {
+      errors.first_name_eiji = '名（ローマ字）は必須です'
+    } else if (!/^[a-z]+$/i.test(form.first_name_eiji)) {
+      errors.first_name_eiji = 'アルファベット小文字で入力してください'
+    }
     if (!form.date_of_birth) errors.date_of_birth = '生年月日は必須です'
     if (!form.phone) errors.phone = '電話番号は必須です'
+    if (!form.gender) errors.gender = '性別は必須です'
+    if (!form.postal_code) errors.postal_code = '郵便番号は必須です'
     if (!form.prefecture) errors.prefecture = '都道府県は必須です'
+    if (!form.address_line1) errors.address_line1 = '住所は必須です'
     if (!form.bank_name) errors.bank_name = '銀行名は必須です'
     if (!form.bank_branch) errors.bank_branch = '支店名は必須です'
     if (!form.bank_account_number) errors.bank_account_number = '口座番号は必須です'
-    if (!form.bank_account_holder) errors.bank_account_holder = '口座名義は必須です'
+    if (!form.bank_account_holder) {
+      errors.bank_account_holder = '口座名義は必須です'
+    } else if (!/^[\u30A0-\u30FFー（）\u3000 ]+$/.test(form.bank_account_holder)) {
+      errors.bank_account_holder = '口座名義はカタカナと（）で入力してください'
+    }
 
     // 社員系のみ追加必須
     if (isEmployee) {
-      if (!form.postal_code) errors.postal_code = '郵便番号は必須です'
-      if (!form.address_line1) errors.address_line1 = '住所は必須です'
       if (!form.emergency_contact_name) errors.emergency_contact_name = '緊急連絡先の氏名は必須です'
       if (!form.emergency_contact_phone) errors.emergency_contact_phone = '緊急連絡先の電話番号は必須です'
+      // 本人確認書類
+      if (!idDocType) errors.id_doc_type = '本人確認書類の種類を選択してください'
+      if (!idDocFront) errors.id_doc_front = '書類の画像をアップロードしてください'
+      if (!idDocBack) errors.id_doc_back = '書類の画像をアップロードしてください'
+    }
+
+    // 緊急連絡先の続柄：入力されている場合のチェック
+    if (form.emergency_contact_relationship === 'その他' && !form.emergency_contact_relationship_other) {
+      errors.emergency_contact_relationship_other = '続柄を入力してください'
     }
 
     setValidationErrors(errors)
@@ -147,7 +228,6 @@ export default function OnboardingPage() {
     e.preventDefault()
 
     if (!validateForm()) {
-      // Scroll to first error
       const firstError = document.querySelector('[data-error="true"]')
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
@@ -157,20 +237,54 @@ export default function OnboardingPage() {
     setError('')
 
     try {
-      const res = await fetch(`/api/staff/onboarding/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || '送信に失敗しました')
-        setState('form')
-        return
+      // ローマ字は小文字に正規化
+      const submitData = {
+        ...form,
+        last_name_eiji: form.last_name_eiji.toLowerCase(),
+        first_name_eiji: form.first_name_eiji.toLowerCase(),
+        // 続柄：「その他」の場合は自由入力値を使う
+        emergency_contact_relationship:
+          form.emergency_contact_relationship === 'その他'
+            ? form.emergency_contact_relationship_other
+            : form.emergency_contact_relationship,
       }
+
+      // FormDataで送信（ファイルアップロードがある場合）
+      if (isEmployee && idDocFront && idDocBack) {
+        const formData = new FormData()
+        formData.append('json', JSON.stringify(submitData))
+        formData.append('id_doc_type', idDocType)
+        formData.append('id_doc_front', idDocFront)
+        formData.append('id_doc_back', idDocBack)
+
+        const res = await fetch(`/api/staff/onboarding/${token}`, {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || '送信に失敗しました')
+          setState('form')
+          return
+        }
+      } else {
+        const res = await fetch(`/api/staff/onboarding/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(submitData),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || '送信に失敗しました')
+          setState('form')
+          return
+        }
+      }
+
       setState('done')
-    } catch {
-      setError('送信に失敗しました')
+    } catch (err) {
+      console.error('Submit error:', err)
+      setError(err instanceof Error ? `送信に失敗しました: ${err.message}` : '送信に失敗しました')
       setState('form')
     }
   }
@@ -219,6 +333,7 @@ export default function OnboardingPage() {
   }
 
   const employmentLabel = staffInfo ? EMPLOYMENT_TYPE_LABELS[staffInfo.employment_type] || staffInfo.employment_type : ''
+  const selectedDocType = ID_DOCUMENT_TYPES.find((d) => d.value === idDocType)
 
   // Form
   return (
@@ -266,15 +381,40 @@ export default function OnboardingPage() {
                   <Input value={form.first_name} onChange={(e) => updateField('first_name', e.target.value)} />
                 </Field>
                 <Field label="姓（カナ）" required error={validationErrors.last_name_kana}>
-                  <Input value={form.last_name_kana} onChange={(e) => updateField('last_name_kana', e.target.value)} placeholder="セイ" />
+                  <Input
+                    value={form.last_name_kana}
+                    onChange={(e) => updateField('last_name_kana', e.target.value)}
+                    onBlur={() => updateField('last_name_kana', toKatakana(form.last_name_kana))}
+                    placeholder="セイ（ひらがなは自動変換されます）"
+                  />
                 </Field>
                 <Field label="名（カナ）" required error={validationErrors.first_name_kana}>
-                  <Input value={form.first_name_kana} onChange={(e) => updateField('first_name_kana', e.target.value)} placeholder="メイ" />
+                  <Input
+                    value={form.first_name_kana}
+                    onChange={(e) => updateField('first_name_kana', e.target.value)}
+                    onBlur={() => updateField('first_name_kana', toKatakana(form.first_name_kana))}
+                    placeholder="メイ（ひらがなは自動変換されます）"
+                  />
+                </Field>
+                <Field label="姓（ローマ字）" required error={validationErrors.last_name_eiji}>
+                  <Input
+                    value={form.last_name_eiji}
+                    onChange={(e) => updateField('last_name_eiji', e.target.value.replace(/[^a-zA-Z]/g, '').toLowerCase())}
+                    placeholder="yamada"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Googleアカウント発行に使用します</p>
+                </Field>
+                <Field label="名（ローマ字）" required error={validationErrors.first_name_eiji}>
+                  <Input
+                    value={form.first_name_eiji}
+                    onChange={(e) => updateField('first_name_eiji', e.target.value.replace(/[^a-zA-Z]/g, '').toLowerCase())}
+                    placeholder="taro"
+                  />
                 </Field>
                 <Field label="生年月日" required error={validationErrors.date_of_birth}>
                   <Input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} />
                 </Field>
-                <Field label="性別">
+                <Field label="性別" required error={validationErrors.gender}>
                   <Select value={form.gender} onValueChange={(v) => updateField('gender', v)}>
                     <SelectTrigger><SelectValueWithLabel value={form.gender} placeholder="選択" labels={{ male: '男性', female: '女性', other: 'その他' }} /></SelectTrigger>
                     <SelectContent>
@@ -302,7 +442,7 @@ export default function OnboardingPage() {
                   <Input value={staffInfo?.personal_email || ''} disabled className="bg-muted" />
                   <p className="text-xs text-muted-foreground mt-1">招待時に登録済み</p>
                 </Field>
-                <Field label="郵便番号" required={isEmployee} error={validationErrors.postal_code}>
+                <Field label="郵便番号" required error={validationErrors.postal_code}>
                   <Input
                     value={form.postal_code}
                     onChange={(e) => {
@@ -323,10 +463,23 @@ export default function OnboardingPage() {
                   />
                 </Field>
                 <Field label="都道府県" required error={validationErrors.prefecture}>
-                  <Input value={form.prefecture} onChange={(e) => updateField('prefecture', e.target.value)} placeholder="東京都" />
+                  <Select value={form.prefecture} onValueChange={(v) => updateField('prefecture', v)}>
+                    <SelectTrigger>
+                      <SelectValueWithLabel
+                        value={form.prefecture}
+                        placeholder="選択"
+                        labels={Object.fromEntries(PREFECTURES.map((p) => [p, p]))}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PREFECTURES.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="住所" required={isEmployee} error={validationErrors.address_line1}>
+                  <Field label="住所" required error={validationErrors.address_line1}>
                     <Input value={form.address_line1} onChange={(e) => updateField('address_line1', e.target.value)} placeholder="市区町村 番地" />
                   </Field>
                 </div>
@@ -353,9 +506,101 @@ export default function OnboardingPage() {
                 <Field label="電話番号" required={isEmployee} error={validationErrors.emergency_contact_phone}>
                   <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', formatPhoneNumber(e.target.value))} placeholder="090-1234-5678" />
                 </Field>
+                <Field label="本人との関係" required={isEmployee} error={validationErrors.emergency_contact_relationship}>
+                  <Select value={form.emergency_contact_relationship} onValueChange={(v) => {
+                    updateField('emergency_contact_relationship', v)
+                    if (v !== 'その他') updateField('emergency_contact_relationship_other', '')
+                  }}>
+                    <SelectTrigger>
+                      <SelectValueWithLabel
+                        value={form.emergency_contact_relationship}
+                        placeholder="選択"
+                        labels={Object.fromEntries(EMERGENCY_RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMERGENCY_RELATIONSHIP_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {form.emergency_contact_relationship === 'その他' && (
+                  <Field label="関係（詳細）" required error={validationErrors.emergency_contact_relationship_other}>
+                    <Input
+                      value={form.emergency_contact_relationship_other}
+                      onChange={(e) => updateField('emergency_contact_relationship_other', e.target.value)}
+                      placeholder="例：同居人、知人など"
+                    />
+                  </Field>
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {/* 本人確認書類（社員系のみ） */}
+          {isEmployee && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">本人確認書類</CardTitle>
+                <CardDescription>雇用手続きに必要な書類の画像をアップロードしてください</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Field label="書類の種類" required error={validationErrors.id_doc_type}>
+                  <Select value={idDocType} onValueChange={(v) => {
+                    setIdDocType(v)
+                    // 種類変更時にファイルをリセット
+                    setIdDocFront(null)
+                    setIdDocBack(null)
+                    setIdDocFrontPreview(null)
+                    setIdDocBackPreview(null)
+                    if (validationErrors.id_doc_type) {
+                      setValidationErrors((prev) => { const next = { ...prev }; delete next.id_doc_type; return next })
+                    }
+                  }}>
+                    <SelectTrigger>
+                      <SelectValueWithLabel
+                        value={idDocType}
+                        placeholder="選択してください"
+                        labels={Object.fromEntries(ID_DOCUMENT_TYPES.map((d) => [d.value, d.label]))}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ID_DOCUMENT_TYPES.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {idDocType && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* 表面 / 顔写真ページ */}
+                    <Field label={selectedDocType?.frontLabel || '表面'} required error={validationErrors.id_doc_front}>
+                      <FileUploadArea
+                        file={idDocFront}
+                        preview={idDocFrontPreview}
+                        inputRef={frontInputRef}
+                        onSelect={(f) => handleFileSelect('front', f)}
+                        onClear={() => handleFileSelect('front', null)}
+                      />
+                    </Field>
+
+                    {/* 裏面 / 住所記入欄 */}
+                    <Field label={selectedDocType?.backLabel || '裏面'} required error={validationErrors.id_doc_back}>
+                      <FileUploadArea
+                        file={idDocBack}
+                        preview={idDocBackPreview}
+                        inputRef={backInputRef}
+                        onSelect={(f) => handleFileSelect('back', f)}
+                        onClear={() => handleFileSelect('back', null)}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* 銀行口座 */}
           <Card>
@@ -393,9 +638,9 @@ export default function OnboardingPage() {
                   <Field label="口座名義（カタカナ）" required error={validationErrors.bank_account_holder}>
                     <Input
                       value={form.bank_account_holder}
-                      onChange={(e) => updateField('bank_account_holder', formatBankAccountHolder(e.target.value))}
+                      onChange={(e) => updateField('bank_account_holder', e.target.value)}
                       onBlur={() => updateField('bank_account_holder', normalizeBankAccountHolder(form.bank_account_holder))}
-                      placeholder="カタカナで入力"
+                      placeholder="カタカナで入力（ひらがなは自動変換されます）"
                     />
                   </Field>
                 </div>
@@ -419,6 +664,59 @@ export default function OnboardingPage() {
           </p>
         </form>
       </div>
+    </div>
+  )
+}
+
+/** ファイルアップロードエリア */
+function FileUploadArea({
+  file,
+  preview,
+  inputRef,
+  onSelect,
+  onClear,
+}: {
+  file: File | null
+  preview: string | null
+  inputRef: React.RefObject<HTMLInputElement>
+  onSelect: (file: File) => void
+  onClear: () => void
+}) {
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onSelect(f)
+        }}
+      />
+      {file && preview ? (
+        <div className="relative rounded-lg border border-input overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="プレビュー" className="w-full h-32 object-cover" />
+          <button
+            type="button"
+            onClick={() => { onClear(); if (inputRef.current) inputRef.current.value = '' }}
+            className="absolute top-1 right-1 rounded-full bg-black/60 text-white p-1 hover:bg-black/80"
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <p className="text-xs text-muted-foreground p-2 truncate">{file.name}</p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="w-full h-32 rounded-lg border-2 border-dashed border-input hover:border-indigo-400 flex flex-col items-center justify-center gap-2 transition-colors"
+        >
+          <Upload className="h-6 w-6 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">クリックしてアップロード</span>
+        </button>
+      )}
     </div>
   )
 }

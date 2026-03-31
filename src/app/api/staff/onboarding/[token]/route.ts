@@ -13,7 +13,6 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const { token } = await params
     const supabase = createAdminClient()
 
-    // suspended状態でonboarding_tokenが一致するスタッフを検索
     const { data: allSuspended } = await supabase
       .from('staff')
       .select('id, last_name, first_name, personal_email, employment_type, status, custom_fields')
@@ -62,48 +61,109 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'このリンクは無効または期限切れです' }, { status: 404 })
     }
 
-    const body = await request.json()
+    // Content-Type判定: FormDataかJSONか
+    const contentType = request.headers.get('content-type') || ''
+    let body: Record<string, unknown>
+    let idDocType: string | null = null
+    let idDocFrontFile: File | null = null
+    let idDocBackFile: File | null = null
+
+    if (contentType.includes('multipart/form-data')) {
+      const fd = await request.formData()
+      const jsonStr = fd.get('json') as string
+      body = JSON.parse(jsonStr)
+      idDocType = fd.get('id_doc_type') as string | null
+      idDocFrontFile = fd.get('id_doc_front') as File | null
+      idDocBackFile = fd.get('id_doc_back') as File | null
+    } else {
+      body = await request.json()
+    }
+
     // 雇用区分に応じたバリデーション
     const schema = isEmployeeType(staff.employment_type) ? employeeOnboardingSchema : staffOnboardingSchema
     const result = schema.safeParse(body)
 
     if (!result.success) {
+      console.error('Validation errors:', result.error.issues)
       return NextResponse.json(
         { error: result.error.issues[0]?.message || 'バリデーションエラー' },
         { status: 400 }
       )
     }
 
-    const formData = result.data
+    const validatedData = result.data
     const existingFields = (staff.custom_fields as Record<string, unknown>) || {}
 
-    // スタッフレコードを更新（statusはsuspendedのまま、onboarding_statusで管理）
+    // 本人確認書類のアップロード（社員系のみ）
+    let idDocPaths: { front?: string; back?: string; type?: string } = {}
+    if (isEmployeeType(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
+      try {
+        const frontExt = idDocFrontFile.name.split('.').pop() || 'jpg'
+        const backExt = idDocBackFile.name.split('.').pop() || 'jpg'
+        const basePath = `identity-docs/${staff.id}`
+
+        // File → Uint8Array（Vercel Edge/Serverless互換）
+        const frontBytes = new Uint8Array(await idDocFrontFile.arrayBuffer())
+        const backBytes = new Uint8Array(await idDocBackFile.arrayBuffer())
+
+        const { error: frontErr } = await supabase.storage
+          .from('staff-documents')
+          .upload(`${basePath}/front.${frontExt}`, frontBytes, {
+            contentType: idDocFrontFile.type,
+            upsert: true,
+          })
+        if (frontErr) console.error('Front upload error:', frontErr)
+
+        const { error: backErr } = await supabase.storage
+          .from('staff-documents')
+          .upload(`${basePath}/back.${backExt}`, backBytes, {
+            contentType: idDocBackFile.type,
+            upsert: true,
+          })
+        if (backErr) console.error('Back upload error:', backErr)
+
+        idDocPaths = {
+          type: idDocType,
+          front: `${basePath}/front.${frontExt}`,
+          back: `${basePath}/back.${backExt}`,
+        }
+      } catch (uploadErr) {
+        console.error('ID doc upload error:', uploadErr)
+        // アップロード失敗しても登録は続行
+      }
+    }
+
+    // スタッフレコードを更新
     const { error: updateError } = await supabase
       .from('staff')
       .update({
-        last_name: formData.last_name,
-        first_name: formData.first_name,
-        last_name_kana: formData.last_name_kana || null,
-        first_name_kana: formData.first_name_kana || null,
-        date_of_birth: formData.date_of_birth || null,
-        gender: formData.gender || null,
-        phone: formData.phone || null,
-        postal_code: formData.postal_code || null,
-        prefecture: formData.prefecture || null,
-        city: formData.city || null,
-        address_line1: formData.address_line1 || null,
-        address_line2: formData.address_line2 || null,
-        bank_name: formData.bank_name || null,
-        bank_branch: formData.bank_branch || null,
-        bank_account_type: formData.bank_account_type || null,
-        bank_account_number: formData.bank_account_number || null,
-        bank_account_holder: formData.bank_account_holder || null,
-        emergency_contact_name: formData.emergency_contact_name || null,
-        emergency_contact_phone: formData.emergency_contact_phone || null,
+        last_name: validatedData.last_name,
+        first_name: validatedData.first_name,
+        last_name_kana: validatedData.last_name_kana || null,
+        first_name_kana: validatedData.first_name_kana || null,
+        last_name_eiji: validatedData.last_name_eiji || null,
+        first_name_eiji: validatedData.first_name_eiji || null,
+        date_of_birth: validatedData.date_of_birth || null,
+        gender: validatedData.gender || null,
+        phone: validatedData.phone || null,
+        postal_code: validatedData.postal_code || null,
+        prefecture: validatedData.prefecture || null,
+        city: validatedData.city || null,
+        address_line1: validatedData.address_line1 || null,
+        address_line2: validatedData.address_line2 || null,
+        bank_name: validatedData.bank_name || null,
+        bank_branch: validatedData.bank_branch || null,
+        bank_account_type: validatedData.bank_account_type || null,
+        bank_account_number: validatedData.bank_account_number || null,
+        bank_account_holder: validatedData.bank_account_holder || null,
+        emergency_contact_name: validatedData.emergency_contact_name || null,
+        emergency_contact_phone: validatedData.emergency_contact_phone || null,
+        emergency_contact_relationship: validatedData.emergency_contact_relationship || null,
         custom_fields: {
           ...existingFields,
           onboarding_status: 'pending_approval',
           onboarding_submitted_at: new Date().toISOString(),
+          ...(Object.keys(idDocPaths).length > 0 ? { identity_document: idDocPaths } : {}),
         },
         updated_at: new Date().toISOString(),
       })
@@ -134,7 +194,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const ownerEmails = owners?.map((u) => u.email) ?? []
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
         const emailContent = buildApprovalRequestEmail({
-          staffName: `${formData.last_name} ${formData.first_name}`,
+          staffName: `${validatedData.last_name} ${validatedData.first_name}`,
           approvalUrl: `${siteUrl}/staff/${staff.id}`,
         })
 
@@ -153,6 +213,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
   } catch (err) {
     console.error('Onboarding POST error:', err)
-    return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 })
+    return NextResponse.json({ error: `サーバーエラー: ${err instanceof Error ? err.message : '不明'}` }, { status: 500 })
   }
 }

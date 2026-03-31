@@ -24,11 +24,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, ShieldCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import {
   formatBankAccountNumber,
-  formatBankAccountHolder,
   normalizeBankAccountHolder,
   formatPostalCode,
   formatPhoneNumber,
@@ -50,13 +48,9 @@ export interface PortalAccountData {
 
 interface StaffFormProps {
   defaultValues?: Partial<StaffFormValues>
-  onSubmit: (data: StaffFormValues, provisioning?: ProvisioningData, portalAccount?: PortalAccountData) => void | Promise<void>
+  onSubmit: (data: StaffFormValues, provisioning?: ProvisioningData) => void | Promise<void>
   isLoading?: boolean
   showProvisioning?: boolean
-  /** 既存のポータルロール（編集時のみ） */
-  currentPortalRole?: string | null
-  /** ポータルアカウントが既に存在するか */
-  hasPortalAccount?: boolean
 }
 
 function FormField({
@@ -82,6 +76,16 @@ function FormField({
   )
 }
 
+const PREFECTURES = [
+  '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+  '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+  '新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県',
+  '静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県',
+  '奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県',
+  '徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県',
+  '熊本県','大分県','宮崎県','鹿児島県','沖縄県',
+]
+
 const ORG_UNITS = [
   { value: '/管理部', label: '管理部' },
   { value: '/営業部', label: '営業部' },
@@ -94,7 +98,7 @@ const ZOOM_LICENSE_TYPES = [
   { value: 2, label: 'Licensed（有料）' },
 ]
 
-export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true, currentPortalRole, hasPortalAccount }: StaffFormProps) {
+export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true }: StaffFormProps) {
   const isEditing = !!defaultValues?.staff_code
   const {
     register,
@@ -159,12 +163,6 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   const [zoomLicenseType, setZoomLicenseType] = useState(1)
   const [googleEmailManuallyEdited, setGoogleEmailManuallyEdited] = useState(false)
 
-  // Portal account state
-  const [createPortalAccount, setCreatePortalAccount] = useState(false)
-  const [portalRole, setPortalRole] = useState<'owner' | 'admin' | 'staff'>(
-    (currentPortalRole as 'owner' | 'admin' | 'staff') || 'staff'
-  )
-
   // Watch last_name_kana for auto-filling google email prefix
   const lastNameKana = watch('last_name_kana')
 
@@ -190,13 +188,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
         }
       : undefined
 
-    // Portal account: new creation or role change
-    const portalAccountData: PortalAccountData | undefined =
-      (createPortalAccount || hasPortalAccount)
-        ? { create_portal_account: createPortalAccount, portal_role: portalRole }
-        : undefined
-
-    onSubmit(data, provisioningData, portalAccountData)
+    onSubmit(data, provisioningData)
   }
 
   const googleEmail = googleEmailPrefix ? `${googleEmailPrefix}@canvi.co.jp` : ''
@@ -387,7 +379,26 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
             </FormField>
 
             <FormField label="都道府県" error={errors.prefecture?.message}>
-              <Input {...register('prefecture')} placeholder="東京都" />
+              <Controller
+                name="prefecture"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value || null} onValueChange={(val) => field.onChange(val)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValueWithLabel
+                        value={field.value}
+                        placeholder="選択してください"
+                        labels={Object.fromEntries(PREFECTURES.map((p) => [p, p]))}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PREFECTURES.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </FormField>
 
             <FormField label="市区町村" error={errors.city?.message}>
@@ -513,85 +524,6 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
         </Card>
       )}
 
-      {/* ポータルアカウント・ロール */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            ポータルアカウント
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {hasPortalAccount ? (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="secondary">アカウント済み</Badge>
-                <span className="text-muted-foreground">このスタッフはポータルにログイン可能です</span>
-              </div>
-              <FormField label="ポータルロール">
-                <Select
-                  value={portalRole}
-                  onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
-                >
-                  <SelectTrigger className="w-full max-w-xs">
-                    <SelectValueWithLabel value={portalRole} labels={{ owner: 'オーナー', admin: '管理者', staff: 'スタッフ' }} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="owner">オーナー</SelectItem>
-                    <SelectItem value="admin">管理者</SelectItem>
-                    <SelectItem value="staff">スタッフ</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  オーナー: 全機能アクセス / 管理者: スタッフ・契約管理 / スタッフ: 閲覧・自分の勤務報告
-                </p>
-              </FormField>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="create-portal" className="text-sm font-medium">
-                    ポータルアカウントを作成
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    招待メールが送信され、パスワード設定後にログインできます
-                  </p>
-                </div>
-                <Switch
-                  id="create-portal"
-                  checked={createPortalAccount}
-                  onCheckedChange={setCreatePortalAccount}
-                />
-              </div>
-
-              {createPortalAccount && (
-                <div className="pl-1 border-l-2 border-muted ml-1">
-                  <FormField label="ポータルロール">
-                    <Select
-                      value={portalRole}
-                      onValueChange={(val) => setPortalRole(val as 'owner' | 'admin' | 'staff')}
-                    >
-                      <SelectTrigger className="w-full max-w-xs">
-                        <SelectValueWithLabel value={portalRole} labels={{ owner: 'オーナー', admin: '管理者', staff: 'スタッフ' }} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="owner">オーナー</SelectItem>
-                        <SelectItem value="admin">管理者</SelectItem>
-                        <SelectItem value="staff">スタッフ</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      オーナー: 全機能アクセス / 管理者: スタッフ・契約管理 / スタッフ: 閲覧・自分の勤務報告
-                    </p>
-                  </FormField>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
       {/* 銀行口座 */}
       <Card>
         <CardHeader>
@@ -661,9 +593,9 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                   render={({ field }) => (
                     <Input
                       value={field.value || ''}
-                      onChange={(e) => field.onChange(formatBankAccountHolder(e.target.value))}
+                      onChange={(e) => field.onChange(e.target.value)}
                       onBlur={() => field.onChange(normalizeBankAccountHolder(field.value || ''))}
-                      placeholder="カタカナで入力"
+                      placeholder="カタカナで入力（ひらがなは自動変換されます）"
                     />
                   )}
                 />

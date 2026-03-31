@@ -35,7 +35,7 @@ export const staffFormSchema = z.object({
     { message: '口座番号は半角数字7桁で入力してください' }
   ),
   bank_account_holder: z.string().optional().refine(
-    (v) => !v || /^[\u3041-\u3096\u30A0-\u30FFー（）\u3000 ]+$/.test(v),
+    (v) => !v || /^[\u30A0-\u30FFー（）\u3000 ]+$/.test(v),
     { message: '口座名義はカタカナと（）で入力してください' }
   ),
   hire_date: z.string().optional(),
@@ -79,12 +79,41 @@ export function isEmployeeType(type: string): boolean {
   return (EMPLOYEE_TYPES as readonly string[]).includes(type)
 }
 
+/** 緊急連絡先の続柄選択肢 */
+export const EMERGENCY_RELATIONSHIP_OPTIONS = [
+  { value: '配偶者', label: '配偶者' },
+  { value: '父', label: '父' },
+  { value: '母', label: '母' },
+  { value: '兄弟姉妹', label: '兄弟姉妹' },
+  { value: '子', label: '子' },
+  { value: '祖父母', label: '祖父母' },
+  { value: '友人', label: '友人' },
+  { value: 'その他', label: 'その他' },
+] as const
+
+/** 本人確認書類の種類 */
+export const ID_DOCUMENT_TYPES = [
+  { value: 'drivers_license', label: '運転免許証', frontLabel: '表面', backLabel: '裏面' },
+  { value: 'my_number_card', label: 'マイナンバーカード', frontLabel: '表面', backLabel: '裏面' },
+  { value: 'passport', label: 'パスポート', frontLabel: '顔写真ページ', backLabel: '所持人記入欄（住所記載ページ）' },
+  { value: 'residence_card', label: '在留カード', frontLabel: '表面', backLabel: '裏面' },
+  { value: 'health_insurance', label: '健康保険証', frontLabel: '表面', backLabel: '裏面' },
+] as const
+
 /** オンボーディングフォーム共通ベーススキーマ */
 const onboardingBase = z.object({
   last_name: z.string().min(1, '姓は必須です'),
   first_name: z.string().min(1, '名は必須です'),
   last_name_kana: z.string().min(1, '姓（カナ）は必須です'),
   first_name_kana: z.string().min(1, '名（カナ）は必須です'),
+  last_name_eiji: z.string().min(1, '姓（ローマ字）は必須です').refine(
+    (v) => /^[a-z]+$/i.test(v),
+    { message: 'ローマ字（アルファベット）で入力してください' }
+  ),
+  first_name_eiji: z.string().min(1, '名（ローマ字）は必須です').refine(
+    (v) => /^[a-z]+$/i.test(v),
+    { message: 'ローマ字（アルファベット）で入力してください' }
+  ),
   date_of_birth: z.string().min(1, '生年月日は必須です'),
   gender: z.string().optional(),
   phone: z.string().min(1, '電話番号は必須です'),
@@ -100,13 +129,24 @@ const onboardingBase = z.object({
   bank_account_holder: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
+  emergency_contact_relationship: z.string().optional(),
+  emergency_contact_relationship_other: z.string().optional(),
   employment_type: z.string().optional(),
 })
 
-/** 業務委託向けバリデーション（都道府県 + 銀行口座が必須） */
+/** 業務委託向けバリデーション（住所・性別 + 銀行口座が必須） */
 export const staffOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
+  if (!data.gender) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '性別は必須です', path: ['gender'] })
+  }
+  if (!data.postal_code) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '郵便番号は必須です', path: ['postal_code'] })
+  }
   if (!data.prefecture) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '都道府県は必須です', path: ['prefecture'] })
+  }
+  if (!data.address_line1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '住所は必須です', path: ['address_line1'] })
   }
   if (!data.bank_name) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '銀行名は必須です', path: ['bank_name'] })

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { StaffForm } from '../_components/staff-form'
-import type { ProvisioningData, PortalAccountData } from '../_components/staff-form'
+import type { ProvisioningData } from '../_components/staff-form'
 import { useCreateStaff } from '@/hooks/use-staff'
 import type { ProvisioningResult } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
@@ -13,9 +13,9 @@ export default function NewStaffPage() {
   const router = useRouter()
   const { mutateAsync, isPending } = useCreateStaff()
 
-  async function handleSubmit(data: StaffFormValues, provisioning?: ProvisioningData, portalAccount?: PortalAccountData) {
+  async function handleSubmit(data: StaffFormValues, provisioning?: ProvisioningData) {
     try {
-      const created = await mutateAsync({ formData: data, provisioning, portalAccount })
+      const created = await mutateAsync({ formData: data, provisioning })
 
       const provisioningResult = (created as { provisioning?: ProvisioningResult }).provisioning
 

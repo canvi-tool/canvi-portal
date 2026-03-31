@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { StaffStatusBadge } from './staff-status-badge'
 import { ApproveStaffCard } from './approve-staff-card'
+import { IdentityDocumentCard } from './identity-document-card'
 import { Pencil, MoreVertical, UserMinus, RefreshCw } from 'lucide-react'
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -230,6 +231,9 @@ export function StaffDetailClient({
                 </CardContent>
               </Card>
             )}
+
+            {/* 本人確認書類 */}
+            <IdentityDocumentCard staffId={staff.id} customFields={staff.custom_fields as Record<string, unknown> | null} />
 
             {staff.notes && (
               <Card className="lg:col-span-2">
