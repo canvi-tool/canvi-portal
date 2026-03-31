@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType } from '@/lib/validations/staff'
+import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType as isFreelance } from '@/lib/validations/staff'
 
 interface RouteParams {
   params: Promise<{ token: string }>
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // バリデーション
-    const schema = isFreelanceType(staff.employment_type) ? staffOnboardingSchema : employeeOnboardingSchema
+    const schema = isFreelance(staff.employment_type) ? staffOnboardingSchema : employeeOnboardingSchema
     const validationResult = schema.safeParse(body)
 
     if (!validationResult.success) {
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // 本人確認書類のアップロード（社員系でファイルがある場合）
     let idDocPaths: { front?: string; back?: string; type?: string } = {}
-    if (!isFreelanceType(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
+    if (!isFreelance(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
       try {
         const frontExt = idDocFrontFile.name.split('.').pop() || 'jpg'
         const backExt = idDocBackFile.name.split('.').pop() || 'jpg'

@@ -24,7 +24,7 @@ import {
   formatPhoneNumber,
   fetchAddressFromPostalCode,
 } from '@/lib/form-helpers'
-import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES, requiresEmergencyContact } from '@/lib/validations/staff'
+import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES, requiresEmergencyContact, isFreelanceType } from '@/lib/validations/staff'
 
 const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
@@ -75,10 +75,6 @@ const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   freelance: 'フリーランス/業務委託',
 }
 
-function isEmployeeType(type: string): boolean {
-  return ['full_time', 'part_time', 'contract', 'temporary'].includes(type)
-}
-
 export default function InfoUpdatePage() {
   const { token } = useParams<{ token: string }>()
   const [state, setState] = useState<PageState>('loading')
@@ -125,8 +121,9 @@ export default function InfoUpdatePage() {
   const frontInputRef = useRef<HTMLInputElement>(null)
   const backInputRef = useRef<HTMLInputElement>(null)
 
-  const isEmployee = staffData ? isEmployeeType(staffData.employment_type) : false
+  const isFreelance = staffData ? isFreelanceType(staffData.employment_type) : true
   const emergencyRequired = staffData ? requiresEmergencyContact(staffData.employment_type) : false
+  const idDocRequired = !isFreelance
 
   useEffect(() => {
     async function verify() {
@@ -265,8 +262,8 @@ export default function InfoUpdatePage() {
       if (!form.emergency_contact_name) errors.emergency_contact_name = '緊急連絡先の氏名は必須です'
       if (!form.emergency_contact_phone) errors.emergency_contact_phone = '緊急連絡先の電話番号は必須です'
     }
-    // 社員系のみ本人確認書類必須
-    if (isEmployee) {
+    // 業務委託以外は本人確認書類必須
+    if (idDocRequired) {
       if (!idDocType) errors.id_doc_type = '本人確認書類の種類を選択してください'
       if (!idDocFront) errors.id_doc_front = '書類の画像をアップロードしてください'
       if (!idDocBack) errors.id_doc_back = '書類の画像をアップロードしてください'
@@ -307,7 +304,7 @@ export default function InfoUpdatePage() {
             : form.emergency_contact_relationship,
       }
 
-      if (isEmployee && idDocFront && idDocBack) {
+      if (idDocRequired && idDocFront && idDocBack) {
         const formData = new FormData()
         formData.append('json', JSON.stringify(submitData))
         formData.append('id_doc_type', idDocType)
@@ -610,7 +607,7 @@ export default function InfoUpdatePage() {
           </Card>
 
           {/* 本人確認書類（社員系のみ） */}
-          {isEmployee && (
+          {idDocRequired && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">本人確認書類</CardTitle>

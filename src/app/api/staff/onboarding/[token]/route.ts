@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType } from '@/lib/validations/staff'
+import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType as isFreelance } from '@/lib/validations/staff'
 import { sendEmail, buildApprovalRequestEmail } from '@/lib/email/send'
 
 interface RouteParams {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // 雇用区分に応じたバリデーション
-    const schema = isFreelanceType(staff.employment_type) ? staffOnboardingSchema : employeeOnboardingSchema
+    const schema = isFreelance(staff.employment_type) ? staffOnboardingSchema : employeeOnboardingSchema
     const result = schema.safeParse(body)
 
     if (!result.success) {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // 本人確認書類のアップロード（社員系のみ）
     let idDocPaths: { front?: string; back?: string; type?: string } = {}
-    if (!isFreelanceType(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
+    if (!isFreelance(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
       try {
         const frontExt = idDocFrontFile.name.split('.').pop() || 'jpg'
         const backExt = idDocBackFile.name.split('.').pop() || 'jpg'
