@@ -27,8 +27,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'No staff data', sent: 0 })
     }
 
+    const now = new Date()
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+
     let sentCount = 0
     let errorCount = 0
+    let skippedCount = 0
     const results: Array<{ name: string; type: string; email: string; success: boolean }> = []
 
     for (const staff of allStaff) {
@@ -36,6 +40,13 @@ export async function GET(request: NextRequest) {
 
       // ① オンボーディング未回答リマインダー
       if (cf.onboarding_token && cf.onboarding_status === 'pending_registration') {
+        // 招待から24時間未経過ならスキップ
+        const invitedAt = cf.invited_at as string | undefined
+        if (invitedAt && (now.getTime() - new Date(invitedAt).getTime()) < TWENTY_FOUR_HOURS) {
+          skippedCount++
+          continue
+        }
+
         const targetEmail = staff.personal_email || staff.email
         if (targetEmail) {
           const token = cf.onboarding_token as string
@@ -64,8 +75,15 @@ export async function GET(request: NextRequest) {
       if (cf.info_update_token && !cf.info_update_completed_at) {
         // 有効期限チェック
         const expiresAt = cf.info_update_expires_at as string | undefined
-        if (expiresAt && new Date(expiresAt) < new Date()) {
+        if (expiresAt && new Date(expiresAt) < now) {
           continue // 期限切れはスキップ
+        }
+
+        // 依頼から24時間未経過ならスキップ
+        const requestedAt = cf.info_update_requested_at as string | undefined
+        if (requestedAt && (now.getTime() - new Date(requestedAt).getTime()) < TWENTY_FOUR_HOURS) {
+          skippedCount++
+          continue
         }
 
         const targetEmail = staff.email || staff.personal_email
@@ -93,12 +111,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[Cron Reminder] Sent: ${sentCount}, Errors: ${errorCount}`)
+    console.log(`[Cron Reminder] Sent: ${sentCount}, Errors: ${errorCount}, Skipped (< 24h): ${skippedCount}`)
 
     return NextResponse.json({
-      message: `リマインダー送信完了: ${sentCount}件成功, ${errorCount}件失敗`,
+      message: `リマインダー送信完了: ${sentCount}件成功, ${errorCount}件失敗, ${skippedCount}件スキップ（24時間未経過）`,
       sent: sentCount,
       errors: errorCount,
+      skipped: skippedCount,
       details: results,
     })
   } catch (err) {
