@@ -13,6 +13,16 @@ import {
 import { Search, Send, Loader2 } from 'lucide-react'
 import { StaffTable } from './staff-table'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
 import { STAFF_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
 import { useBulkUpdateStaffStatus } from '@/hooks/use-staff'
 import { getEffectiveStatus } from './staff-status-badge'
@@ -39,6 +49,8 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
 
   const bulkUpdate = useBulkUpdateStaffStatus()
   const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+  const [bulkConfirmMessage, setBulkConfirmMessage] = useState('')
 
   const filteredData = useMemo(() => {
     let result = initialData
@@ -83,7 +95,57 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
     }
   }
 
-  const handleBulkInfoUpdateRequest = async () => {
+  const handleBulkInfoUpdateCheck = async () => {
+    const ids = Array.from(selectedIds)
+    setSendingInfoUpdate(true)
+    try {
+      // 各スタッフの不足情報をチェック
+      const allFilled: string[] = []
+      const hasMissing: string[] = []
+
+      for (const id of ids) {
+        const staff = initialData.find(s => s.id === id)
+        const name = staff ? `${staff.last_name} ${staff.first_name}` : id
+        try {
+          const res = await fetch(`/api/staff/${id}/request-info-update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ check_only: true }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.all_filled) {
+              allFilled.push(name)
+            } else {
+              hasMissing.push(name)
+            }
+          }
+        } catch {
+          // チェック失敗は送信対象に含める
+          hasMissing.push(name)
+        }
+      }
+
+      let message = `${ids.length}名に情報更新依頼を送信します。\n\n`
+      if (allFilled.length > 0) {
+        message += `必須項目が入力済み: ${allFilled.join('、')}\n`
+      }
+      if (hasMissing.length > 0) {
+        message += `未入力項目あり: ${hasMissing.join('、')}\n`
+      }
+      message += '\n送信しますか？'
+
+      setBulkConfirmMessage(message)
+      setBulkConfirmOpen(true)
+    } catch {
+      toast.error('確認に失敗しました')
+    } finally {
+      setSendingInfoUpdate(false)
+    }
+  }
+
+  const handleBulkInfoUpdateSend = async () => {
+    setBulkConfirmOpen(false)
     const ids = Array.from(selectedIds)
     setSendingInfoUpdate(true)
     try {
@@ -185,7 +247,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
           variant="secondary"
           size="sm"
           disabled={sendingInfoUpdate}
-          onClick={handleBulkInfoUpdateRequest}
+          onClick={handleBulkInfoUpdateCheck}
         >
           {sendingInfoUpdate ? (
             <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -206,6 +268,24 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
           </Button>
         ))}
       </BulkActionBar>
+
+      {/* 一括情報更新依頼 確認ダイアログ */}
+      <AlertDialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>情報更新依頼の確認</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {bulkConfirmMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkInfoUpdateSend}>
+              送信する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

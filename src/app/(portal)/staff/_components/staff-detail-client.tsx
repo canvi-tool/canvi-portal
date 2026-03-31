@@ -20,6 +20,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
 import { StaffStatusBadge } from './staff-status-badge'
 import { ApproveStaffCard } from './approve-staff-card'
 import { IdentityDocumentCard } from './identity-document-card'
@@ -85,6 +95,9 @@ export function StaffDetailClient({
   const router = useRouter()
   const custom = (staff.custom_fields as CustomFields) || {}
   const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [confirmDialogMessage, setConfirmDialogMessage] = useState('')
+  const [confirmDialogType, setConfirmDialogType] = useState<'all_filled' | 'missing'>('missing')
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function handleStatusChange(_newStatus: string) {
@@ -133,7 +146,45 @@ export function StaffDetailClient({
     }
   }
 
-  async function handleRequestInfoUpdate() {
+  async function handleRequestInfoUpdateCheck() {
+    setSendingInfoUpdate(true)
+    try {
+      // まず不足フィールドをチェック
+      const checkRes = await fetch(`/api/staff/${staff.id}/request-info-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ check_only: true }),
+      })
+      if (!checkRes.ok) {
+        const err = await checkRes.json()
+        toast.error(err.error || '確認に失敗しました')
+        setSendingInfoUpdate(false)
+        return
+      }
+      const checkData = await checkRes.json()
+
+      if (checkData.all_filled) {
+        // 全て埋まっている → 確認ポップアップ
+        setConfirmDialogType('all_filled')
+        setConfirmDialogMessage('必須項目は全て入力済みです。それでも情報更新依頼を送信しますか？')
+        setConfirmDialogOpen(true)
+        setSendingInfoUpdate(false)
+      } else {
+        // 不足あり → 不足項目を表示しつつ送信
+        const missing = (checkData.missing_fields as string[]) || []
+        setConfirmDialogType('missing')
+        setConfirmDialogMessage(`以下の項目が未入力です:\n${missing.join('、')}\n\n情報更新依頼を送信しますか？`)
+        setConfirmDialogOpen(true)
+        setSendingInfoUpdate(false)
+      }
+    } catch {
+      toast.error('確認に失敗しました')
+      setSendingInfoUpdate(false)
+    }
+  }
+
+  async function handleRequestInfoUpdateSend() {
+    setConfirmDialogOpen(false)
     setSendingInfoUpdate(true)
     try {
       const res = await fetch(`/api/staff/${staff.id}/request-info-update`, {
@@ -157,6 +208,7 @@ export function StaffDetailClient({
           duration: 10000,
         })
       }
+      router.refresh()
     } catch {
       toast.error('情報更新依頼の送信に失敗しました')
     } finally {
@@ -183,7 +235,7 @@ export function StaffDetailClient({
                 <MoreVertical className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleRequestInfoUpdate} disabled={sendingInfoUpdate}>
+                <DropdownMenuItem onClick={handleRequestInfoUpdateCheck} disabled={sendingInfoUpdate}>
                   {sendingInfoUpdate ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -445,6 +497,26 @@ export function StaffDetailClient({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 情報更新依頼 確認ダイアログ */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialogType === 'all_filled' ? '情報更新依頼の確認' : '未入力項目があります'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {confirmDialogMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRequestInfoUpdateSend}>
+              送信する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
