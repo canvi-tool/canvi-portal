@@ -18,6 +18,7 @@ import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import {
   formatBankAccountNumber,
   formatBankAccountHolder,
+  normalizeBankAccountHolder,
   formatPostalCode,
   formatPhoneNumber,
   fetchAddressFromPostalCode,
@@ -393,6 +394,7 @@ export default function OnboardingPage() {
                     <Input
                       value={form.bank_account_holder}
                       onChange={(e) => updateField('bank_account_holder', formatBankAccountHolder(e.target.value))}
+                      onBlur={() => updateField('bank_account_holder', normalizeBankAccountHolder(form.bank_account_holder))}
                       placeholder="カタカナで入力"
                     />
                   </Field>

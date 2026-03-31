@@ -17,16 +17,24 @@ export function validateBankAccountNumber(value: string): string | null {
 }
 
 // ====== 口座名義 ======
-/** カタカナ + （）+ スペースのみ許可 */
+/**
+ * 口座名義: 入力中はひらがな・カタカナ両方許可（IME対応）
+ * 半角カナ・半角括弧は即時変換
+ */
 export function formatBankAccountHolder(value: string): string {
   // 半角カナ→全角カナ変換
   let v = halfToFullKatakana(value)
-  // ひらがな→カタカナ変換
-  v = hiraganaToKatakana(v)
   // 半角括弧→全角括弧
   v = v.replace(/\(/g, '（').replace(/\)/g, '）')
-  // 全角カタカナ + 全角括弧 + 全角スペース + 半角スペース + 長音のみ残す
-  return v.replace(/[^\u30A0-\u30FF（）\u3000 ー]/g, '')
+  // ひらがな + カタカナ + 括弧 + スペース + 長音を許可（IME入力中のひらがなを残す）
+  return v.replace(/[^\u3041-\u3096\u30A0-\u30FF（）\u3000 ー]/g, '')
+}
+
+/**
+ * 口座名義: blur時にひらがな→カタカナに確定変換
+ */
+export function normalizeBankAccountHolder(value: string): string {
+  return hiraganaToKatakana(value)
 }
 
 /** 口座名義バリデーション */

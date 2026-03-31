@@ -29,6 +29,7 @@ import { Loader2, ShieldCheck } from 'lucide-react'
 import {
   formatBankAccountNumber,
   formatBankAccountHolder,
+  normalizeBankAccountHolder,
   formatPostalCode,
   formatPhoneNumber,
   fetchAddressFromPostalCode,
@@ -661,6 +662,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                     <Input
                       value={field.value || ''}
                       onChange={(e) => field.onChange(formatBankAccountHolder(e.target.value))}
+                      onBlur={() => field.onChange(normalizeBankAccountHolder(field.value || ''))}
                       placeholder="カタカナで入力"
                     />
                   )}

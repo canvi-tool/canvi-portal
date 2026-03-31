@@ -35,7 +35,7 @@ export const staffFormSchema = z.object({
     { message: '口座番号は半角数字7桁で入力してください' }
   ),
   bank_account_holder: z.string().optional().refine(
-    (v) => !v || /^[\u30A0-\u30FFー（）\u3000 ]+$/.test(v),
+    (v) => !v || /^[\u3041-\u3096\u30A0-\u30FFー（）\u3000 ]+$/.test(v),
     { message: '口座名義はカタカナと（）で入力してください' }
   ),
   hire_date: z.string().optional(),
