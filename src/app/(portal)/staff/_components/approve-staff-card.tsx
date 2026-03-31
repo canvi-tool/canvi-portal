@@ -34,7 +34,7 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
   const [loading, setLoading] = useState(false)
   const [emailPrefix, setEmailPrefix] = useState('')
   const [orgUnit, setOrgUnit] = useState('/スタッフ')
-  const [staffCode, setStaffCode] = useState('')
+  const [staffCode, setStaffCode] = useState(staff.staff_code || '')
 
   // custom_fieldsのonboarding_statusを考慮して承認待ちか判定
   const cf = staff.custom_fields as Record<string, unknown> | null

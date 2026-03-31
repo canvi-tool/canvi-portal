@@ -13,10 +13,16 @@ export const staffFormSchema = z.object({
   first_name_eiji: z.string().optional(),
   email: z.string().min(1, 'メールアドレスは必須です').email('メールアドレスの形式が正しくありません'),
   personal_email: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine(
+    (v) => !v || /^\d{2,4}-\d{2,4}-\d{3,4}$/.test(v),
+    { message: '電話番号の形式が正しくありません（例: 090-1234-5678）' }
+  ),
   gender: z.string().optional(),
   date_of_birth: z.string().optional(),
-  postal_code: z.string().optional(),
+  postal_code: z.string().optional().refine(
+    (v) => !v || /^\d{3}-\d{4}$/.test(v),
+    { message: '郵便番号は000-0000の形式で入力してください' }
+  ),
   prefecture: z.string().optional(),
   city: z.string().optional(),
   address_line1: z.string().optional(),
@@ -24,8 +30,14 @@ export const staffFormSchema = z.object({
   bank_name: z.string().optional(),
   bank_branch: z.string().optional(),
   bank_account_type: z.string().optional(),
-  bank_account_number: z.string().optional(),
-  bank_account_holder: z.string().optional(),
+  bank_account_number: z.string().optional().refine(
+    (v) => !v || /^\d{7}$/.test(v),
+    { message: '口座番号は半角数字7桁で入力してください' }
+  ),
+  bank_account_holder: z.string().optional().refine(
+    (v) => !v || /^[\u30A0-\u30FFー（）\u3000 ]+$/.test(v),
+    { message: '口座名義はカタカナと（）で入力してください' }
+  ),
   hire_date: z.string().optional(),
   hourly_rate: z.number().nullable().optional(),
   daily_rate: z.number().nullable().optional(),

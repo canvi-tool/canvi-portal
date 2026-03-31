@@ -15,6 +15,13 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import {
+  formatBankAccountNumber,
+  formatBankAccountHolder,
+  formatPostalCode,
+  formatPhoneNumber,
+  fetchAddressFromPostalCode,
+} from '@/lib/form-helpers'
 
 interface StaffInfo {
   id: string
@@ -288,14 +295,31 @@ export default function OnboardingPage() {
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="電話番号" required error={validationErrors.phone}>
-                  <Input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="090-1234-5678" />
+                  <Input type="tel" value={form.phone} onChange={(e) => updateField('phone', formatPhoneNumber(e.target.value))} placeholder="090-1234-5678" />
                 </Field>
                 <Field label="メールアドレス">
                   <Input value={staffInfo?.personal_email || ''} disabled className="bg-muted" />
                   <p className="text-xs text-muted-foreground mt-1">招待時に登録済み</p>
                 </Field>
                 <Field label="郵便番号" required={isEmployee} error={validationErrors.postal_code}>
-                  <Input value={form.postal_code} onChange={(e) => updateField('postal_code', e.target.value)} placeholder="123-4567" />
+                  <Input
+                    value={form.postal_code}
+                    onChange={(e) => {
+                      const formatted = formatPostalCode(e.target.value)
+                      updateField('postal_code', formatted)
+                      if (formatted.replace(/-/g, '').length === 7) {
+                        fetchAddressFromPostalCode(formatted).then((addr) => {
+                          if (addr) {
+                            updateField('prefecture', addr.prefecture)
+                            updateField('city', addr.city)
+                            updateField('address_line1', addr.address)
+                          }
+                        })
+                      }
+                    }}
+                    placeholder="000-0000"
+                    maxLength={8}
+                  />
                 </Field>
                 <Field label="都道府県" required error={validationErrors.prefecture}>
                   <Input value={form.prefecture} onChange={(e) => updateField('prefecture', e.target.value)} placeholder="東京都" />
@@ -326,7 +350,7 @@ export default function OnboardingPage() {
                   <Input value={form.emergency_contact_name} onChange={(e) => updateField('emergency_contact_name', e.target.value)} placeholder="連絡先の方のお名前" />
                 </Field>
                 <Field label="電話番号" required={isEmployee} error={validationErrors.emergency_contact_phone}>
-                  <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', e.target.value)} placeholder="090-1234-5678" />
+                  <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', formatPhoneNumber(e.target.value))} placeholder="090-1234-5678" />
                 </Field>
               </div>
             </CardContent>
@@ -356,11 +380,21 @@ export default function OnboardingPage() {
                   </Select>
                 </Field>
                 <Field label="口座番号" required error={validationErrors.bank_account_number}>
-                  <Input value={form.bank_account_number} onChange={(e) => updateField('bank_account_number', e.target.value)} />
+                  <Input
+                    value={form.bank_account_number}
+                    onChange={(e) => updateField('bank_account_number', formatBankAccountNumber(e.target.value))}
+                    placeholder="半角数字7桁"
+                    maxLength={7}
+                    inputMode="numeric"
+                  />
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="口座名義（カタカナ）" required error={validationErrors.bank_account_holder}>
-                    <Input value={form.bank_account_holder} onChange={(e) => updateField('bank_account_holder', e.target.value)} />
+                    <Input
+                      value={form.bank_account_holder}
+                      onChange={(e) => updateField('bank_account_holder', formatBankAccountHolder(e.target.value))}
+                      placeholder="カタカナで入力"
+                    />
                   </Field>
                 </div>
               </div>

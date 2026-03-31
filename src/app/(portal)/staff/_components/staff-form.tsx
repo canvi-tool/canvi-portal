@@ -26,6 +26,13 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, ShieldCheck } from 'lucide-react'
+import {
+  formatBankAccountNumber,
+  formatBankAccountHolder,
+  formatPostalCode,
+  formatPhoneNumber,
+  fetchAddressFromPostalCode,
+} from '@/lib/form-helpers'
 
 export interface ProvisioningData {
   create_google_account: boolean
@@ -328,10 +335,17 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
             </FormField>
 
             <FormField label="電話番号" error={errors.phone?.message}>
-              <Input
-                type="tel"
-                {...register('phone')}
-                placeholder="090-1234-5678"
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    type="tel"
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(formatPhoneNumber(e.target.value))}
+                    placeholder="090-1234-5678"
+                  />
+                )}
               />
             </FormField>
 
@@ -343,11 +357,45 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               />
             </FormField>
 
-            <div className="sm:col-span-2">
-              <FormField label="住所" error={errors.address_line1?.message}>
-                <Input {...register('address_line1')} placeholder="住所" />
-              </FormField>
-            </div>
+            <FormField label="郵便番号" error={errors.postal_code?.message}>
+              <Controller
+                name="postal_code"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    value={field.value || ''}
+                    onChange={(e) => {
+                      const formatted = formatPostalCode(e.target.value)
+                      field.onChange(formatted)
+                      // 7桁入力完了時に住所自動入力
+                      if (formatted.replace(/-/g, '').length === 7) {
+                        fetchAddressFromPostalCode(formatted).then((addr) => {
+                          if (addr) {
+                            setValue('prefecture', addr.prefecture)
+                            setValue('city', addr.city)
+                            setValue('address_line1', addr.address)
+                          }
+                        })
+                      }
+                    }}
+                    placeholder="000-0000"
+                    maxLength={8}
+                  />
+                )}
+              />
+            </FormField>
+
+            <FormField label="都道府県" error={errors.prefecture?.message}>
+              <Input {...register('prefecture')} placeholder="東京都" />
+            </FormField>
+
+            <FormField label="市区町村" error={errors.city?.message}>
+              <Input {...register('city')} placeholder="渋谷区" />
+            </FormField>
+
+            <FormField label="番地・建物" error={errors.address_line1?.message}>
+              <Input {...register('address_line1')} placeholder="1-2-3 〇〇ビル101" />
+            </FormField>
           </div>
         </CardContent>
       </Card>
@@ -586,9 +634,18 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               label="口座番号"
               error={errors.bank_account_number?.message}
             >
-              <Input
-                {...register('bank_account_number')}
-                placeholder="口座番号"
+              <Controller
+                name="bank_account_number"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(formatBankAccountNumber(e.target.value))}
+                    placeholder="半角数字7桁"
+                    maxLength={7}
+                    inputMode="numeric"
+                  />
+                )}
               />
             </FormField>
 
@@ -597,9 +654,16 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
                 label="口座名義"
                 error={errors.bank_account_holder?.message}
               >
-                <Input
-                  {...register('bank_account_holder')}
-                  placeholder="口座名義（カタカナ）"
+                <Controller
+                  name="bank_account_holder"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(formatBankAccountHolder(e.target.value))}
+                      placeholder="カタカナで入力"
+                    />
+                  )}
                 />
               </FormField>
             </div>
