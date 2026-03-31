@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { isFreelanceType } from '@/lib/validations/staff'
 import {
   Users,
   Bell,
@@ -25,6 +26,7 @@ import {
   UserPlus,
   Calculator,
   Loader2,
+  FileWarning,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -62,11 +64,19 @@ interface PendingFormItem {
   email: string
 }
 
+interface StaffMissingFields {
+  id: string
+  name: string
+  employmentType: string
+  missingFields: string[]
+}
+
 interface DashboardData {
   staffCount: number
   activeProjects: number
   unresolvedAlerts: number
   pendingForms: PendingFormItem[]
+  staffMissingFields: StaffMissingFields[]
   todaysShifts: Array<{
     id: string
     staffName: string
@@ -129,10 +139,10 @@ async function fetchDashboardData(): Promise<DashboardData> {
       .select('id, last_name, first_name, created_at')
       .order('created_at', { ascending: false })
       .limit(5),
-    // Pending forms (onboarding + info update)
+    // Pending forms + missing fields check (all staff)
     supabase
       .from('staff')
-      .select('id, last_name, first_name, email, personal_email, custom_fields')
+      .select('id, last_name, first_name, last_name_kana, first_name_kana, last_name_eiji, first_name_eiji, date_of_birth, phone, postal_code, prefecture, address_line1, bank_name, bank_branch, bank_account_number, bank_account_holder, emergency_contact_name, emergency_contact_phone, email, personal_email, employment_type, status, custom_fields')
       .order('updated_at', { ascending: false }),
   ])
 
@@ -192,11 +202,53 @@ async function fetchDashboardData(): Promise<DashboardData> {
     }
   }
 
+  // 必須項目未入力スタッフを検出（suspended以外の全スタッフ）
+  const staffMissingFields: StaffMissingFields[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const s of (pendingFormsRes.data || []) as any[]) {
+    // suspended（オンボーディング前）はスキップ
+    if (s.status === 'suspended') continue
+
+    const cf = (s.custom_fields as Record<string, unknown>) || {}
+    const isFreelance = isFreelanceType(s.employment_type)
+    const missing: string[] = []
+
+    if (!s.last_name_kana) missing.push('姓（カナ）')
+    if (!s.first_name_kana) missing.push('名（カナ）')
+    if (!s.last_name_eiji) missing.push('姓（ローマ字）')
+    if (!s.first_name_eiji) missing.push('名（ローマ字）')
+    if (!s.date_of_birth) missing.push('生年月日')
+    if (!s.phone) missing.push('電話番号')
+    if (!s.postal_code) missing.push('郵便番号')
+    if (!s.prefecture) missing.push('都道府県')
+    if (!s.address_line1) missing.push('住所')
+    if (!s.bank_name) missing.push('銀行名')
+    if (!s.bank_branch) missing.push('支店名')
+    if (!s.bank_account_number) missing.push('口座番号')
+    if (!s.bank_account_holder) missing.push('口座名義')
+
+    if (!isFreelance) {
+      if (!s.emergency_contact_name) missing.push('緊急連絡先（氏名）')
+      if (!s.emergency_contact_phone) missing.push('緊急連絡先（電話番号）')
+      if (!cf.identity_document) missing.push('本人確認書類')
+    }
+
+    if (missing.length > 0) {
+      staffMissingFields.push({
+        id: s.id,
+        name: `${s.last_name} ${s.first_name}`,
+        employmentType: s.employment_type,
+        missingFields: missing,
+      })
+    }
+  }
+
   return {
     staffCount: staffRes.count || 0,
     activeProjects: projectRes.count || 0,
     unresolvedAlerts: alertRes.count || 0,
     pendingForms,
+    staffMissingFields,
     todaysShifts,
     recentAlerts,
     recentStaff,
@@ -295,6 +347,7 @@ export default function DashboardPage() {
     activeProjects: 0,
     unresolvedAlerts: 0,
     pendingForms: [],
+    staffMissingFields: [],
     todaysShifts: [],
     recentAlerts: [],
     recentStaff: [],
@@ -512,6 +565,45 @@ export default function DashboardPage() {
                         <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
                           {item.requestedAt ? formatRelativeDate(item.requestedAt) : ''}
                         </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Staff Missing Required Fields */}
+          {d.staffMissingFields.length > 0 && (
+            <Card className="border-red-200 bg-red-50/30 dark:border-red-800 dark:bg-red-950/10">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base text-red-700 dark:text-red-400">
+                    <FileWarning className="h-4 w-4" />
+                    必須項目の未入力
+                    <Badge variant="destructive" className="ml-1 font-normal">
+                      {d.staffMissingFields.length}名
+                    </Badge>
+                  </CardTitle>
+                  <Link href="/staff" className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                    スタッフ一覧 <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {d.staffMissingFields.map((item) => (
+                    <Link key={item.id} href={`/staff/${item.id}`}>
+                      <div className="rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{item.name}</span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {item.missingFields.length}件
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                          {item.missingFields.join('、')}
+                        </p>
                       </div>
                     </Link>
                   ))}

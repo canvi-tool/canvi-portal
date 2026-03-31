@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { Search, Send, Loader2 } from 'lucide-react'
 import { StaffTable } from './staff-table'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
@@ -50,7 +51,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
   const bulkUpdate = useBulkUpdateStaffStatus()
   const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
-  const [bulkConfirmMessage, setBulkConfirmMessage] = useState('')
+  const [bulkCheckResults, setBulkCheckResults] = useState<Array<{ name: string; missingFields: string[] }>>([])
 
   const filteredData = useMemo(() => {
     let result = initialData
@@ -99,9 +100,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
     const ids = Array.from(selectedIds)
     setSendingInfoUpdate(true)
     try {
-      // 各スタッフの不足情報をチェック
-      const allFilled: string[] = []
-      const hasMissing: string[] = []
+      const results: Array<{ name: string; missingFields: string[] }> = []
 
       for (const id of ids) {
         const staff = initialData.find(s => s.id === id)
@@ -114,28 +113,16 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
           })
           if (res.ok) {
             const data = await res.json()
-            if (data.all_filled) {
-              allFilled.push(name)
-            } else {
-              hasMissing.push(name)
-            }
+            results.push({ name, missingFields: data.missing_fields || [] })
+          } else {
+            results.push({ name, missingFields: ['(確認失敗)'] })
           }
         } catch {
-          // チェック失敗は送信対象に含める
-          hasMissing.push(name)
+          results.push({ name, missingFields: ['(確認失敗)'] })
         }
       }
 
-      let message = `${ids.length}名に情報更新依頼を送信します。\n\n`
-      if (allFilled.length > 0) {
-        message += `必須項目が入力済み: ${allFilled.join('、')}\n`
-      }
-      if (hasMissing.length > 0) {
-        message += `未入力項目あり: ${hasMissing.join('、')}\n`
-      }
-      message += '\n送信しますか？'
-
-      setBulkConfirmMessage(message)
+      setBulkCheckResults(results)
       setBulkConfirmOpen(true)
     } catch {
       toast.error('確認に失敗しました')
@@ -271,13 +258,32 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
 
       {/* 一括情報更新依頼 確認ダイアログ */}
       <AlertDialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="!max-w-md sm:!max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>情報更新依頼の確認</AlertDialogTitle>
-            <AlertDialogDescription className="whitespace-pre-wrap">
-              {bulkConfirmMessage}
+            <AlertDialogDescription>
+              {bulkCheckResults.length}名に情報更新依頼を送信します。
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="max-h-60 overflow-y-auto space-y-2 px-1">
+            {bulkCheckResults.map((r, i) => (
+              <div key={i} className="rounded-lg border p-2.5 text-sm">
+                <div className="font-medium flex items-center gap-2">
+                  {r.name}
+                  {r.missingFields.length === 0 ? (
+                    <Badge variant="outline" className="text-[10px] text-green-600 border-green-300">入力済み</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px] text-amber-700">未入力{r.missingFields.length}件</Badge>
+                  )}
+                </div>
+                {r.missingFields.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {r.missingFields.join('、')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction onClick={handleBulkInfoUpdateSend}>

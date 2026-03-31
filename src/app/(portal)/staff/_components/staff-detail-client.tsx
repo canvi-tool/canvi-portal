@@ -96,8 +96,7 @@ export function StaffDetailClient({
   const custom = (staff.custom_fields as CustomFields) || {}
   const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
-  const [confirmDialogMessage, setConfirmDialogMessage] = useState('')
-  const [confirmDialogType, setConfirmDialogType] = useState<'all_filled' | 'missing'>('missing')
+  const [confirmMissingFields, setConfirmMissingFields] = useState<string[]>([])
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function handleStatusChange(_newStatus: string) {
@@ -162,21 +161,9 @@ export function StaffDetailClient({
         return
       }
       const checkData = await checkRes.json()
-
-      if (checkData.all_filled) {
-        // 全て埋まっている → 確認ポップアップ
-        setConfirmDialogType('all_filled')
-        setConfirmDialogMessage('必須項目は全て入力済みです。それでも情報更新依頼を送信しますか？')
-        setConfirmDialogOpen(true)
-        setSendingInfoUpdate(false)
-      } else {
-        // 不足あり → 不足項目を表示しつつ送信
-        const missing = (checkData.missing_fields as string[]) || []
-        setConfirmDialogType('missing')
-        setConfirmDialogMessage(`以下の項目が未入力です:\n${missing.join('、')}\n\n情報更新依頼を送信しますか？`)
-        setConfirmDialogOpen(true)
-        setSendingInfoUpdate(false)
-      }
+      setConfirmMissingFields(checkData.missing_fields || [])
+      setConfirmDialogOpen(true)
+      setSendingInfoUpdate(false)
     } catch {
       toast.error('確認に失敗しました')
       setSendingInfoUpdate(false)
@@ -503,12 +490,20 @@ export function StaffDetailClient({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmDialogType === 'all_filled' ? '情報更新依頼の確認' : '未入力項目があります'}
+              {confirmMissingFields.length === 0 ? '情報更新依頼の確認' : '未入力項目があります'}
             </AlertDialogTitle>
-            <AlertDialogDescription className="whitespace-pre-wrap">
-              {confirmDialogMessage}
+            <AlertDialogDescription>
+              {confirmMissingFields.length === 0
+                ? '必須項目は全て入力済みです。それでも情報更新依頼を送信しますか？'
+                : '情報更新依頼を送信しますか？'}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmMissingFields.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <p className="text-xs font-medium text-amber-700 mb-1.5">未入力の必須項目（{confirmMissingFields.length}件）:</p>
+              <p className="text-xs text-amber-600">{confirmMissingFields.join('、')}</p>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction onClick={handleRequestInfoUpdateSend}>
