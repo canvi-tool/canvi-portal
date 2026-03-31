@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -22,7 +23,7 @@ import {
 import { StaffStatusBadge } from './staff-status-badge'
 import { ApproveStaffCard } from './approve-staff-card'
 import { IdentityDocumentCard } from './identity-document-card'
-import { Pencil, MoreVertical, UserMinus, RefreshCw } from 'lucide-react'
+import { Pencil, MoreVertical, UserMinus, RefreshCw, Send, Loader2 } from 'lucide-react'
 import {
   EMPLOYMENT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
@@ -83,6 +84,7 @@ export function StaffDetailClient({
 }: StaffDetailClientProps) {
   const router = useRouter()
   const custom = (staff.custom_fields as CustomFields) || {}
+  const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function handleStatusChange(_newStatus: string) {
@@ -131,6 +133,37 @@ export function StaffDetailClient({
     }
   }
 
+  async function handleRequestInfoUpdate() {
+    setSendingInfoUpdate(true)
+    try {
+      const res = await fetch(`/api/staff/${staff.id}/request-info-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || '情報更新依頼の送信に失敗しました')
+        return
+      }
+      if (data.email_sent) {
+        toast.success('情報更新フォームのURLをメールで送信しました', {
+          description: `送信先: ${data.send_to}`,
+          duration: 6000,
+        })
+      } else {
+        toast.warning('メール送信に失敗しましたが、URLは生成されました', {
+          description: data.info_update_url,
+          duration: 10000,
+        })
+      }
+    } catch {
+      toast.error('情報更新依頼の送信に失敗しました')
+    } finally {
+      setSendingInfoUpdate(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -150,6 +183,14 @@ export function StaffDetailClient({
                 <MoreVertical className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleRequestInfoUpdate} disabled={sendingInfoUpdate}>
+                  {sendingInfoUpdate ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  情報更新依頼を送信
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleStatusChange('active')}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   ステータス変更（稼働中）

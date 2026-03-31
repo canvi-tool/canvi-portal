@@ -139,6 +139,40 @@ export function buildApprovalRequestEmail(params: {
   }
 }
 
+/** 情報補完依頼メール（既存スタッフ向け） */
+export function buildInfoUpdateRequestEmail(params: {
+  staffName: string
+  infoUpdateUrl: string
+}) {
+  return {
+    subject: '【Canvi】スタッフ情報の更新のお願い',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <div style="display: inline-block; background: #4f46e5; color: white; font-size: 24px; font-weight: bold; width: 48px; height: 48px; line-height: 48px; border-radius: 12px;">C</div>
+          <h1 style="margin: 10px 0 0; font-size: 20px; color: #1e293b;">Canvi Portal</h1>
+        </div>
+        <p style="color: #334155; font-size: 16px;">${params.staffName} 様</p>
+        <p style="color: #334155; font-size: 14px; line-height: 1.8;">
+          スタッフ情報に不足している項目がございます。<br />
+          お手数ですが、以下のリンクから情報の入力・更新をお願いいたします。<br />
+          既に登録済みの情報は反映されていますので、不足分のみご入力ください。
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${params.infoUpdateUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+            情報更新フォームを開く
+          </a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px;">
+          ※このリンクは7日間有効です。期限切れの場合は管理者にお問い合わせください。
+        </p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+        <p style="color: #94a3b8; font-size: 12px; text-align: center;">Canvi Portal</p>
+      </div>
+    `,
+  }
+}
+
 /** アカウント発行完了メール */
 export function buildAccountActivatedEmail(params: {
   staffName: string
