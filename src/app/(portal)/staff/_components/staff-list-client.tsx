@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { Search } from 'lucide-react'
+import { Search, Send, Loader2 } from 'lucide-react'
 import { StaffTable } from './staff-table'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { STAFF_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
@@ -38,6 +38,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const bulkUpdate = useBulkUpdateStaffStatus()
+  const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
 
   const filteredData = useMemo(() => {
     let result = initialData
@@ -79,6 +80,41 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
       setSelectedIds(new Set())
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '一括更新に失敗しました')
+    }
+  }
+
+  const handleBulkInfoUpdateRequest = async () => {
+    const ids = Array.from(selectedIds)
+    setSendingInfoUpdate(true)
+    try {
+      let successCount = 0
+      let failCount = 0
+      for (const id of ids) {
+        try {
+          const res = await fetch(`/api/staff/${id}/request-info-update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          })
+          if (res.ok) {
+            successCount++
+          } else {
+            failCount++
+          }
+        } catch {
+          failCount++
+        }
+      }
+      if (failCount === 0) {
+        toast.success(`${successCount}件の情報更新依頼を送信しました`)
+      } else {
+        toast.warning(`${successCount}件成功、${failCount}件失敗しました`)
+      }
+      setSelectedIds(new Set())
+    } catch {
+      toast.error('一括送信に失敗しました')
+    } finally {
+      setSendingInfoUpdate(false)
     }
   }
 
@@ -145,6 +181,19 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
         totalCount={filteredData.length}
         onClearSelection={() => setSelectedIds(new Set())}
       >
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={sendingInfoUpdate}
+          onClick={handleBulkInfoUpdateRequest}
+        >
+          {sendingInfoUpdate ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Send className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          情報更新依頼
+        </Button>
         {BULK_STATUS_OPTIONS.map((opt) => (
           <Button
             key={opt.value}
