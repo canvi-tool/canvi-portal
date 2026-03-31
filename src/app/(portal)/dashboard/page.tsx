@@ -54,10 +54,19 @@ function formatRelativeDate(dateStr: string): string {
 
 // --- Types ---
 
+interface PendingFormItem {
+  id: string
+  name: string
+  type: 'onboarding' | 'info_update'
+  requestedAt: string
+  email: string
+}
+
 interface DashboardData {
   staffCount: number
   activeProjects: number
   unresolvedAlerts: number
+  pendingForms: PendingFormItem[]
   todaysShifts: Array<{
     id: string
     staffName: string
@@ -93,6 +102,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
     shiftRes,
     alertListRes,
     recentStaffRes,
+    pendingFormsRes,
   ] = await Promise.all([
     // Staff count
     supabase.from('staff').select('id', { count: 'exact', head: true }),
@@ -119,6 +129,11 @@ async function fetchDashboardData(): Promise<DashboardData> {
       .select('id, last_name, first_name, created_at')
       .order('created_at', { ascending: false })
       .limit(5),
+    // Pending forms (onboarding + info update)
+    supabase
+      .from('staff')
+      .select('id, last_name, first_name, email, personal_email, custom_fields')
+      .order('updated_at', { ascending: false }),
   ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,10 +162,41 @@ async function fetchDashboardData(): Promise<DashboardData> {
     createdAt: s.created_at?.split('T')[0] || today,
   }))
 
+  // 未回答フォーム
+  const pendingForms: PendingFormItem[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const s of (pendingFormsRes.data || []) as any[]) {
+    const cf = (s.custom_fields as Record<string, unknown>) || {}
+    // オンボーディング未回答
+    if (cf.onboarding_token && cf.onboarding_status === 'pending_registration') {
+      pendingForms.push({
+        id: s.id,
+        name: `${s.last_name} ${s.first_name}`,
+        type: 'onboarding',
+        requestedAt: (cf.invited_at as string)?.split('T')[0] || '',
+        email: s.personal_email || s.email || '',
+      })
+    }
+    // 情報更新未回答
+    if (cf.info_update_token && !cf.info_update_completed_at) {
+      const expiresAt = cf.info_update_expires_at as string | undefined
+      if (!expiresAt || new Date(expiresAt) > new Date()) {
+        pendingForms.push({
+          id: s.id,
+          name: `${s.last_name} ${s.first_name}`,
+          type: 'info_update',
+          requestedAt: (cf.info_update_requested_at as string)?.split('T')[0] || '',
+          email: s.email || s.personal_email || '',
+        })
+      }
+    }
+  }
+
   return {
     staffCount: staffRes.count || 0,
     activeProjects: projectRes.count || 0,
     unresolvedAlerts: alertRes.count || 0,
+    pendingForms,
     todaysShifts,
     recentAlerts,
     recentStaff,
@@ -248,6 +294,7 @@ export default function DashboardPage() {
     staffCount: 0,
     activeProjects: 0,
     unresolvedAlerts: 0,
+    pendingForms: [],
     todaysShifts: [],
     recentAlerts: [],
     recentStaff: [],
@@ -281,9 +328,9 @@ export default function DashboardPage() {
           href="/alerts"
         />
         <KpiCard
-          label="登録スタッフ（直近）"
-          value={d.recentStaff.length}
-          icon={UserPlus}
+          label="未回答フォーム"
+          value={d.pendingForms.length}
+          icon={ClipboardList}
           href="/staff"
         />
       </div>
@@ -433,6 +480,45 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Pending Forms */}
+          {d.pendingForms.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/10">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-400">
+                    <ClipboardList className="h-4 w-4" />
+                    未回答フォーム
+                    <Badge variant="secondary" className="ml-1 font-normal">
+                      {d.pendingForms.length}件
+                    </Badge>
+                  </CardTitle>
+                  <Link href="/staff" className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                    スタッフ一覧 <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-1.5">
+                  {d.pendingForms.map((item) => (
+                    <Link key={`${item.id}-${item.type}`} href={`/staff/${item.id}`}>
+                      <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">{item.name}</span>
+                          <Badge variant={item.type === 'onboarding' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                            {item.type === 'onboarding' ? '新規登録' : '情報更新'}
+                          </Badge>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                          {item.requestedAt ? formatRelativeDate(item.requestedAt) : ''}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recently Added Staff */}
           <Card>
