@@ -140,7 +140,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const validatedData = validationResult.data
     const existingFields = (staff.custom_fields as Record<string, unknown>) || {}
 
-    // 本人確認書類のアップロード（社員系でファイルがある場合）
+    // 業務委託以外は本人確認書類を必須チェック（既にアップロード済みでなければ）
+    const existingIdDoc = (existingFields.identity_document as Record<string, unknown> | undefined)
+    if (!isFreelance(staff.employment_type) && !existingIdDoc) {
+      if (!idDocFrontFile || !idDocBackFile || !idDocType) {
+        return NextResponse.json(
+          { error: '本人確認書類（表面・裏面）のアップロードは必須です' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // 本人確認書類のアップロード（業務委託以外でファイルがある場合）
     let idDocPaths: { front?: string; back?: string; type?: string } = {}
     if (!isFreelance(staff.employment_type) && idDocFrontFile && idDocBackFile && idDocType) {
       try {
