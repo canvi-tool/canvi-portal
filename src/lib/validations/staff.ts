@@ -79,6 +79,16 @@ export function isEmployeeType(type: string): boolean {
   return (EMPLOYEE_TYPES as readonly string[]).includes(type)
 }
 
+/** 業務委託かどうか（業務委託のみ緊急連絡先が任意） */
+export function isFreelanceType(type: string): boolean {
+  return type === 'freelance'
+}
+
+/** 緊急連絡先が必須かどうか（業務委託以外は必須） */
+export function requiresEmergencyContact(type: string): boolean {
+  return !isFreelanceType(type)
+}
+
 /** 緊急連絡先の続柄選択肢 */
 export const EMERGENCY_RELATIONSHIP_OPTIONS = [
   { value: '配偶者', label: '配偶者' },
@@ -134,7 +144,7 @@ const onboardingBase = z.object({
   employment_type: z.string().optional(),
 })
 
-/** 業務委託向けバリデーション（住所・性別 + 銀行口座が必須） */
+/** 業務委託向けバリデーション（緊急連絡先は任意） */
 export const staffOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
   if (!data.gender) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '性別は必須です', path: ['gender'] })
@@ -162,7 +172,7 @@ export const staffOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
   }
 })
 
-/** 社員向け追加バリデーション（住所全体 + 緊急連絡先も必須） */
+/** 業務委託以外向けバリデーション（緊急連絡先も必須） */
 export const employeeOnboardingSchema = onboardingBase.superRefine((data, ctx) => {
   if (!data.postal_code) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '郵便番号は必須です', path: ['postal_code'] })

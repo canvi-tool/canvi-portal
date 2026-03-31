@@ -24,7 +24,7 @@ import {
   formatPhoneNumber,
   fetchAddressFromPostalCode,
 } from '@/lib/form-helpers'
-import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES } from '@/lib/validations/staff'
+import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES, requiresEmergencyContact } from '@/lib/validations/staff'
 
 const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
@@ -54,7 +54,7 @@ const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   freelance: 'フリーランス/業務委託',
 }
 
-/** 社員系かどうか（社員・パート・契約・派遣） */
+/** 社員系かどうか（本人確認書類が必要な雇用区分） */
 function isEmployeeType(type: string): boolean {
   return ['full_time', 'part_time', 'contract', 'temporary'].includes(type)
 }
@@ -106,6 +106,7 @@ export default function OnboardingPage() {
   const backInputRef = useRef<HTMLInputElement>(null)
 
   const isEmployee = staffInfo ? isEmployeeType(staffInfo.employment_type) : false
+  const emergencyRequired = staffInfo ? requiresEmergencyContact(staffInfo.employment_type) : false
 
   useEffect(() => {
     async function verify() {
@@ -210,11 +211,13 @@ export default function OnboardingPage() {
       errors.bank_account_holder = '口座名義はカタカナと（）で入力してください'
     }
 
-    // 社員系のみ追加必須
-    if (isEmployee) {
+    // 業務委託以外は緊急連絡先必須
+    if (emergencyRequired) {
       if (!form.emergency_contact_name) errors.emergency_contact_name = '緊急連絡先の氏名は必須です'
       if (!form.emergency_contact_phone) errors.emergency_contact_phone = '緊急連絡先の電話番号は必須です'
-      // 本人確認書類
+    }
+    // 社員系のみ本人確認書類必須
+    if (isEmployee) {
       if (!idDocType) errors.id_doc_type = '本人確認書類の種類を選択してください'
       if (!idDocFront) errors.id_doc_front = '書類の画像をアップロードしてください'
       if (!idDocBack) errors.id_doc_back = '書類の画像をアップロードしてください'
@@ -366,7 +369,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* 必須項目の説明 */}
-        {!isEmployee && (
+        {!emergencyRequired && (
           <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
             <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 dark:text-blue-300">
@@ -506,17 +509,17 @@ export default function OnboardingPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">緊急連絡先</CardTitle>
-              {!isEmployee && <CardDescription>任意項目です</CardDescription>}
+              {!emergencyRequired && <CardDescription>任意項目です</CardDescription>}
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="氏名" required={isEmployee} error={validationErrors.emergency_contact_name}>
+                <Field label="氏名" required={emergencyRequired} error={validationErrors.emergency_contact_name}>
                   <Input value={form.emergency_contact_name} onChange={(e) => updateField('emergency_contact_name', e.target.value)} placeholder="連絡先の方のお名前" />
                 </Field>
-                <Field label="電話番号" required={isEmployee} error={validationErrors.emergency_contact_phone}>
+                <Field label="電話番号" required={emergencyRequired} error={validationErrors.emergency_contact_phone}>
                   <Input type="tel" value={form.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', formatPhoneNumber(e.target.value))} placeholder="090-1234-5678" />
                 </Field>
-                <Field label="本人との関係" required={isEmployee} error={validationErrors.emergency_contact_relationship}>
+                <Field label="本人との関係" required={emergencyRequired} error={validationErrors.emergency_contact_relationship}>
                   <Select value={form.emergency_contact_relationship} onValueChange={(v) => {
                     updateField('emergency_contact_relationship', v)
                     if (v !== 'その他') updateField('emergency_contact_relationship_other', '')
