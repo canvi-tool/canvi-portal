@@ -89,7 +89,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // custom_fieldsにトークンを保存（7日間有効）
     // 前回のcompleted_atをクリアして新しいフォームを開けるようにする
-    const { info_update_completed_at: _removed, ...cleanFields } = existingFields
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { info_update_completed_at: _cleared, ...cleanFields } = existingFields
     const { error: updateError } = await supabase
       .from('staff')
       .update({
