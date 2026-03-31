@@ -14,7 +14,8 @@ import {
   SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Upload, X } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Upload, X, ChevronDown, ChevronUp, Shield } from 'lucide-react'
 import {
   formatBankAccountNumber,
   normalizeBankAccountHolder,
@@ -90,6 +91,10 @@ export default function OnboardingPage() {
     emergency_contact_relationship: '',
     emergency_contact_relationship_other: '',
   })
+
+  // プライバシーポリシー同意
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
+  const [privacyExpanded, setPrivacyExpanded] = useState(false)
 
   // 本人確認書類（社員系のみ）
   const [idDocType, setIdDocType] = useState('')
@@ -218,6 +223,11 @@ export default function OnboardingPage() {
     // 緊急連絡先の続柄：入力されている場合のチェック
     if (form.emergency_contact_relationship === 'その他' && !form.emergency_contact_relationship_other) {
       errors.emergency_contact_relationship_other = '続柄を入力してください'
+    }
+
+    // プライバシーポリシー同意
+    if (!privacyAgreed) {
+      errors.privacy = '個人情報の取り扱いに同意してください'
     }
 
     setValidationErrors(errors)
@@ -648,12 +658,137 @@ export default function OnboardingPage() {
             </CardContent>
           </Card>
 
+          {/* 個人情報の取り扱い */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Shield className="h-5 w-5 text-indigo-600" />
+                個人情報の取り扱いについて
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border bg-muted/30">
+                <div
+                  className={`px-4 py-3 text-xs leading-relaxed text-muted-foreground overflow-hidden transition-all ${privacyExpanded ? 'max-h-[2000px]' : 'max-h-40'}`}
+                >
+                  <p className="font-medium text-foreground mb-2">
+                    株式会社Canvi 従業員等の個人情報保護方針
+                  </p>
+                  <p className="mb-3">
+                    株式会社Canvi（以下「当社」といいます。）は、スタッフ登録フォームを通じてお預かりする個人情報の重要性を認識し、その適切な取り扱いに努めます。当社は、以下の方針に基づき、個人情報の保護を徹底いたします。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">1. 個人情報の収集目的</p>
+                  <p className="mb-1">当社は、スタッフ登録フォームを通じて以下の目的で個人情報を収集します。</p>
+                  <ul className="list-disc pl-5 mb-3 space-y-0.5">
+                    <li>雇用契約・業務委託契約の締結および履行</li>
+                    <li>給与・報酬の計算および振込</li>
+                    <li>社会保険・労働保険等の手続き</li>
+                    <li>社内アカウント（Google Workspace等）の発行・管理</li>
+                    <li>緊急時の連絡</li>
+                    <li>法令に基づく届出・報告</li>
+                  </ul>
+
+                  <p className="font-medium text-foreground mb-1">2. 収集する個人情報の項目</p>
+                  <p className="mb-1">本フォームを通じて、以下の情報を収集します。</p>
+                  <ul className="list-disc pl-5 mb-3 space-y-0.5">
+                    <li>氏名（漢字・カナ・ローマ字）</li>
+                    <li>生年月日・性別</li>
+                    <li>住所・電話番号</li>
+                    <li>銀行口座情報（振込先）</li>
+                    <li>緊急連絡先</li>
+                    <li>本人確認書類の画像（該当者のみ）</li>
+                  </ul>
+
+                  <p className="font-medium text-foreground mb-1">3. 個人情報の利用範囲</p>
+                  <p className="mb-3">
+                    収集した個人情報は、上記の目的の範囲内でのみ利用し、目的外の利用はいたしません。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">4. 個人情報の第三者提供</p>
+                  <p className="mb-1">当社は、以下の場合を除き、収集した個人情報を第三者に提供することはありません。</p>
+                  <ul className="list-disc pl-5 mb-3 space-y-0.5">
+                    <li>ご本人の同意がある場合</li>
+                    <li>法令に基づく場合</li>
+                    <li>業務委託先に対して、必要な範囲で提供する場合（この場合、当社は委託先に対し適切な監督を行います）</li>
+                  </ul>
+
+                  <p className="font-medium text-foreground mb-1">5. 個人情報の管理</p>
+                  <p className="mb-3">
+                    当社は、個人情報を厳重に管理し、不正アクセス、紛失、漏洩、改ざん等を防止するための適切な措置を講じます。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">6. 個人情報の開示・訂正・削除について</p>
+                  <p className="mb-3">
+                    ご本人からの申し出があった場合、当社は、個人情報の開示、訂正、利用停止または削除のご要望に適切かつ迅速に対応いたします。対応をご希望の場合は、下記のお問い合わせ先までご連絡ください。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">7. 保管期間</p>
+                  <p className="mb-3">
+                    収集した個人情報は、雇用・契約関係の存続期間中および法令に定められた保存期間中、適切に保管いたします。保管期間経過後は速やかに削除または破棄いたします。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">8. 本方針の改定</p>
+                  <p className="mb-3">
+                    当社は、法令の変更や事業内容の変更に応じて、本方針を随時改定する場合があります。改定後の内容については、当社ウェブサイトまたはポータルサイトにてお知らせいたします。
+                  </p>
+
+                  <p className="font-medium text-foreground mb-1">9. お問い合わせ窓口</p>
+                  <p>
+                    本方針および個人情報の取り扱いに関するお問い合わせは、以下までご連絡ください。
+                  </p>
+                  <p className="mt-1">
+                    【株式会社Canvi】<br />
+                    住所：東京都新宿区西新宿5丁目8-2 惠徳ビル<br />
+                    メールアドレス：info@canvi.co.jp
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPrivacyExpanded(!privacyExpanded)}
+                  className="w-full flex items-center justify-center gap-1 py-2 text-xs text-indigo-600 hover:text-indigo-800 border-t transition-colors"
+                >
+                  {privacyExpanded ? (
+                    <>閉じる <ChevronUp className="h-3 w-3" /></>
+                  ) : (
+                    <>全文を表示 <ChevronDown className="h-3 w-3" /></>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-start gap-3" data-error={validationErrors.privacy ? 'true' : undefined}>
+                <Checkbox
+                  checked={privacyAgreed}
+                  onChange={(e) => {
+                    setPrivacyAgreed(e.target.checked)
+                    if (validationErrors.privacy) {
+                      setValidationErrors((prev) => { const next = { ...prev }; delete next.privacy; return next })
+                    }
+                  }}
+                  className="mt-0.5"
+                />
+                <label className="text-sm cursor-pointer select-none" onClick={() => {
+                  setPrivacyAgreed(!privacyAgreed)
+                  if (validationErrors.privacy) {
+                    setValidationErrors((prev) => { const next = { ...prev }; delete next.privacy; return next })
+                  }
+                }}>
+                  上記の個人情報の取り扱いについて同意します
+                  <span className="text-red-500 ml-0.5">*</span>
+                </label>
+              </div>
+              {validationErrors.privacy && (
+                <p className="text-xs text-red-500">{validationErrors.privacy}</p>
+              )}
+            </CardContent>
+          </Card>
+
           {error && (
             <p className="text-sm text-red-600 text-center">{error}</p>
           )}
 
           <div className="flex justify-center">
-            <Button type="submit" size="lg" className="w-full sm:w-auto px-12" disabled={state === 'submitting'}>
+            <Button type="submit" size="lg" className="w-full sm:w-auto px-12" disabled={state === 'submitting' || !privacyAgreed}>
               {state === 'submitting' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               登録内容を送信
             </Button>
