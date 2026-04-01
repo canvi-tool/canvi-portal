@@ -65,16 +65,18 @@ export async function GET() {
       status: s.status || 'DRAFT',
     }))
 
-    // アラート（スコープ適用）
+    // アラート（alertsテーブルにはproject_idがないため、related_staff_idでスコープ）
+    // オーナーは全アラート、それ以外はスタッフIDに紐づくアラートのみ
     let alertCountQuery = supabase
       .from('alerts')
       .select('id', { count: 'exact', head: true })
       .in('status', ['OPEN', 'TRIGGERED'])
 
-    if (allowedProjectIds !== null && allowedProjectIds.length > 0) {
-      alertCountQuery = alertCountQuery.in('project_id', allowedProjectIds)
-    } else if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
-      alertCountQuery = alertCountQuery.in('project_id', ['__none__'])
+    if (!isOwnerUser && user.staffId) {
+      alertCountQuery = alertCountQuery.eq('related_staff_id', user.staffId)
+    } else if (!isOwnerUser && !user.staffId) {
+      // スタッフIDなし → アラートなし
+      alertCountQuery = alertCountQuery.eq('related_staff_id', '__none__')
     }
 
     const alertCountRes = await alertCountQuery
@@ -85,10 +87,10 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    if (allowedProjectIds !== null && allowedProjectIds.length > 0) {
-      alertListQuery = alertListQuery.in('project_id', allowedProjectIds)
-    } else if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
-      alertListQuery = alertListQuery.in('project_id', ['__none__'])
+    if (!isOwnerUser && user.staffId) {
+      alertListQuery = alertListQuery.eq('related_staff_id', user.staffId)
+    } else if (!isOwnerUser && !user.staffId) {
+      alertListQuery = alertListQuery.eq('related_staff_id', '__none__')
     }
 
     const alertListRes = await alertListQuery
