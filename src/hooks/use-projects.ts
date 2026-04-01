@@ -153,7 +153,9 @@ async function createCompensationRule(
 async function fetchStaffList(): Promise<Tables<'staff'>[]> {
   const res = await fetch('/api/staff?status=active')
   if (!res.ok) throw new Error('スタッフの取得に失敗しました')
-  return res.json()
+  const json = await res.json()
+  // staff APIは {data: [...], total: ...} 形式で返すため、配列を取り出す
+  return Array.isArray(json) ? json : (json.data || [])
 }
 
 // ---- Query Keys ----
