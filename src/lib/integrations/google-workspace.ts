@@ -221,8 +221,10 @@ async function apiRequest<T>(
   const accessToken = await getAccessToken()
   const url = `${ADMIN_API_BASE}${path}`
 
-  // UTF-8でBodyをエンコード（日本語名の文字化け防止）
-  const bodyBytes = body ? new TextEncoder().encode(JSON.stringify(body)) : undefined
+  // 日本語文字をUnicodeエスケープに変換してJSON送信（文字化け防止）
+  const jsonStr = body ? JSON.stringify(body).replace(/[\u0080-\uffff]/g, (ch) => {
+    return '\\u' + ('0000' + ch.charCodeAt(0).toString(16)).slice(-4)
+  }) : undefined
 
   const res = await fetch(url, {
     method,
@@ -230,7 +232,7 @@ async function apiRequest<T>(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json; charset=utf-8',
     },
-    body: bodyBytes,
+    body: jsonStr,
   })
 
   if (!res.ok) {
