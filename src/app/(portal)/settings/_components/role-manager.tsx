@@ -94,6 +94,12 @@ const ACTION_LABELS: Record<string, string> = {
   manage: '管理',
 }
 
+const ROLE_LABELS: Record<string, { name: string; desc: string }> = {
+  owner: { name: 'オーナー', desc: 'システムオーナー - 全権限' },
+  admin: { name: '管理者', desc: '管理者 - 日常運用権限' },
+  staff: { name: 'メンバー', desc: 'スタッフ - 自分の情報のみ' },
+}
+
 export function RoleManager({
   roles,
   allPermissions,
@@ -190,7 +196,7 @@ export function RoleManager({
                   <SelectContent>
                     {allUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id}>
-                        {u.display_name} ({u.email})
+                        {u.display_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -205,7 +211,7 @@ export function RoleManager({
                   <SelectContent>
                     {roles.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        {r.name}
+                        {ROLE_LABELS[r.name]?.name ?? r.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -244,16 +250,14 @@ export function RoleManager({
                   )}
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
-                      {role.name}
+                      {ROLE_LABELS[role.name]?.name ?? role.name}
                       {isOwner && (
                         <Badge variant="default">全権限</Badge>
                       )}
                     </CardTitle>
-                    {role.description && (
-                      <CardDescription className="mt-0.5">
-                        {role.description}
-                      </CardDescription>
-                    )}
+                    <CardDescription className="mt-0.5">
+                      {ROLE_LABELS[role.name]?.desc ?? role.description ?? ''}
+                    </CardDescription>
                   </div>
                 </div>
                 <Badge variant="secondary">

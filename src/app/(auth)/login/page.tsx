@@ -53,7 +53,6 @@ function LoginPageInner() {
   const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isMagicLink, setIsMagicLink] = useState(false)
   const [error, setError] = useState<string | null>(() => {
     const urlError = searchParams.get('error')
     if (urlError === 'domain_not_allowed') {
@@ -194,38 +193,6 @@ function LoginPageInner() {
     )
   }
 
-  // マジックリンクログイン
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
-    setMessage(null)
-
-    // ドメインチェック（クライアント側）
-    if (!isAllowedDomain(email)) {
-      setError(`@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのメールアドレスのみ使用できます`)
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      const supabase = createClient()
-      const { error: magicError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/callback`,
-        },
-      })
-      if (magicError) throw magicError
-      setMessage('ログインリンクをメールに送信しました。メールを確認してください。')
-    } catch (err: unknown) {
-      const authErr = err as { message?: string }
-      setError(authErr.message || 'メール送信に失敗しました')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -272,8 +239,7 @@ function LoginPageInner() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* マジックリンクログイン（メイン） */}
-        <form onSubmit={isMagicLink ? handleMagicLink : handleEmailLogin} className="space-y-3">
+        <form onSubmit={handleEmailLogin} className="space-y-3">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               メールアドレス
@@ -289,23 +255,21 @@ function LoginPageInner() {
             />
           </div>
 
-          {!isMagicLink && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                パスワード
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
-                placeholder="6文字以上"
-              />
-            </div>
-          )}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              パスワード
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
+              placeholder="パスワードを入力"
+            />
+          </div>
 
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -321,26 +285,17 @@ function LoginPageInner() {
             size="lg"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isMagicLink ? 'ログインリンクを送信' : 'ログイン'}
+            ログイン
           </Button>
         </form>
 
-        <div className="flex justify-between items-center text-sm px-1">
-          <button
-            type="button"
-            onClick={() => { setIsMagicLink(!isMagicLink); setError(null); setMessage(null) }}
-            className="text-indigo-600 dark:text-indigo-400 hover:underline"
+        <div className="flex justify-end text-sm px-1">
+          <Link
+            href="/forgot-password"
+            className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline"
           >
-            {isMagicLink ? 'パスワードでログイン' : 'メールリンクでログイン'}
-          </button>
-          {!isMagicLink && (
-            <Link
-              href="/forgot-password"
-              className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline"
-            >
-              パスワードを忘れた方
-            </Link>
-          )}
+            パスワードを忘れた方
+          </Link>
         </div>
 
         {/* 区切り線 */}
