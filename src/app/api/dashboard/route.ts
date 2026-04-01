@@ -27,13 +27,13 @@ export async function GET() {
       const { count } = await supabase
         .from('projects')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'ACTIVE')
+        .eq('status', 'active')
       activeProjectCount = count || 0
     } else if (allowedProjectIds.length > 0) {
       const { count } = await supabase
         .from('projects')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'ACTIVE')
+        .eq('status', 'active')
         .in('id', allowedProjectIds)
       activeProjectCount = count || 0
     }
@@ -70,7 +70,7 @@ export async function GET() {
     let alertCountQuery = supabase
       .from('alerts')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['OPEN', 'TRIGGERED'])
+      .in('status', ['active'])
 
     if (!isOwnerUser && user.staffId) {
       alertCountQuery = alertCountQuery.eq('related_staff_id', user.staffId)
