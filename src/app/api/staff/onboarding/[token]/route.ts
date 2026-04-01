@@ -181,7 +181,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (updateError) {
       console.error('Onboarding update error:', updateError)
-      return NextResponse.json({ error: '登録に失敗しました' }, { status: 500 })
+      return NextResponse.json(
+        { error: '登録に失敗しました', detail: updateError.message, code: updateError.code },
+        { status: 500 }
+      )
     }
 
     // オーナーに承認依頼メールを送信

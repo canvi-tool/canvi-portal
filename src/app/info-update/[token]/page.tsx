@@ -25,6 +25,7 @@ import {
   fetchAddressFromPostalCode,
 } from '@/lib/form-helpers'
 import { EMERGENCY_RELATIONSHIP_OPTIONS, ID_DOCUMENT_TYPES, requiresEmergencyContact, isFreelanceType } from '@/lib/validations/staff'
+import { compressImage } from '@/lib/image-compress'
 
 const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
@@ -191,7 +192,8 @@ export default function InfoUpdatePage() {
     }
   }
 
-  const handleFileSelect = (type: 'front' | 'back', file: File | null) => {
+  const handleFileSelect = async (type: 'front' | 'back', rawFile: File | null) => {
+    const file = rawFile ? await compressImage(rawFile) : null
     if (type === 'front') {
       setIdDocFront(file)
       if (file) {
@@ -304,6 +306,7 @@ export default function InfoUpdatePage() {
             : form.emergency_contact_relationship,
       }
 
+      let res: Response
       if (idDocRequired && idDocFront && idDocBack) {
         const formData = new FormData()
         formData.append('json', JSON.stringify(submitData))
@@ -311,28 +314,33 @@ export default function InfoUpdatePage() {
         formData.append('id_doc_front', idDocFront)
         formData.append('id_doc_back', idDocBack)
 
-        const res = await fetch(`/api/staff/info-update/${token}`, {
+        res = await fetch(`/api/staff/info-update/${token}`, {
           method: 'POST',
           body: formData,
         })
-        const data = await res.json()
-        if (!res.ok) {
-          setError(data.error || '送信に失敗しました')
-          setState('form')
-          return
-        }
       } else {
-        const res = await fetch(`/api/staff/info-update/${token}`, {
+        res = await fetch(`/api/staff/info-update/${token}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(submitData),
         })
-        const data = await res.json()
-        if (!res.ok) {
-          setError(data.error || '送信に失敗しました')
-          setState('form')
-          return
+      }
+
+      if (!res.ok) {
+        let errorMsg = '送信に失敗しました'
+        try {
+          const data = await res.json()
+          errorMsg = data.error || errorMsg
+        } catch {
+          if (res.status === 413) {
+            errorMsg = 'ファイルサイズが大きすぎます。画像を小さくして再度お試しください。'
+          } else {
+            errorMsg = `送信に失敗しました（エラーコード: ${res.status}）`
+          }
         }
+        setError(errorMsg)
+        setState('form')
+        return
       }
 
       setState('done')

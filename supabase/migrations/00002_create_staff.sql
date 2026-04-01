@@ -39,6 +39,8 @@ CREATE TABLE public.staff (
   first_name TEXT NOT NULL,                 -- 名
   last_name_kana TEXT,                      -- 姓（カナ）
   first_name_kana TEXT,                     -- 名（カナ）
+  last_name_eiji TEXT,                      -- 姓（ローマ字）
+  first_name_eiji TEXT,                     -- 名（ローマ字）
   email TEXT NOT NULL,                      -- メールアドレス
   phone TEXT,                               -- 電話番号
   gender public.gender_type,               -- 性別

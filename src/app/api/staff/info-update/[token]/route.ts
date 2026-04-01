@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType as isFreelance } from '@/lib/validations/staff'
 
+// Vercel Serverless Function のタイムアウトを60秒に延長（ファイルアップロードに時間がかかるため）
+export const maxDuration = 60
+
 interface RouteParams {
   params: Promise<{ token: string }>
 }
