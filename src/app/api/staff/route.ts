@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       address_line2: formData.address_line2 || null,
       employment_type: formData.employment_type,
       status: 'active' as const,
-      hire_date: formData.hire_date || null,
+      hire_date: formData.hire_date || new Date().toISOString().split('T')[0],
       hourly_rate: formData.hourly_rate ?? null,
       daily_rate: formData.daily_rate ?? null,
       monthly_salary: formData.monthly_salary ?? null,
