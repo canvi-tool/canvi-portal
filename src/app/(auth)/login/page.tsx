@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME, ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import { DEMO_ACCOUNTS, setDemoRoleCookie, type DemoRole } from '@/lib/demo-accounts'
@@ -324,7 +325,7 @@ function LoginPageInner() {
           </Button>
         </form>
 
-        <div className="flex justify-center text-sm">
+        <div className="flex justify-between items-center text-sm px-1">
           <button
             type="button"
             onClick={() => { setIsMagicLink(!isMagicLink); setError(null); setMessage(null) }}
@@ -332,6 +333,14 @@ function LoginPageInner() {
           >
             {isMagicLink ? 'パスワードでログイン' : 'メールリンクでログイン'}
           </button>
+          {!isMagicLink && (
+            <Link
+              href="/forgot-password"
+              className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline"
+            >
+              パスワードを忘れた方
+            </Link>
+          )}
         </div>
 
         {/* 区切り線 */}
