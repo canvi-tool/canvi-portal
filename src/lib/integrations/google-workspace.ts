@@ -221,16 +221,14 @@ async function apiRequest<T>(
   const accessToken = await getAccessToken()
   const url = `${ADMIN_API_BASE}${path}`
 
-  // 日本語文字をUnicodeエスケープに変換してJSON送信（文字化け防止）
-  const jsonStr = body ? JSON.stringify(body).replace(/[\u0080-\uffff]/g, (ch) => {
-    return '\\u' + ('0000' + ch.charCodeAt(0).toString(16)).slice(-4)
-  }) : undefined
+  const jsonStr = body ? JSON.stringify(body) : undefined
 
   const res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json; charset=utf-8',
+      ...(jsonStr ? { 'Content-Length': String(Buffer.byteLength(jsonStr, 'utf8')) } : {}),
     },
     body: jsonStr,
   })
@@ -442,7 +440,7 @@ export async function updateUser(
   }
 
   const data = await apiRequest<Record<string, unknown>>(
-    'PUT',
+    'PATCH',
     `/users/${encodeURIComponent(email)}`,
     body
   )
