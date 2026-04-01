@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Staff create error:', error)
       return NextResponse.json(
-        { error: 'スタッフの作成に失敗しました' },
+        { error: 'スタッフの作成に失敗しました', detail: error.message, code: error.code },
         { status: 500 }
       )
     }
