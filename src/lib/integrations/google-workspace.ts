@@ -221,16 +221,17 @@ async function apiRequest<T>(
   const accessToken = await getAccessToken()
   const url = `${ADMIN_API_BASE}${path}`
 
-  const jsonStr = body ? JSON.stringify(body) : undefined
+  // Buffer.from で明示的にUTF-8バイト列を生成（Vercel環境での文字化け防止）
+  const bodyBuffer = body ? Buffer.from(JSON.stringify(body), 'utf8') : undefined
 
   const res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json; charset=utf-8',
-      ...(jsonStr ? { 'Content-Length': String(Buffer.byteLength(jsonStr, 'utf8')) } : {}),
+      ...(bodyBuffer ? { 'Content-Length': String(bodyBuffer.length) } : {}),
     },
-    body: jsonStr,
+    body: bodyBuffer,
   })
 
   if (!res.ok) {
