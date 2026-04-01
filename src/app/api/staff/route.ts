@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       address_line1: formData.address_line1 || null,
       address_line2: formData.address_line2 || null,
       employment_type: formData.employment_type,
-      status: 'pre_contract' as const,
+      status: 'active' as const,
       hire_date: formData.hire_date || null,
       hourly_rate: formData.hourly_rate ?? null,
       daily_rate: formData.daily_rate ?? null,
