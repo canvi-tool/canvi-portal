@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     const googleEmailPrefix = body.google_email_prefix as string | undefined
-    const googleOrgUnit = body.google_org_unit as string || '/スタッフ'
+    const googleOrgUnit = body.google_org_unit as string || '/'
 
     const supabase = await createServerSupabaseClient()
 
@@ -81,6 +81,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           success: false,
           error: err instanceof Error ? err.message : 'Googleアカウント作成失敗',
         }
+        // Google作成失敗時はcanviEmailをクリア（後続処理で誤ってこのメールを使わないように）
+        canviEmail = ''
       }
     }
 
