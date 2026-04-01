@@ -19,6 +19,11 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.next({ request })
     }
 
+    // APIルートはミドルウェアでリダイレクトしない
+    if (request.nextUrl.pathname.startsWith('/api')) {
+      return NextResponse.next({ request })
+    }
+
     // ポータルページ: ロール未選択ならログインへ
     const portalPaths = [
       '/dashboard', '/staff', '/clients', '/contracts', '/projects',
@@ -64,6 +69,11 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // APIルートはミドルウェアでリダイレクトしない（API側で認証チェックする）
+  if (request.nextUrl.pathname.startsWith('/api')) {
+    return supabaseResponse
   }
 
   const portalPaths = [
