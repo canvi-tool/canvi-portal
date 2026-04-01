@@ -52,10 +52,10 @@ export async function PATCH(
     const decodedEmail = decodeURIComponent(email)
     const body = await request.json()
 
-    const { action, givenName, familyName, orgUnitPath } = body
+    const { action, givenName, familyName, orgUnitPath, password, changePasswordAtNextLogin } = body
 
     if (action === 'update') {
-      const user = await updateUser(decodedEmail, { givenName, familyName, orgUnitPath })
+      const user = await updateUser(decodedEmail, { givenName, familyName, orgUnitPath, password, changePasswordAtNextLogin })
       return NextResponse.json({ user })
     }
 

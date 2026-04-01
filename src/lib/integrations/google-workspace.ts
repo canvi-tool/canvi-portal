@@ -332,7 +332,7 @@ export async function createUser(params: CreateUserParams): Promise<GoogleWorksp
  */
 export async function updateUser(
   email: string,
-  updates: { givenName?: string; familyName?: string; orgUnitPath?: string }
+  updates: { givenName?: string; familyName?: string; orgUnitPath?: string; password?: string; changePasswordAtNextLogin?: boolean }
 ): Promise<GoogleWorkspaceUser> {
   if (DEMO_MODE) {
     const user = DEMO_USERS.find((u) => u.primaryEmail === email)
@@ -358,6 +358,10 @@ export async function updateUser(
   }
   if (updates.orgUnitPath) {
     requestBody.orgUnitPath = updates.orgUnitPath
+  }
+  if (updates.password) {
+    requestBody.password = updates.password
+    requestBody.changePasswordAtNextLogin = updates.changePasswordAtNextLogin ?? false
   }
 
   try {
