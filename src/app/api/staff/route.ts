@@ -9,6 +9,10 @@ import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import type { Json } from '@/lib/types/database'
 
+// Vercel Serverless Function のタイムアウトを60秒に延長
+// Google Workspace + Zoom + Portal招待の外部API呼び出しに時間がかかるため
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser()

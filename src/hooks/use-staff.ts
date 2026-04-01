@@ -77,11 +77,20 @@ async function createStaff({ formData, provisioning }: CreateStaffInput): Promis
       } : {}),
     }),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'スタッフの作成に失敗しました' }))
-    throw new Error(err.error || 'スタッフの作成に失敗しました')
+
+  const text = await res.text()
+  let json: Record<string, unknown>
+  try {
+    json = JSON.parse(text)
+  } catch {
+    console.error('Non-JSON response from /api/staff:', res.status, text.slice(0, 200))
+    throw new Error(`サーバーエラー (${res.status})`)
   }
-  return res.json()
+
+  if (!res.ok) {
+    throw new Error((json.error as string) || 'スタッフの作成に失敗しました')
+  }
+  return json as unknown as CreateStaffResponse
 }
 
 async function updateStaff({ id, data }: { id: string; data: StaffFormValues }): Promise<Staff> {
