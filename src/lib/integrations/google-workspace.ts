@@ -221,13 +221,16 @@ async function apiRequest<T>(
   const accessToken = await getAccessToken()
   const url = `${ADMIN_API_BASE}${path}`
 
+  // UTF-8でBodyをエンコード（日本語名の文字化け防止）
+  const bodyBytes = body ? new TextEncoder().encode(JSON.stringify(body)) : undefined
+
   const res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: bodyBytes,
   })
 
   if (!res.ok) {
