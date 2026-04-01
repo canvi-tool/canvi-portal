@@ -72,16 +72,26 @@ function groupPermissionsByResource(permissions: Permission[]) {
 const RESOURCE_LABELS: Record<string, string> = {
   staff: 'スタッフ',
   contract: '契約',
+  contracts: '契約',
   project: 'プロジェクト',
+  projects: 'プロジェクト',
   shift: 'シフト',
+  shifts: 'シフト',
   work_report: '勤務報告',
   performance_report: '業務実績',
+  reports: '報告',
   payment: '支払',
+  payments: '支払',
   notification: '通知',
+  notifications: '通知',
   retirement: '退職',
   alert: 'アラート',
+  alerts: 'アラート',
   settings: '設定',
   audit_log: '監査ログ',
+  audit_logs: '監査ログ',
+  ai: 'AI',
+  assignments: 'アサイン',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -92,6 +102,13 @@ const ACTION_LABELS: Record<string, string> = {
   approve: '承認',
   export: 'エクスポート',
   manage: '管理',
+  send: '送付',
+  resend: '再送',
+  calculate: '計算',
+  confirm: '確定',
+  issue: '発行',
+  execute: '実行',
+  sync: '同期',
 }
 
 const ROLE_LABELS: Record<string, { name: string; desc: string }> = {
@@ -305,8 +322,8 @@ export function RoleManager({
                     <div className="space-y-3">
                       {Object.entries(allGrouped).map(([resource, perms]) => (
                         <div key={resource}>
-                          <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                            {RESOURCE_LABELS[resource] ?? resource}
+                          <h5 className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">
+                            {RESOURCE_LABELS[resource] ?? RESOURCE_LABELS[resource.toLowerCase()] ?? resource}
                           </h5>
                           <div className="flex flex-wrap gap-2">
                             {perms.map((perm) => {
