@@ -55,6 +55,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     let canviEmail = ''
 
+    // 初期パスワード生成: Canvi + 電話番号下4桁 + ca (例: Canvi1407ca)
+    const phone = staff.phone || ''
+    const phoneDigits = phone.replace(/\D/g, '')
+    const last4 = phoneDigits.slice(-4) || '0000'
+    const initialPassword = `Canvi${last4}ca`
+
     // ① Google Workspaceアカウント作成（重複時は自動採番）
     if (googleEmailPrefix) {
       try {
@@ -67,6 +73,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           email: canviEmail,
           givenName: staff.first_name,
           familyName: staff.last_name,
+          password: initialPassword,
           orgUnitPath: googleOrgUnit,
         })
         results.google = {
@@ -86,38 +93,30 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // ② Supabaseポータルアカウント招待（canviメール宛）
-    let inviteActionUrl = ''
+    // ② Supabaseポータルアカウント作成（パスワード指定）
     if (canviEmail) {
       try {
         const adminClient = createAdminClient()
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
 
-        // generateLink でメール送信せずに招待リンクを生成
-        const { data: linkData, error: linkError } =
-          await adminClient.auth.admin.generateLink({
-            type: 'invite',
+        // パスワード付きでユーザーを直接作成（招待メール不要）
+        const { data: createData, error: createError } =
+          await adminClient.auth.admin.createUser({
             email: canviEmail,
-            options: {
-              data: {
-                display_name: `${staff.last_name} ${staff.first_name}`,
-                invited_role: 'staff',
-                needs_password_setup: true,
-              },
-              redirectTo: `${siteUrl}/setup-password`,
+            password: initialPassword,
+            email_confirm: true,
+            user_metadata: {
+              display_name: `${staff.last_name} ${staff.first_name}`,
+              invited_role: 'staff',
             },
           })
 
-        if (linkError) {
-          results.portal = { success: false, error: linkError.message }
-        } else if (linkData.user) {
-          // Supabaseが生成した招待リンクを取得
-          inviteActionUrl = linkData.properties?.action_link || ''
-
+        if (createError) {
+          results.portal = { success: false, error: createError.message }
+        } else if (createData.user) {
           // usersテーブルにレコード作成
           await adminClient.from('users').upsert(
             {
-              id: linkData.user.id,
+              id: createData.user.id,
               email: canviEmail,
               display_name: `${staff.last_name} ${staff.first_name}`,
             },
@@ -133,7 +132,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
           if (roleData) {
             await adminClient.from('user_roles').upsert(
-              { user_id: linkData.user.id, role_id: roleData.id },
+              { user_id: createData.user.id, role_id: roleData.id },
               { onConflict: 'user_id,role_id' }
             )
           }
@@ -141,27 +140,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           // staffレコードにuser_idを紐付け
           await supabase
             .from('staff')
-            .update({ user_id: linkData.user.id })
+            .update({ user_id: createData.user.id })
             .eq('id', id)
 
           results.portal = { success: true }
         }
       } catch (err) {
-        console.error('Portal invite error:', err)
+        console.error('Portal create error:', err)
         results.portal = {
           success: false,
-          error: err instanceof Error ? err.message : 'ポータル招待失敗',
+          error: err instanceof Error ? err.message : 'ポータルアカウント作成失敗',
         }
       }
 
-      // ③ 個人メール宛にアカウント発行完了通知（招待リンク付き）
+      // ③ 個人メール宛にアカウント発行完了通知（パスワード付き）
       if (staff.personal_email && canviEmail) {
         try {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
           const emailContent = buildAccountActivatedEmail({
             staffName: `${staff.last_name} ${staff.first_name}`,
             canviEmail,
-            loginUrl: inviteActionUrl || `${siteUrl}/login`,
+            loginUrl: `${siteUrl}/login`,
+            initialPassword,
           })
           await sendEmail({ to: staff.personal_email, ...emailContent })
         } catch (emailErr) {

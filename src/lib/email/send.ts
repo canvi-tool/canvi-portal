@@ -178,9 +178,23 @@ export function buildAccountActivatedEmail(params: {
   staffName: string
   canviEmail: string
   loginUrl: string
+  initialPassword?: string
 }) {
+  const passwordSection = params.initialPassword
+    ? `
+        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>初期パスワード:</strong></p>
+          <p style="margin: 4px 0 0; font-size: 18px; color: #78350f; font-weight: 600; font-family: monospace;">${params.initialPassword}</p>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #92400e;">
+            Google Workspace / Canvi Portal 共通のパスワードです。<br />
+            ログイン後、セキュリティのためパスワードの変更を推奨します。
+          </p>
+        </div>
+      `
+    : ''
+
   return {
-    subject: '【Canvi】Googleアカウントが発行されました',
+    subject: '【Canvi】アカウントが発行されました',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
@@ -195,13 +209,13 @@ export function buildAccountActivatedEmail(params: {
           <p style="margin: 0; font-size: 14px; color: #475569;"><strong>Canviメールアドレス:</strong></p>
           <p style="margin: 4px 0 0; font-size: 18px; color: #1e293b; font-weight: 600;">${params.canviEmail}</p>
         </div>
+        ${passwordSection}
         <p style="color: #334155; font-size: 14px; line-height: 1.8;">
-          以下のリンクから初回ログインし、パスワードを設定してください。<br />
-          パスワード設定完了後、Canvi Portalにログインできるようになります。
+          以下のリンクからCanvi Portalにログインしてください。
         </p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${params.loginUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
-            初回ログイン・パスワード設定
+            Canvi Portalにログイン
           </a>
         </div>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
