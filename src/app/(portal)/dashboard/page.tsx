@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/providers/auth-provider'
-import { createClient } from '@/lib/supabase/client'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,7 +13,6 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { isFreelanceType } from '@/lib/validations/staff'
 import {
   Users,
   Bell,
@@ -101,158 +99,10 @@ interface DashboardData {
 
 // --- Data Fetching ---
 
-async function fetchDashboardData(): Promise<DashboardData> {
-  const supabase = createClient()
-  const today = todayStr()
-
-  const [
-    staffRes,
-    projectRes,
-    alertRes,
-    shiftRes,
-    alertListRes,
-    recentStaffRes,
-    pendingFormsRes,
-  ] = await Promise.all([
-    // Staff count
-    supabase.from('staff').select('id', { count: 'exact', head: true }),
-    // Active projects
-    supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-    // Unresolved alerts
-    supabase.from('alerts').select('id', { count: 'exact', head: true }).in('status', ['OPEN', 'TRIGGERED']),
-    // Today's shifts
-    supabase
-      .from('shifts')
-      .select('id, start_time, end_time, status, staff:staff_id(last_name, first_name), project:project_id(name)')
-      .eq('shift_date', today)
-      .order('start_time', { ascending: true })
-      .limit(10),
-    // Recent alerts
-    supabase
-      .from('alerts')
-      .select('id, alert_type, message, severity, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    // Recently added staff
-    supabase
-      .from('staff')
-      .select('id, last_name, first_name, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    // Pending forms + missing fields check (all staff)
-    supabase
-      .from('staff')
-      .select('id, last_name, first_name, last_name_kana, first_name_kana, last_name_eiji, first_name_eiji, date_of_birth, phone, postal_code, prefecture, address_line1, bank_name, bank_branch, bank_account_number, bank_account_holder, emergency_contact_name, emergency_contact_phone, email, personal_email, employment_type, status, custom_fields')
-      .order('updated_at', { ascending: false }),
-  ])
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const todaysShifts = (shiftRes.data || []).map((s: any) => ({
-    id: s.id,
-    staffName: s.staff ? `${s.staff.last_name} ${s.staff.first_name}` : '不明',
-    projectName: s.project?.name || '不明',
-    startTime: s.start_time?.slice(0, 5) || '00:00',
-    endTime: s.end_time?.slice(0, 5) || '00:00',
-    status: s.status || 'DRAFT',
-  }))
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recentAlerts = (alertListRes.data || []).map((a: any) => ({
-    id: a.id,
-    type: a.alert_type || 'その他',
-    message: a.message || '',
-    severity: a.severity || 'info',
-    createdAt: a.created_at?.split('T')[0] || today,
-  }))
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recentStaff = (recentStaffRes.data || []).map((s: any) => ({
-    id: s.id,
-    name: `${s.last_name} ${s.first_name}`,
-    createdAt: s.created_at?.split('T')[0] || today,
-  }))
-
-  // 未回答フォーム
-  const pendingForms: PendingFormItem[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const s of (pendingFormsRes.data || []) as any[]) {
-    const cf = (s.custom_fields as Record<string, unknown>) || {}
-    // オンボーディング未回答
-    if (cf.onboarding_token && cf.onboarding_status === 'pending_registration') {
-      pendingForms.push({
-        id: s.id,
-        name: `${s.last_name} ${s.first_name}`,
-        type: 'onboarding',
-        requestedAt: (cf.invited_at as string)?.split('T')[0] || '',
-        email: s.personal_email || s.email || '',
-      })
-    }
-    // 情報更新未回答
-    if (cf.info_update_token && !cf.info_update_completed_at) {
-      const expiresAt = cf.info_update_expires_at as string | undefined
-      if (!expiresAt || new Date(expiresAt) > new Date()) {
-        pendingForms.push({
-          id: s.id,
-          name: `${s.last_name} ${s.first_name}`,
-          type: 'info_update',
-          requestedAt: (cf.info_update_requested_at as string)?.split('T')[0] || '',
-          email: s.email || s.personal_email || '',
-        })
-      }
-    }
-  }
-
-  // 必須項目未入力スタッフを検出（suspended以外の全スタッフ）
-  const staffMissingFields: StaffMissingFields[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const s of (pendingFormsRes.data || []) as any[]) {
-    // suspended（オンボーディング前）はスキップ
-    if (s.status === 'suspended') continue
-
-    const cf = (s.custom_fields as Record<string, unknown>) || {}
-    const isFreelance = isFreelanceType(s.employment_type)
-    const missing: string[] = []
-
-    if (!s.last_name_kana) missing.push('姓（カナ）')
-    if (!s.first_name_kana) missing.push('名（カナ）')
-    if (!s.last_name_eiji) missing.push('姓（ローマ字）')
-    if (!s.first_name_eiji) missing.push('名（ローマ字）')
-    if (!s.date_of_birth) missing.push('生年月日')
-    if (!s.phone) missing.push('電話番号')
-    if (!s.postal_code) missing.push('郵便番号')
-    if (!s.prefecture) missing.push('都道府県')
-    if (!s.address_line1) missing.push('住所')
-    if (!s.bank_name) missing.push('銀行名')
-    if (!s.bank_branch) missing.push('支店名')
-    if (!s.bank_account_number) missing.push('口座番号')
-    if (!s.bank_account_holder) missing.push('口座名義')
-
-    if (!isFreelance) {
-      if (!s.emergency_contact_name) missing.push('緊急連絡先（氏名）')
-      if (!s.emergency_contact_phone) missing.push('緊急連絡先（電話番号）')
-      if (!cf.identity_document) missing.push('本人確認書類')
-    }
-
-    if (missing.length > 0) {
-      staffMissingFields.push({
-        id: s.id,
-        name: `${s.last_name} ${s.first_name}`,
-        employmentType: s.employment_type,
-        missingFields: missing,
-      })
-    }
-  }
-
-  return {
-    staffCount: staffRes.count || 0,
-    activeProjects: projectRes.count || 0,
-    unresolvedAlerts: alertRes.count || 0,
-    pendingForms,
-    staffMissingFields,
-    todaysShifts,
-    recentAlerts,
-    recentStaff,
-  }
+async function fetchDashboardData(): Promise<DashboardData & { isOwner?: boolean }> {
+  const res = await fetch('/api/dashboard')
+  if (!res.ok) throw new Error('ダッシュボードデータの取得に失敗しました')
+  return res.json()
 }
 
 // --- Components ---
@@ -316,7 +166,7 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user, demoAccount } = useAuth()
-  const [data, setData] = useState<DashboardData | null>(null)
+  const [data, setData] = useState<(DashboardData & { isOwner?: boolean }) | null>(null)
   const [loading, setLoading] = useState(true)
 
   const displayName = demoAccount?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ユーザー'
@@ -361,13 +211,15 @@ export default function DashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-2.5 grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="スタッフ数"
-          value={d.staffCount}
-          icon={Users}
-          href="/staff"
-        />
+      <div className={cn('grid gap-2.5 grid-cols-2', d.isOwner ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+        {d.isOwner && (
+          <KpiCard
+            label="スタッフ数"
+            value={d.staffCount}
+            icon={Users}
+            href="/staff"
+          />
+        )}
         <KpiCard
           label="進行中PJ"
           value={d.activeProjects}
@@ -380,12 +232,14 @@ export default function DashboardPage() {
           icon={Bell}
           href="/alerts"
         />
-        <KpiCard
-          label="未回答フォーム"
-          value={d.pendingForms.length}
-          icon={ClipboardList}
-          href="/staff"
-        />
+        {d.isOwner && (
+          <KpiCard
+            label="未回答フォーム"
+            value={d.pendingForms.length}
+            icon={ClipboardList}
+            href="/staff"
+          />
+        )}
       </div>
 
       {/* Main grid */}
@@ -518,24 +372,28 @@ export default function DashboardPage() {
                     <span className="text-xs">シフト登録</span>
                   </Button>
                 </Link>
-                <Link href="/staff/new">
-                  <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
-                    <UserPlus className="h-4 w-4" />
-                    <span className="text-xs">スタッフ登録</span>
-                  </Button>
-                </Link>
-                <Link href="/payments/calculate">
-                  <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
-                    <Calculator className="h-4 w-4" />
-                    <span className="text-xs">支払計算</span>
-                  </Button>
-                </Link>
+                {d.isOwner && (
+                  <Link href="/staff/new">
+                    <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
+                      <UserPlus className="h-4 w-4" />
+                      <span className="text-xs">スタッフ登録</span>
+                    </Button>
+                  </Link>
+                )}
+                {d.isOwner && (
+                  <Link href="/payments/calculate">
+                    <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
+                      <Calculator className="h-4 w-4" />
+                      <span className="text-xs">支払計算</span>
+                    </Button>
+                  </Link>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Pending Forms */}
-          {d.pendingForms.length > 0 && (
+          {/* Pending Forms (オーナーのみ) */}
+          {d.isOwner && d.pendingForms.length > 0 && (
             <Card className="border-amber-200 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/10">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -573,8 +431,8 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Staff Missing Required Fields */}
-          {d.staffMissingFields.length > 0 && (
+          {/* Staff Missing Required Fields (オーナーのみ) */}
+          {d.isOwner && d.staffMissingFields.length > 0 && (
             <Card className="border-red-200 bg-red-50/30 dark:border-red-800 dark:bg-red-950/10">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -612,8 +470,8 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Recently Added Staff */}
-          <Card>
+          {/* Recently Added Staff (オーナーのみ) */}
+          {d.isOwner && <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -641,7 +499,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
         </div>
       </div>
     </div>

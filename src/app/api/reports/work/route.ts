@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { workReportFormSchema } from '@/lib/validations/report'
+import { getProjectAccess } from '@/lib/auth/project-access'
 
 export async function GET(request: NextRequest) {
   try {
+    const { user, allowedProjectIds } = await getProjectAccess()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    // アサインなし → 空配列を返す
+    if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
+      return NextResponse.json([])
+    }
+
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('start_date')
@@ -17,6 +28,11 @@ export async function GET(request: NextRequest) {
       .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
       .order('year_month', { ascending: false })
       .order('created_at', { ascending: false })
+
+    // オーナー以外はアサイン済みプロジェクトの勤務報告のみ
+    if (allowedProjectIds) {
+      query = query.in('project_id', allowedProjectIds)
+    }
 
     if (startDate) {
       query = query.gte('year_month', startDate)

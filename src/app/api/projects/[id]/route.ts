@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
+import { canAccessProject } from '@/lib/auth/project-access'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -9,6 +10,14 @@ interface RouteParams {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+    const { user, hasAccess } = await canAccessProject(id)
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'このプロジェクトへのアクセス権がありません' }, { status: 403 })
+    }
+
     const supabase = await createServerSupabaseClient()
 
     const { data, error } = await supabase

@@ -1,15 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
+import { getProjectAccess } from '@/lib/auth/project-access'
 
 export async function GET(request: NextRequest) {
   try {
+    const { user, allowedProjectIds } = await getProjectAccess()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    // アサインなし → 空配列を返す
+    if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
+      return NextResponse.json([])
+    }
+
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
     const status = searchParams.get('status')
 
     let query = supabase.from('projects').select('*').order('created_at', { ascending: false })
+
+    // オーナー以外はアサイン済みプロジェクトのみにフィルタ
+    if (allowedProjectIds) {
+      query = query.in('id', allowedProjectIds)
+    }
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,client_name.ilike.%${search}%,project_code.ilike.%${search}%`)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema } from '@/lib/validations/shift'
+import { getProjectAccess } from '@/lib/auth/project-access'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -174,6 +175,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data, total: data.length })
     }
 
+    const { user, allowedProjectIds } = await getProjectAccess()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    // アサインなし → 空配列を返す
+    if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
+      return NextResponse.json({ data: [], total: 0 })
+    }
+
     const supabase = await createServerSupabaseClient()
 
     let query = supabase
@@ -182,6 +193,11 @@ export async function GET(request: NextRequest) {
       .is('deleted_at', null)
       .order('shift_date', { ascending: false })
       .order('start_time', { ascending: true })
+
+    // オーナー以外はアサイン済みプロジェクトのシフトのみ
+    if (allowedProjectIds) {
+      query = query.in('project_id', allowedProjectIds)
+    }
 
     if (startDate) {
       query = query.gte('shift_date', startDate)
