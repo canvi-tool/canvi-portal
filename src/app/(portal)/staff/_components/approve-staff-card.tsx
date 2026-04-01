@@ -30,12 +30,19 @@ const ORG_UNITS = [
   { value: '/スタッフ', label: 'スタッフ' },
 ]
 
+const PORTAL_ROLES = [
+  { value: 'owner', label: 'オーナー', desc: '全機能アクセス・設定変更・権限管理' },
+  { value: 'admin', label: '管理者', desc: '日常運用・承認・契約管理' },
+  { value: 'staff', label: 'メンバー', desc: '自分のPJ・シフト・勤務報告のみ' },
+]
+
 export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [emailPrefix, setEmailPrefix] = useState('')
   const [orgUnit, setOrgUnit] = useState('/')
   const [staffCode, setStaffCode] = useState(staff.staff_code || '')
+  const [portalRole, setPortalRole] = useState('staff')
 
   // custom_fieldsのonboarding_statusを考慮して承認待ちか判定
   const cf = staff.custom_fields as Record<string, unknown> | null
@@ -65,6 +72,7 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
         body: JSON.stringify({
           google_email_prefix: emailPrefix,
           google_org_unit: orgUnit,
+          portal_role: portalRole,
           ...(staffCode ? { staff_code: staffCode } : {}),
         }),
       })
@@ -164,6 +172,20 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
               <SelectContent>
                 {ORG_UNITS.map((ou) => (
                   <SelectItem key={ou.value} value={ou.value}>{ou.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>ポータルロール <span className="text-red-500">*</span></Label>
+            <Select value={portalRole} onValueChange={setPortalRole}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PORTAL_ROLES.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    <span className="font-medium">{r.label}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{r.desc}</span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

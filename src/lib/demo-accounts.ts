@@ -53,16 +53,18 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: 'demo-staff-001',
     role: 'staff',
-    roleLabelJa: 'スタッフ',
+    roleLabelJa: 'メンバー',
     name: '佐藤 健太',
     email: 'sato@example.com',
     avatarInitial: '佐',
-    description: '自分の勤務報告・シフト確認・契約確認のみ',
+    description: '所属PJ・自分のシフト/報告/実績/アラートのみ',
     permissions: [
-      '自分の勤務報告（入力・確認）',
+      '所属プロジェクト（閲覧のみ）',
       '自分のシフト確認',
-      '自分の契約確認',
-      '自分の支払通知書確認',
+      '自分の勤務報告（入力・確認）',
+      '自分の業務実績（閲覧）',
+      '自分のダッシュボード',
+      '自分のアラート確認',
     ],
   },
 ]
@@ -84,15 +86,16 @@ export function setDemoRoleCookie(role: DemoRole): void {
 
 // ロールに応じたナビゲーション表示制御
 export function canAccessRoute(role: DemoRole, path: string): boolean {
-  // スタッフは限定されたルートのみ
+  // スタッフ（メンバー）は限定されたルートのみ
+  // 所属PJ・自分のシフト/報告/実績/アラートのみ（データフィルタはAPI側で実施）
   if (role === 'staff') {
     const staffAllowed = [
       '/dashboard',
-      '/reports/work',
-      '/reports/work/new',
+      '/projects',
       '/shifts',
-      '/contracts',
-      '/payments',
+      '/reports/work',
+      '/reports/performance',
+      '/alerts',
     ]
     return staffAllowed.some((p) => path === p || path.startsWith(p + '/'))
   }

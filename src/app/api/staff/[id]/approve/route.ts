@@ -21,6 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json().catch(() => ({}))
     const googleEmailPrefix = body.google_email_prefix as string | undefined
     const googleOrgUnit = body.google_org_unit as string || '/'
+    const portalRole = (body.portal_role as string) || 'staff'
 
     const supabase = await createServerSupabaseClient()
 
@@ -123,11 +124,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             { onConflict: 'id' }
           )
 
-          // staffロール付与
+          // ポータルロール付与（承認時に選択されたロール）
+          const validRoles = ['owner', 'admin', 'staff']
+          const roleName = validRoles.includes(portalRole) ? portalRole : 'staff'
           const { data: roleData } = await adminClient
             .from('roles')
             .select('id')
-            .eq('name', 'staff')
+            .eq('name', roleName)
             .single()
 
           if (roleData) {
