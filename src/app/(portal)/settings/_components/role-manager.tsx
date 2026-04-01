@@ -208,7 +208,9 @@ export function RoleManager({
                 <Label>ユーザー</Label>
                 <Select value={selectedUserId} onValueChange={(v) => { if (v) setSelectedUserId(v) }}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="ユーザーを選択" />
+                    <SelectValue placeholder="ユーザーを選択">
+                      {selectedUserId ? (allUsers.find(u => u.id === selectedUserId)?.display_name ?? selectedUserId) : 'ユーザーを選択'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {allUsers.map((u) => (
@@ -223,7 +225,9 @@ export function RoleManager({
                 <Label>ロール</Label>
                 <Select value={selectedRoleId} onValueChange={(v) => { if (v) setSelectedRoleId(v) }}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="ロールを選択" />
+                    <SelectValue placeholder="ロールを選択">
+                      {selectedRoleId ? (ROLE_LABELS[roles.find(r => r.id === selectedRoleId)?.name ?? '']?.name ?? selectedRoleId) : 'ロールを選択'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((r) => (
