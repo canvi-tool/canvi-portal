@@ -3,6 +3,7 @@
  *
  * Google Workspace のユーザー・グループ管理を提供します。
  * サービスアカウント + ドメイン全体の委任を使用します。
+ * googleapis 公式ライブラリを使用（UTF-8日本語対応）。
  *
  * 必要な環境変数:
  *   GOOGLE_WORKSPACE_SERVICE_ACCOUNT_EMAIL - サービスアカウントメール
@@ -11,10 +12,10 @@
  *   GOOGLE_WORKSPACE_DOMAIN - ドメイン (例: canvi.co.jp)
  */
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+import { google } from 'googleapis'
+import type { admin_directory_v1 } from 'googleapis'
 
-const ADMIN_API_BASE = 'https://admin.googleapis.com/admin/directory/v1'
-const TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 // ============================================================
 // Types
@@ -135,21 +136,13 @@ const DEMO_GROUPS: GoogleWorkspaceGroup[] = [
 ]
 
 // ============================================================
-// JWT / Access Token
+// googleapis Admin SDK クライアント
 // ============================================================
 
 /**
- * Base64URL エンコード
+ * googleapis の Admin Directory クライアントを取得（サービスアカウント認証）
  */
-function base64urlEncode(data: string): string {
-  const base64 = Buffer.from(data).toString('base64')
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-/**
- * サービスアカウントの JWT を生成し、アクセストークンを取得する
- */
-async function getAccessToken(): Promise<string> {
+function getAdminClient(): admin_directory_v1.Admin {
   const serviceAccountEmail = process.env.GOOGLE_WORKSPACE_SERVICE_ACCOUNT_EMAIL
   const privateKeyPem = process.env.GOOGLE_WORKSPACE_PRIVATE_KEY?.replace(/\\n/g, '\n')
   const adminEmail = process.env.GOOGLE_WORKSPACE_ADMIN_EMAIL
@@ -162,95 +155,17 @@ async function getAccessToken(): Promise<string> {
     )
   }
 
-  const now = Math.floor(Date.now() / 1000)
-  const header = { alg: 'RS256', typ: 'JWT' }
-  const payload = {
-    iss: serviceAccountEmail,
-    sub: adminEmail,
-    scope: 'https://www.googleapis.com/auth/admin.directory.user https://www.googleapis.com/auth/admin.directory.group',
-    aud: TOKEN_URL,
-    iat: now,
-    exp: now + 3600,
-  }
-
-  const headerB64 = base64urlEncode(JSON.stringify(header))
-  const payloadB64 = base64urlEncode(JSON.stringify(payload))
-  const unsignedToken = `${headerB64}.${payloadB64}`
-
-  // Sign with RSA-SHA256 using Node.js crypto
-  const crypto = await import('crypto')
-  const sign = crypto.createSign('RSA-SHA256')
-  sign.update(unsignedToken)
-  const signature = sign.sign(privateKeyPem, 'base64')
-  const signatureB64 = signature.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-
-  const jwt = `${unsignedToken}.${signatureB64}`
-
-  // Exchange JWT for access token
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
+  const auth = new google.auth.JWT({
+    email: serviceAccountEmail,
+    key: privateKeyPem,
+    scopes: [
+      'https://www.googleapis.com/auth/admin.directory.user',
+      'https://www.googleapis.com/auth/admin.directory.group',
+    ],
+    subject: adminEmail,
   })
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}))
-    throw new GoogleWorkspaceError(
-      'AUTH_ERROR',
-      `アクセストークンの取得に失敗しました: ${error.error_description || res.statusText}`,
-      res.status
-    )
-  }
-
-  const data = await res.json()
-  return data.access_token
-}
-
-// ============================================================
-// API Helpers
-// ============================================================
-
-async function apiRequest<T>(
-  method: string,
-  path: string,
-  body?: unknown
-): Promise<T> {
-  const accessToken = await getAccessToken()
-  const url = `${ADMIN_API_BASE}${path}`
-
-  // Buffer.from で明示的にUTF-8バイト列を生成（Vercel環境での文字化け防止）
-  const bodyBuffer = body ? Buffer.from(JSON.stringify(body), 'utf8') : undefined
-
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json; charset=utf-8',
-      ...(bodyBuffer ? { 'Content-Length': String(bodyBuffer.length) } : {}),
-    },
-    body: bodyBuffer,
-  })
-
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({
-      error: { message: `HTTP ${res.status}: ${res.statusText}` },
-    }))
-    throw new GoogleWorkspaceError(
-      `API_ERROR_${res.status}`,
-      errorBody.error?.message || `APIリクエストに失敗しました (HTTP ${res.status})`,
-      res.status
-    )
-  }
-
-  // DELETE returns 204 No Content
-  if (res.status === 204) {
-    return {} as T
-  }
-
-  return (await res.json()) as T
+  return google.admin({ version: 'directory_v1', auth })
 }
 
 function generatePassword(length = 16): string {
@@ -286,20 +201,15 @@ export async function listUsers(
     return users
   }
 
-  const params = new URLSearchParams({
+  const admin = getAdminClient()
+  const res = await admin.users.list({
     domain,
-    maxResults: '500',
+    maxResults: 500,
     orderBy: 'email',
+    ...(query ? { query } : {}),
   })
-  if (query) {
-    params.set('query', query)
-  }
 
-  const data = await apiRequest<{ users?: Record<string, unknown>[] }>(
-    'GET',
-    `/users?${params.toString()}`
-  )
-  return (data.users || []).map((u) => mapApiUser(u))
+  return (res.data.users || []).map((u) => mapGapiUser(u))
 }
 
 /**
@@ -311,13 +221,15 @@ export async function userExists(email: string): Promise<boolean> {
   }
 
   try {
-    await apiRequest<Record<string, unknown>>('GET', `/users/${encodeURIComponent(email)}`)
+    const admin = getAdminClient()
+    await admin.users.get({ userKey: email })
     return true
-  } catch (err) {
-    if (err instanceof GoogleWorkspaceError && err.statusCode === 404) {
+  } catch (err: unknown) {
+    const gErr = err as { code?: number }
+    if (gErr.code === 404) {
       return false
     }
-    throw err
+    throw wrapGapiError(err)
   }
 }
 
@@ -329,13 +241,11 @@ export async function resolveAvailableEmail(
   prefix: string,
   domain: string
 ): Promise<{ email: string; suffix: string | null }> {
-  // まず番号なしで試行
   const baseEmail = `${prefix}@${domain}`
   if (!(await userExists(baseEmail))) {
     return { email: baseEmail, suffix: null }
   }
 
-  // 002から順に試行
   for (let i = 2; i <= 99; i++) {
     const suffix = String(i).padStart(3, '0')
     const candidateEmail = `${prefix}${suffix}@${domain}`
@@ -363,8 +273,13 @@ export async function getUser(email: string): Promise<GoogleWorkspaceUser> {
     return user
   }
 
-  const data = await apiRequest<Record<string, unknown>>('GET', `/users/${encodeURIComponent(email)}`)
-  return mapApiUser(data)
+  try {
+    const admin = getAdminClient()
+    const res = await admin.users.get({ userKey: email })
+    return mapGapiUser(res.data)
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -392,19 +307,24 @@ export async function createUser(params: CreateUserParams): Promise<GoogleWorksp
 
   const password = params.password || generatePassword()
 
-  const body = {
-    primaryEmail: params.email,
-    name: {
-      givenName: params.givenName,
-      familyName: params.familyName,
-    },
-    password,
-    changePasswordAtNextLogin: !params.password,
-    orgUnitPath: params.orgUnitPath || '/',
+  try {
+    const admin = getAdminClient()
+    const res = await admin.users.insert({
+      requestBody: {
+        primaryEmail: params.email,
+        name: {
+          givenName: params.givenName,
+          familyName: params.familyName,
+        },
+        password,
+        changePasswordAtNextLogin: !params.password,
+        orgUnitPath: params.orgUnitPath || '/',
+      },
+    })
+    return mapGapiUser(res.data)
+  } catch (err) {
+    throw wrapGapiError(err)
   }
-
-  const data = await apiRequest<Record<string, unknown>>('POST', '/users', body)
-  return mapApiUser(data)
 }
 
 /**
@@ -429,23 +349,27 @@ export async function updateUser(
     }
   }
 
-  const body: Record<string, unknown> = {}
+  const requestBody: admin_directory_v1.Schema$User = {}
   if (updates.givenName || updates.familyName) {
-    body.name = {
+    requestBody.name = {
       ...(updates.givenName ? { givenName: updates.givenName } : {}),
       ...(updates.familyName ? { familyName: updates.familyName } : {}),
     }
   }
   if (updates.orgUnitPath) {
-    body.orgUnitPath = updates.orgUnitPath
+    requestBody.orgUnitPath = updates.orgUnitPath
   }
 
-  const data = await apiRequest<Record<string, unknown>>(
-    'PATCH',
-    `/users/${encodeURIComponent(email)}`,
-    body
-  )
-  return mapApiUser(data)
+  try {
+    const admin = getAdminClient()
+    const res = await admin.users.patch({
+      userKey: email,
+      requestBody,
+    })
+    return mapGapiUser(res.data)
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -460,12 +384,16 @@ export async function suspendUser(email: string): Promise<GoogleWorkspaceUser> {
     return { ...user, suspended: true }
   }
 
-  const data = await apiRequest<Record<string, unknown>>(
-    'PUT',
-    `/users/${encodeURIComponent(email)}`,
-    { suspended: true }
-  )
-  return mapApiUser(data)
+  try {
+    const admin = getAdminClient()
+    const res = await admin.users.update({
+      userKey: email,
+      requestBody: { suspended: true },
+    })
+    return mapGapiUser(res.data)
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -480,12 +408,16 @@ export async function unsuspendUser(email: string): Promise<GoogleWorkspaceUser>
     return { ...user, suspended: false }
   }
 
-  const data = await apiRequest<Record<string, unknown>>(
-    'PUT',
-    `/users/${encodeURIComponent(email)}`,
-    { suspended: false }
-  )
-  return mapApiUser(data)
+  try {
+    const admin = getAdminClient()
+    const res = await admin.users.update({
+      userKey: email,
+      requestBody: { suspended: false },
+    })
+    return mapGapiUser(res.data)
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -500,7 +432,12 @@ export async function deleteUser(email: string): Promise<void> {
     return
   }
 
-  await apiRequest<void>('DELETE', `/users/${encodeURIComponent(email)}`)
+  try {
+    const admin = getAdminClient()
+    await admin.users.delete({ userKey: email })
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -520,16 +457,19 @@ export async function resetPassword(
     return { password }
   }
 
-  await apiRequest<Record<string, unknown>>(
-    'PUT',
-    `/users/${encodeURIComponent(email)}`,
-    {
-      password,
-      changePasswordAtNextLogin: true,
-    }
-  )
-
-  return { password }
+  try {
+    const admin = getAdminClient()
+    await admin.users.update({
+      userKey: email,
+      requestBody: {
+        password,
+        changePasswordAtNextLogin: true,
+      },
+    })
+    return { password }
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 // ============================================================
@@ -544,16 +484,16 @@ export async function listGroups(domain: string): Promise<GoogleWorkspaceGroup[]
     return [...DEMO_GROUPS]
   }
 
-  const params = new URLSearchParams({
-    domain,
-    maxResults: '200',
-  })
-
-  const data = await apiRequest<{ groups?: Record<string, unknown>[] }>(
-    'GET',
-    `/groups?${params.toString()}`
-  )
-  return (data.groups || []).map(mapApiGroup)
+  try {
+    const admin = getAdminClient()
+    const res = await admin.groups.list({
+      domain,
+      maxResults: 200,
+    })
+    return (res.data.groups || []).map(mapGapiGroup)
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -567,10 +507,18 @@ export async function addUserToGroup(
     return
   }
 
-  await apiRequest('POST', `/groups/${encodeURIComponent(groupEmail)}/members`, {
-    email: userEmail,
-    role: 'MEMBER',
-  })
+  try {
+    const admin = getAdminClient()
+    await admin.members.insert({
+      groupKey: groupEmail,
+      requestBody: {
+        email: userEmail,
+        role: 'MEMBER',
+      },
+    })
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 /**
@@ -584,43 +532,72 @@ export async function removeUserFromGroup(
     return
   }
 
-  await apiRequest(
-    'DELETE',
-    `/groups/${encodeURIComponent(groupEmail)}/members/${encodeURIComponent(userEmail)}`
-  )
+  try {
+    const admin = getAdminClient()
+    await admin.members.delete({
+      groupKey: groupEmail,
+      memberKey: userEmail,
+    })
+  } catch (err) {
+    throw wrapGapiError(err)
+  }
 }
 
 // ============================================================
 // Mapping Helpers
 // ============================================================
 
-function mapApiUser(data: Record<string, unknown>): GoogleWorkspaceUser {
-  const name = (data.name as Record<string, string>) || {}
+function mapGapiUser(data: admin_directory_v1.Schema$User): GoogleWorkspaceUser {
+  const name = data.name || {}
   return {
-    id: (data.id as string) || '',
-    primaryEmail: (data.primaryEmail as string) || '',
+    id: data.id || '',
+    primaryEmail: data.primaryEmail || '',
     name: {
       givenName: name.givenName || '',
       familyName: name.familyName || '',
       fullName: name.fullName || `${name.familyName || ''} ${name.givenName || ''}`.trim(),
     },
-    suspended: (data.suspended as boolean) || false,
-    orgUnitPath: (data.orgUnitPath as string) || '/',
-    creationTime: (data.creationTime as string) || '',
-    lastLoginTime: (data.lastLoginTime as string) || null,
-    isAdmin: (data.isAdmin as boolean) || false,
+    suspended: data.suspended || false,
+    orgUnitPath: data.orgUnitPath || '/',
+    creationTime: data.creationTime || '',
+    lastLoginTime: data.lastLoginTime || null,
+    isAdmin: data.isAdmin || false,
     aliases: (data.aliases as string[]) || [],
   }
 }
 
-function mapApiGroup(data: Record<string, unknown>): GoogleWorkspaceGroup {
+function mapGapiGroup(data: admin_directory_v1.Schema$Group): GoogleWorkspaceGroup {
   return {
-    id: (data.id as string) || '',
-    email: (data.email as string) || '',
-    name: (data.name as string) || '',
-    description: (data.description as string) || '',
+    id: data.id || '',
+    email: data.email || '',
+    name: data.name || '',
+    description: data.description || '',
     directMembersCount: Number(data.directMembersCount) || 0,
   }
+}
+
+// ============================================================
+// Error Helpers
+// ============================================================
+
+/**
+ * googleapis エラーを GoogleWorkspaceError に変換
+ */
+function wrapGapiError(err: unknown): GoogleWorkspaceError {
+  if (err instanceof GoogleWorkspaceError) return err
+
+  const gErr = err as {
+    code?: number
+    message?: string
+    errors?: Array<{ message?: string }>
+  }
+  const statusCode = gErr.code || 500
+  const message =
+    gErr.errors?.[0]?.message ||
+    gErr.message ||
+    'Google Workspace APIエラーが発生しました'
+
+  return new GoogleWorkspaceError(`API_ERROR_${statusCode}`, message, statusCode)
 }
 
 // ============================================================
