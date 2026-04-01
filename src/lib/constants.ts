@@ -160,8 +160,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: '業務実績', href: '/reports/performance', icon: 'BarChart3' },
   { label: '支払管理', href: '/payments', icon: 'Wallet' },
   { label: '退職・離任', href: '/retirement', icon: 'UserMinus' },
-  { label: 'AI分析', href: '/ai/anomalies', icon: 'Brain' },
-  { label: 'AI営業文生成', href: '/ai/form-sales', icon: 'Sparkles' },
   { label: 'アラート', href: '/alerts', icon: 'Bell' },
   { label: '設定', href: '/settings', icon: 'Settings' },
   { label: 'アカウント管理', href: '/accounts', icon: 'KeyRound' },
