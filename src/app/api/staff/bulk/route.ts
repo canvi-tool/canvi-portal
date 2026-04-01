@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { z } from 'zod'
 
@@ -21,13 +22,43 @@ export async function PATCH(request: NextRequest) {
       .from('staff')
       .update({ status, updated_at: new Date().toISOString() })
       .in('id', ids)
-      .select('id')
+      .select('id, email')
 
     if (error) {
       return NextResponse.json(
         { error: 'ステータスの一括更新に失敗しました: ' + error.message },
         { status: 500 }
       )
+    }
+
+    // 退職ステータスの場合、該当スタッフのポータルアカウントを無効化
+    if (status === 'retired' && data && data.length > 0) {
+      const adminClient = createAdminClient()
+      const bannedEmails: string[] = []
+
+      for (const staff of data) {
+        if (!staff.email) continue
+        try {
+          const { data: portalUser } = await adminClient
+            .from('users')
+            .select('id')
+            .eq('email', staff.email)
+            .maybeSingle()
+
+          if (portalUser) {
+            await adminClient.auth.admin.updateUserById(portalUser.id, {
+              ban_duration: '876600h',
+            })
+            bannedEmails.push(staff.email)
+          }
+        } catch (banErr) {
+          console.error(`退職時アカウント無効化エラー (${staff.email}):`, banErr)
+        }
+      }
+
+      if (bannedEmails.length > 0) {
+        console.log(`一括退職処理: ${bannedEmails.join(', ')} のポータルアカウントを無効化しました`)
+      }
     }
 
     return NextResponse.json({

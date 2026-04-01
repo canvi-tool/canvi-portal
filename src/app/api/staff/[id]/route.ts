@@ -326,6 +326,28 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    // 退職処理: ポータルアカウントを無効化（BAN）
+    if (!isOnboarding && oldStaff.email) {
+      try {
+        const adminClient = createAdminClient()
+        const { data: portalUser } = await adminClient
+          .from('users')
+          .select('id')
+          .eq('email', oldStaff.email)
+          .maybeSingle()
+
+        if (portalUser) {
+          await adminClient.auth.admin.updateUserById(portalUser.id, {
+            ban_duration: '876600h', // 100年 = 実質永久BAN
+          })
+          console.log(`退職処理: ${oldStaff.email} のポータルアカウントを無効化しました`)
+        }
+      } catch (banErr) {
+        console.error('退職時アカウント無効化エラー:', banErr)
+        // BAN失敗してもスタッフ削除自体は成功とする
+      }
+    }
+
     // Create audit log
     await supabase.from('audit_logs').insert({
       user_id: admin.id,
