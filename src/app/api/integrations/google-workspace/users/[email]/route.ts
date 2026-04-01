@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getUser,
+  updateUser,
   suspendUser,
   unsuspendUser,
   deleteUser,
@@ -51,11 +52,16 @@ export async function PATCH(
     const decodedEmail = decodeURIComponent(email)
     const body = await request.json()
 
-    const { action } = body
+    const { action, givenName, familyName, orgUnitPath } = body
+
+    if (action === 'update') {
+      const user = await updateUser(decodedEmail, { givenName, familyName, orgUnitPath })
+      return NextResponse.json({ user })
+    }
 
     if (action !== 'suspend' && action !== 'unsuspend') {
       return NextResponse.json(
-        { error: 'action は "suspend" または "unsuspend" を指定してください' },
+        { error: 'action は "suspend", "unsuspend", "update" のいずれかを指定してください' },
         { status: 400 }
       )
     }

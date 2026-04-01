@@ -404,6 +404,47 @@ export async function createUser(params: CreateUserParams): Promise<GoogleWorksp
 }
 
 /**
+ * ユーザー情報を更新（名前・OU等）
+ */
+export async function updateUser(
+  email: string,
+  updates: { givenName?: string; familyName?: string; orgUnitPath?: string }
+): Promise<GoogleWorkspaceUser> {
+  if (DEMO_MODE) {
+    const user = DEMO_USERS.find((u) => u.primaryEmail === email)
+    if (!user) {
+      throw new GoogleWorkspaceError('NOT_FOUND', `ユーザーが見つかりません: ${email}`, 404)
+    }
+    return {
+      ...user,
+      name: {
+        givenName: updates.givenName || user.name.givenName,
+        familyName: updates.familyName || user.name.familyName,
+        fullName: `${updates.familyName || user.name.familyName} ${updates.givenName || user.name.givenName}`,
+      },
+    }
+  }
+
+  const body: Record<string, unknown> = {}
+  if (updates.givenName || updates.familyName) {
+    body.name = {
+      ...(updates.givenName ? { givenName: updates.givenName } : {}),
+      ...(updates.familyName ? { familyName: updates.familyName } : {}),
+    }
+  }
+  if (updates.orgUnitPath) {
+    body.orgUnitPath = updates.orgUnitPath
+  }
+
+  const data = await apiRequest<Record<string, unknown>>(
+    'PUT',
+    `/users/${encodeURIComponent(email)}`,
+    body
+  )
+  return mapApiUser(data)
+}
+
+/**
  * ユーザーを停止
  */
 export async function suspendUser(email: string): Promise<GoogleWorkspaceUser> {

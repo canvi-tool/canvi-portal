@@ -87,28 +87,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // ② Supabaseポータルアカウント招待（canviメール宛）
+    let inviteActionUrl = ''
     if (canviEmail) {
       try {
         const adminClient = createAdminClient()
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
 
-        const { data: inviteData, error: inviteError } =
-          await adminClient.auth.admin.inviteUserByEmail(canviEmail, {
-            data: {
-              display_name: `${staff.last_name} ${staff.first_name}`,
-              invited_role: 'staff',
-              needs_password_setup: true,
+        // generateLink でメール送信せずに招待リンクを生成
+        const { data: linkData, error: linkError } =
+          await adminClient.auth.admin.generateLink({
+            type: 'invite',
+            email: canviEmail,
+            options: {
+              data: {
+                display_name: `${staff.last_name} ${staff.first_name}`,
+                invited_role: 'staff',
+                needs_password_setup: true,
+              },
+              redirectTo: `${siteUrl}/setup-password`,
             },
-            redirectTo: `${siteUrl}/setup-password`,
           })
 
-        if (inviteError) {
-          results.portal = { success: false, error: inviteError.message }
-        } else if (inviteData.user) {
+        if (linkError) {
+          results.portal = { success: false, error: linkError.message }
+        } else if (linkData.user) {
+          // Supabaseが生成した招待リンクを取得
+          inviteActionUrl = linkData.properties?.action_link || ''
+
           // usersテーブルにレコード作成
           await adminClient.from('users').upsert(
             {
-              id: inviteData.user.id,
+              id: linkData.user.id,
               email: canviEmail,
               display_name: `${staff.last_name} ${staff.first_name}`,
             },
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
           if (roleData) {
             await adminClient.from('user_roles').upsert(
-              { user_id: inviteData.user.id, role_id: roleData.id },
+              { user_id: linkData.user.id, role_id: roleData.id },
               { onConflict: 'user_id,role_id' }
             )
           }
@@ -132,7 +141,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           // staffレコードにuser_idを紐付け
           await supabase
             .from('staff')
-            .update({ user_id: inviteData.user.id })
+            .update({ user_id: linkData.user.id })
             .eq('id', id)
 
           results.portal = { success: true }
@@ -145,14 +154,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
       }
 
-      // ③ 個人メール宛にアカウント発行完了通知
+      // ③ 個人メール宛にアカウント発行完了通知（招待リンク付き）
       if (staff.personal_email && canviEmail) {
         try {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
           const emailContent = buildAccountActivatedEmail({
             staffName: `${staff.last_name} ${staff.first_name}`,
             canviEmail,
-            loginUrl: `${siteUrl}/login`,
+            loginUrl: inviteActionUrl || `${siteUrl}/login`,
           })
           await sendEmail({ to: staff.personal_email, ...emailContent })
         } catch (emailErr) {

@@ -46,6 +46,11 @@ export async function GET(request: Request) {
 
         // 初回ユーザー（他にユーザーがいなければ）をオーナーに自動設定
         await assignRoleIfFirstUser(supabase, user.id)
+
+        // 招待ユーザー（パスワード未設定）→ パスワード設定画面へ
+        if (user.user_metadata?.needs_password_setup) {
+          return NextResponse.redirect(`${origin}/setup-password`)
+        }
       }
 
       return NextResponse.redirect(`${origin}${next}`)
