@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { getCurrentUser, hasMyNumberAccess } from '@/lib/auth/rbac'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -15,15 +15,17 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
 
-    // 認可チェック: owner/adminのみ閲覧可能（マイナンバー法の特定個人情報取扱制限）
+    // 認可チェック: マイナンバー担当者のみ閲覧可能
+    // （マイナンバー法 第12条: 特定個人情報の提供制限）
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    if (!isOwner(user) && !isAdmin(user)) {
+    const canAccess = await hasMyNumberAccess(user)
+    if (!canAccess) {
       return NextResponse.json(
-        { error: '本人確認書類の閲覧は管理者権限が必要です' },
+        { error: '本人確認書類の閲覧にはマイナンバー担当者権限が必要です' },
         { status: 403 }
       )
     }

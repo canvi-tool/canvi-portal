@@ -235,6 +235,41 @@ export async function checkPermission(
   )
 }
 
+/**
+ * マイナンバー担当者権限チェック
+ * user_permissionsテーブルでmy_number/readが付与されているか確認
+ * ownerは全権限を持つため常にtrue
+ */
+export async function hasMyNumberAccess(user: UserWithRole): Promise<boolean> {
+  if (isOwner(user)) return true
+
+  try {
+    const adminClient = createAdminClient()
+
+    // my_number/read権限IDを取得
+    const { data: perm } = await adminClient
+      .from('permissions')
+      .select('id')
+      .eq('resource', 'my_number')
+      .eq('action', 'read')
+      .single()
+
+    if (!perm) return false
+
+    // user_permissionsテーブル（型未定義のためas neverでバイパス）
+    const { data, error } = await adminClient
+      .from('user_permissions' as never)
+      .select('user_id' as never)
+      .eq('user_id' as never, user.id)
+      .eq('permission_id' as never, perm.id) as { data: unknown[] | null; error: unknown }
+
+    if (error || !data) return false
+    return data.length > 0
+  } catch {
+    return false
+  }
+}
+
 export async function requireRole(role: RoleName): Promise<UserWithRole> {
   const user = await getCurrentUser()
   if (!user) throw new Error('Unauthorized')
