@@ -253,17 +253,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user_ids（配列）と role_id は必須です' }, { status: 400 })
     }
 
-    // Prevent assigning owner role
-    const { data: role } = await admin
-      .from('roles')
-      .select('name')
-      .eq('id', role_id)
-      .single()
-
-    if (role?.name === 'owner') {
-      return NextResponse.json({ error: 'オーナーロールは一括割り当てできません' }, { status: 400 })
-    }
-
     const rows = user_ids.map((uid) => ({ user_id: uid, role_id }))
     const { error } = await admin
       .from('user_roles')
@@ -280,16 +269,6 @@ export async function POST(request: NextRequest) {
     const { user_ids, role_id } = body as { user_ids: string[]; role_id: string }
     if (!Array.isArray(user_ids) || user_ids.length === 0 || !role_id) {
       return NextResponse.json({ error: 'user_ids（配列）と role_id は必須です' }, { status: 400 })
-    }
-
-    const { data: role } = await admin
-      .from('roles')
-      .select('name')
-      .eq('id', role_id)
-      .single()
-
-    if (role?.name === 'owner') {
-      return NextResponse.json({ error: 'オーナーロールは一括解除できません' }, { status: 400 })
     }
 
     const { error } = await admin
