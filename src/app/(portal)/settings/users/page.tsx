@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Loader2, UserPlus, Mail, Crown, Shield, User } from 'lucide-react'
+import { Loader2, UserPlus, Mail, Crown, Shield, User, Copy, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 
@@ -39,6 +39,9 @@ export default function SettingsUsersPage() {
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'staff'>('staff')
   const [inviting, setInviting] = useState(false)
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null)
+  const [createdUserName, setCreatedUserName] = useState('')
+  const [copiedPassword, setCopiedPassword] = useState(false)
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -75,7 +78,9 @@ export default function SettingsUsersPage() {
         toast.error(data.error || '招待に失敗しました')
         return
       }
-      toast.success(data.message || '招待メールを送信しました')
+      toast.success(data.message || 'アカウントを作成しました')
+      setCreatedPassword(data.initial_password)
+      setCreatedUserName(inviteName)
       setInviteOpen(false)
       setInviteEmail('')
       setInviteName('')
@@ -166,13 +171,57 @@ export default function SettingsUsersPage() {
         </CardContent>
       </Card>
 
+      {/* 初期パスワード表示ダイアログ */}
+      <Dialog open={!!createdPassword} onOpenChange={(open) => { if (!open) { setCreatedPassword(null); setCopiedPassword(false) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              アカウント作成完了
+            </DialogTitle>
+            <DialogDescription>
+              {createdUserName} のアカウントを作成しました。以下の初期パスワードを本人にお伝えください。
+              初回ログイン後、本人がパスワードを再設定します。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="rounded-lg border-2 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-4">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-2">初期パスワード（この画面を閉じると再表示できません）</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-lg font-mono font-bold tracking-wider text-amber-900 dark:text-amber-100">
+                  {createdPassword}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(createdPassword || '')
+                    setCopiedPassword(true)
+                    toast.success('コピーしました')
+                  }}
+                >
+                  {copiedPassword ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              本人にこのパスワードでログインしてもらい、初回ログイン後に自分でパスワードを設定してもらってください。
+            </p>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => { setCreatedPassword(null); setCopiedPassword(false) }}>閉じる</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* 招待ダイアログ */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>ユーザーを招待</DialogTitle>
             <DialogDescription>
-              招待メールが送信され、リンクからパスワード設定後にログインできます。
+              アカウントを作成し、初期パスワードが発行されます。
+              初回ログイン後に本人がパスワードを設定します。
               @{ALLOWED_EMAIL_DOMAINS[0]} ドメインのみ招待可能です。
             </DialogDescription>
           </DialogHeader>
@@ -227,7 +276,7 @@ export default function SettingsUsersPage() {
               </Button>
               <Button type="submit" disabled={inviting}>
                 {inviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                招待メールを送信
+                アカウントを作成
               </Button>
             </div>
           </form>

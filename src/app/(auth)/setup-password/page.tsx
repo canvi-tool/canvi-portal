@@ -25,12 +25,22 @@ function SetupPasswordInner() {
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
+  const validatePassword = (pw: string): string | null => {
+    if (pw.length < 8) return 'パスワードは8文字以上で入力してください'
+    if (!/^[a-zA-Z0-9]+$/.test(pw)) return 'パスワードは半角英数字のみ使用できます'
+    if (!/[a-z]/.test(pw)) return 'パスワードに小文字を含めてください'
+    if (!/[A-Z]/.test(pw)) return 'パスワードに大文字を含めてください'
+    if (!/[0-9]/.test(pw)) return 'パスワードに数字を含めてください'
+    return null
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError('パスワードは8文字以上で入力してください')
+    const validationError = validatePassword(password)
+    if (validationError) {
+      setError(validationError)
       return
     }
     if (password !== confirmPassword) {
@@ -44,6 +54,7 @@ function SetupPasswordInner() {
 
       const { error: updateError } = await supabase.auth.updateUser({
         password,
+        data: { needs_password_setup: false },
       })
 
       if (updateError) {
@@ -108,9 +119,10 @@ function SetupPasswordInner() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              placeholder="8文字以上"
+              placeholder="半角英数字・大文字小文字混合（8文字以上）"
               className="h-11"
             />
+            <p className="text-xs text-muted-foreground mt-1">半角英数字、大文字と小文字の両方を含めてください</p>
           </div>
 
           <div className="space-y-1.5">

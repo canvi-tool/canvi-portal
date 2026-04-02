@@ -19,6 +19,12 @@ const inviteSchema = z.object({
   role: z.enum(['admin', 'staff']).default('staff'),
 })
 
+/** 初期パスワードを生成: Canvi + ランダム4桁 + ca */
+function generateInitialPassword(): string {
+  const digits = String(Math.floor(1000 + Math.random() * 9000))
+  return `Canvi${digits}ca`
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin()
@@ -28,35 +34,39 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    // Supabase Admin API でユーザーを招待（確認メールが自動送信される）
-    const { data: inviteData, error: inviteError } =
-      await admin.auth.admin.inviteUserByEmail(email, {
-        data: {
+    const initialPassword = generateInitialPassword()
+
+    // Supabase Admin API でユーザーを直接作成（初期パスワード付き）
+    const { data: userData, error: createError } =
+      await admin.auth.admin.createUser({
+        email,
+        password: initialPassword,
+        email_confirm: true,
+        user_metadata: {
           display_name,
           invited_role: role,
+          needs_password_setup: true,
         },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'}/setup-password`,
       })
 
-    if (inviteError) {
-      // 既に登録済みの場合
-      if (inviteError.message?.includes('already been registered')) {
+    if (createError) {
+      if (createError.message?.includes('already been registered') || createError.message?.includes('already exists')) {
         return NextResponse.json(
           { error: 'このメールアドレスは既に登録されています' },
           { status: 409 }
         )
       }
       return NextResponse.json(
-        { error: `招待に失敗しました: ${inviteError.message}` },
+        { error: `ユーザー作成に失敗しました: ${createError.message}` },
         { status: 500 }
       )
     }
 
     // usersテーブルにレコード作成
-    if (inviteData.user) {
+    if (userData.user) {
       await admin.from('users').upsert(
         {
-          id: inviteData.user.id,
+          id: userData.user.id,
           email,
           display_name,
         },
@@ -72,15 +82,16 @@ export async function POST(request: NextRequest) {
 
       if (roleData) {
         await admin.from('user_roles').upsert(
-          { user_id: inviteData.user.id, role_id: roleData.id },
+          { user_id: userData.user.id, role_id: roleData.id },
           { onConflict: 'user_id,role_id' }
         )
       }
     }
 
     return NextResponse.json({
-      message: `${email} に招待メールを送信しました`,
-      user_id: inviteData.user?.id,
+      message: `${display_name} のアカウントを作成しました`,
+      user_id: userData.user?.id,
+      initial_password: initialPassword,
     })
   } catch (err) {
     if (err instanceof z.ZodError) {

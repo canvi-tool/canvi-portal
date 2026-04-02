@@ -34,6 +34,9 @@ import {
   Trash2,
   CheckSquare,
   ArrowRightLeft,
+  KeyRound,
+  Copy,
+  CheckCircle2,
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -131,6 +134,12 @@ export default function UserRolesPage() {
 
   // Bulk remove
   const [bulkRemoveOpen, setBulkRemoveOpen] = useState(false)
+
+  // Password reset
+  const [resetTarget, setResetTarget] = useState<UserWithRoles | null>(null)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [resetResult, setResetResult] = useState<{ userName: string; password: string } | null>(null)
+  const [copiedResetPw, setCopiedResetPw] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -314,6 +323,24 @@ export default function UserRolesPage() {
     } catch { toast.error('一括解除に失敗しました') } finally { setBulkProcessing(false) }
   }
 
+  // Password reset
+  const handleResetPassword = async () => {
+    if (!resetTarget) return
+    setResettingPassword(true)
+    try {
+      const res = await fetch('/api/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: resetTarget.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'パスワードリセットに失敗しました'); return }
+      setResetResult({ userName: resetTarget.displayName, password: data.new_password })
+      setResetTarget(null)
+      toast.success(`${resetTarget.displayName} のパスワードをリセットしました`)
+    } catch { toast.error('パスワードリセットに失敗しました') } finally { setResettingPassword(false) }
+  }
+
   const isNoneTab = activeTab === 'none'
   const hasSelection = selectedUserIds.size > 0
 
@@ -467,6 +494,17 @@ export default function UserRolesPage() {
                             </div>
                             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                           </div>
+
+                          {/* Password reset button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                            onClick={() => setResetTarget(user)}
+                            title="パスワード再発行"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </Button>
 
                           {/* Role change button */}
                           <Button
@@ -738,6 +776,71 @@ export default function UserRolesPage() {
               {removingRole && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}解除する
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password reset confirm dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-amber-500" />
+              パスワード再発行
+            </DialogTitle>
+            <DialogDescription>
+              {resetTarget?.displayName} のパスワードをリセットしますか？
+              新しい初期パスワードが生成され、次回ログイン時にパスワード再設定が必要になります。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setResetTarget(null)}>キャンセル</Button>
+            <Button onClick={handleResetPassword} disabled={resettingPassword} className="bg-amber-600 hover:bg-amber-700">
+              {resettingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              パスワードを再発行
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password reset result dialog */}
+      <Dialog open={!!resetResult} onOpenChange={(open) => { if (!open) { setResetResult(null); setCopiedResetPw(false) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              パスワード再発行完了
+            </DialogTitle>
+            <DialogDescription>
+              {resetResult?.userName} の新しい初期パスワードです。本人にお伝えください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="rounded-lg border-2 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-4">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-2">新しい初期パスワード（この画面を閉じると再表示できません）</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-lg font-mono font-bold tracking-wider text-amber-900 dark:text-amber-100">
+                  {resetResult?.password}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetResult?.password || '')
+                    setCopiedResetPw(true)
+                    toast.success('コピーしました')
+                  }}
+                >
+                  {copiedResetPw ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              次回ログイン時にパスワードの再設定画面に移行します。
+            </p>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => { setResetResult(null); setCopiedResetPw(false) }}>閉じる</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -95,6 +95,18 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // 初回ログイン: パスワード未設定→パスワード設定画面へ強制リダイレクト
+  if (user && user.user_metadata?.needs_password_setup) {
+    if (
+      !request.nextUrl.pathname.startsWith('/setup-password') &&
+      !request.nextUrl.pathname.startsWith('/api')
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/setup-password'
+      return NextResponse.redirect(url)
+    }
+  }
+
   if (user && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'

@@ -17,12 +17,22 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  const validatePassword = (pw: string): string | null => {
+    if (pw.length < 8) return 'パスワードは8文字以上で入力してください'
+    if (!/^[a-zA-Z0-9]+$/.test(pw)) return 'パスワードは半角英数字のみ使用できます'
+    if (!/[a-z]/.test(pw)) return 'パスワードに小文字を含めてください'
+    if (!/[A-Z]/.test(pw)) return 'パスワードに大文字を含めてください'
+    if (!/[0-9]/.test(pw)) return 'パスワードに数字を含めてください'
+    return null
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 6) {
-      setError('パスワードは6文字以上にしてください')
+    const validationError = validatePassword(password)
+    if (validationError) {
+      setError(validationError)
       return
     }
 
@@ -37,6 +47,7 @@ export default function ResetPasswordPage() {
       const supabase = createClient()
       const { error: updateError } = await supabase.auth.updateUser({
         password,
+        data: { needs_password_setup: false },
       })
       if (updateError) throw updateError
       setSuccess(true)
@@ -107,9 +118,9 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
-                placeholder="6文字以上"
+                placeholder="半角英数字・大文字小文字混合（8文字以上）"
               />
               <button
                 type="button"
@@ -132,7 +143,7 @@ export default function ResetPasswordPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800"
               placeholder="もう一度入力"
             />

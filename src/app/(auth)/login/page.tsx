@@ -2,7 +2,6 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME, ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import { DEMO_ACCOUNTS, setDemoRoleCookie, type DemoRole } from '@/lib/demo-accounts'
@@ -208,11 +207,16 @@ function LoginPageInner() {
 
     try {
       const supabase = createClient()
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       if (signInError) throw signInError
+      // 初回ログイン: パスワード未設定→設定画面へ
+      if (signInData.user?.user_metadata?.needs_password_setup) {
+        window.location.href = '/setup-password'
+        return
+      }
       // Full page reload to ensure middleware reads auth cookies correctly
       window.location.href = '/dashboard'
       return
@@ -289,14 +293,9 @@ function LoginPageInner() {
           </Button>
         </form>
 
-        <div className="flex justify-end text-sm px-1">
-          <Link
-            href="/forgot-password"
-            className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline"
-          >
-            パスワードを忘れた方
-          </Link>
-        </div>
+        <p className="text-xs text-center text-slate-400 dark:text-slate-500 px-1">
+          パスワードを忘れた場合は、オーナー（管理者）にパスワード再発行を依頼してください
+        </p>
 
         {/* 区切り線 */}
         <div className="relative">

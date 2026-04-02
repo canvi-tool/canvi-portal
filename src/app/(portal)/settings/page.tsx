@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Shield, SlidersHorizontal, Plug, FileText, Users, ShieldCheck, UserCog } from 'lucide-react'
+import { Shield, SlidersHorizontal, Plug, FileText, Users, ShieldCheck, UserCog, Link2 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +36,12 @@ const SETTING_CARDS = [
     description: 'マイナンバー法に基づく特定個人情報取扱担当者の指定・管理を行います。担当者のみが本人確認書類を閲覧できます。',
     href: '/settings/my-number-handlers',
     icon: ShieldCheck,
+  },
+  {
+    title: 'Googleアカウント連携管理',
+    description: '全メンバーのGoogleアカウント連携状況を確認します。連携済・未連携のステータスを一覧で管理できます。',
+    href: '/settings/google-auth',
+    icon: Link2,
   },
   {
     title: 'カスタムフィールド',
