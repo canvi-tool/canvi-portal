@@ -22,7 +22,7 @@ async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupaba
   const admin = createAdminClient()
   const { data: userRoles } = await admin
     .from('user_roles')
-    .select('role_id, roles(name)')
+    .select('role_id, roles!inner(name)')
     .eq('user_id', user.id)
 
   const isOwner = userRoles?.some((ur: { roles: { name: string } | null }) => ur.roles?.name === 'owner') ?? false
@@ -90,10 +90,10 @@ export async function GET() {
     .from('role_permissions')
     .select('role_id, permission_id')
 
-  // Fetch user_roles with user info (admin client bypasses RLS)
+  // Fetch user_roles with user info (specify FK to avoid ambiguity with assigned_by)
   const { data: userRoles } = await admin
     .from('user_roles')
-    .select('user_id, role_id, users(id, display_name, email)')
+    .select('user_id, role_id, users!user_roles_user_id_fkey(id, display_name, email)')
 
   // Fetch all users for assignment
   const { data: allUsers } = await admin
