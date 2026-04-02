@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
@@ -17,7 +18,9 @@ async function checkOwner(supabase: Awaited<ReturnType<typeof createServerSupaba
   } = await supabase.auth.getUser()
   if (!user) return { isOwner: false, userId: null }
 
-  const { data: userRoles } = await supabase
+  // Use admin client to check owner role (bypass RLS)
+  const admin = createAdminClient()
+  const { data: userRoles } = await admin
     .from('user_roles')
     .select('role_id, roles(name)')
     .eq('user_id', user.id)
@@ -58,8 +61,11 @@ export async function GET() {
     return NextResponse.json(DEMO_ROLES)
   }
 
+  // Use admin client to bypass RLS (owner-only endpoint)
+  const admin = createAdminClient()
+
   // Fetch all roles
-  const { data: roles, error: rolesError } = await supabase!
+  const { data: roles, error: rolesError } = await admin
     .from('roles')
     .select('*')
     .order('created_at')
@@ -69,7 +75,7 @@ export async function GET() {
   }
 
   // Fetch all permissions
-  const { data: allPermissions, error: permsError } = await supabase!
+  const { data: allPermissions, error: permsError } = await admin
     .from('permissions')
     .select('*')
     .order('resource')
@@ -80,17 +86,17 @@ export async function GET() {
   }
 
   // Fetch role_permissions
-  const { data: rolePermissions } = await supabase!
+  const { data: rolePermissions } = await admin
     .from('role_permissions')
     .select('role_id, permission_id')
 
-  // Fetch user_roles with user info
-  const { data: userRoles } = await supabase!
+  // Fetch user_roles with user info (admin client bypasses RLS)
+  const { data: userRoles } = await admin
     .from('user_roles')
     .select('user_id, role_id, users(id, display_name, email)')
 
   // Fetch all users for assignment
-  const { data: allUsers } = await supabase!
+  const { data: allUsers } = await admin
     .from('users')
     .select('id, display_name, email')
     .order('display_name')
@@ -141,6 +147,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  // Use admin client for all write operations (owner-only endpoint, bypass RLS)
+  const admin = createAdminClient()
+
   if (action === 'assign') {
     const { user_id, role_id } = body
     if (!user_id || !role_id) {
@@ -148,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already assigned
-    const { data: existing } = await supabase!
+    const { data: existing } = await admin
       .from('user_roles')
       .select('user_id')
       .eq('user_id', user_id)
@@ -159,7 +168,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'このユーザーには既にこのロールが割り当てられています' }, { status: 400 })
     }
 
-    const { error } = await supabase!
+    const { error } = await admin
       .from('user_roles')
       .insert({ user_id, role_id })
 
@@ -176,7 +185,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user_id と role_id は必須です' }, { status: 400 })
     }
 
-    const { error } = await supabase!
+    const { error } = await admin
       .from('user_roles')
       .delete()
       .eq('user_id', user_id)
@@ -199,7 +208,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent modifying owner role permissions
-    const { data: role } = await supabase!
+    const { data: role } = await admin
       .from('roles')
       .select('name')
       .eq('id', role_id)
@@ -213,7 +222,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (enabled) {
-      const { error } = await supabase!
+      const { error } = await admin
         .from('role_permissions')
         .insert({ role_id, permission_id })
 
@@ -224,7 +233,7 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      const { error } = await supabase!
+      const { error } = await admin
         .from('role_permissions')
         .delete()
         .eq('role_id', role_id)
@@ -245,7 +254,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent assigning owner role
-    const { data: role } = await supabase!
+    const { data: role } = await admin
       .from('roles')
       .select('name')
       .eq('id', role_id)
@@ -256,7 +265,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = user_ids.map((uid) => ({ user_id: uid, role_id }))
-    const { error } = await supabase!
+    const { error } = await admin
       .from('user_roles')
       .upsert(rows, { onConflict: 'user_id,role_id' })
 
@@ -273,7 +282,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user_ids（配列）と role_id は必須です' }, { status: 400 })
     }
 
-    const { data: role } = await supabase!
+    const { data: role } = await admin
       .from('roles')
       .select('name')
       .eq('id', role_id)
@@ -283,7 +292,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'オーナーロールは一括解除できません' }, { status: 400 })
     }
 
-    const { error } = await supabase!
+    const { error } = await admin
       .from('user_roles')
       .delete()
       .in('user_id', user_ids)
