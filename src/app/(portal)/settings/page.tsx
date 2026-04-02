@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Shield, SlidersHorizontal, Plug, FileText, Users } from 'lucide-react'
+import { Shield, SlidersHorizontal, Plug, FileText, Users, ShieldCheck, UserCog } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +24,18 @@ const SETTING_CARDS = [
     description: 'ユーザーのロールと権限を管理します。各ロールに対してリソースごとの権限を設定できます。',
     href: '/settings/roles',
     icon: Shield,
+  },
+  {
+    title: 'ユーザーロール管理',
+    description: '全ポータルユーザーのロール（権限グループ）を一覧表示し、割り当て・解除を行います。',
+    href: '/settings/user-roles',
+    icon: UserCog,
+  },
+  {
+    title: 'マイナンバー担当者管理',
+    description: 'マイナンバー法に基づく特定個人情報取扱担当者の指定・管理を行います。担当者のみが本人確認書類を閲覧できます。',
+    href: '/settings/my-number-handlers',
+    icon: ShieldCheck,
   },
   {
     title: 'カスタムフィールド',
