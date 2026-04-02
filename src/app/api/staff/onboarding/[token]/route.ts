@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType as isFreelance } from '@/lib/validations/staff'
 import { sendEmail, buildApprovalRequestEmail } from '@/lib/email/send'
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/security/rate-limit'
 
 interface RouteParams {
   params: Promise<{ token: string }>
@@ -11,6 +12,16 @@ interface RouteParams {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { token } = await params
+
+    // レート制限: トークン検証はブルートフォース対策
+    const ip = getClientIp(_request)
+    const rateLimitResult = checkRateLimit(`onboarding:${ip}`, RATE_LIMITS.tokenValidation)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'リクエスト回数が制限を超えました。しばらくしてから再試行してください。' },
+        { status: 429 }
+      )
+    }
     const supabase = createAdminClient()
 
     const { data: allSuspended } = await supabase

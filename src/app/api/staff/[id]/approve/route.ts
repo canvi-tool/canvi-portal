@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { createUser as createGoogleUser, resolveAvailableEmail } from '@/lib/integrations/google-workspace'
 import { sendEmail, buildAccountActivatedEmail } from '@/lib/email/send'
+import { generateSecurePassword } from '@/lib/security/password'
 import type { Json } from '@/lib/types/database'
 
 interface RouteParams {
@@ -56,11 +57,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     let canviEmail = ''
 
-    // 初期パスワード生成: Canvi + 電話番号下4桁 + ca (例: Canvi1407ca)
-    const phone = staff.phone || ''
-    const phoneDigits = phone.replace(/\D/g, '')
-    const last4 = phoneDigits.slice(-4) || '0000'
-    const initialPassword = `Canvi${last4}ca`
+    // セキュアなランダムパスワード生成（14文字、大小英数記号含む）
+    const initialPassword = generateSecurePassword(14)
 
     // ① Google Workspaceアカウント作成（重複時は自動採番）
     if (googleEmailPrefix) {

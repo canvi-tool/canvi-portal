@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
+import { getCurrentUser, requireAdmin, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
 import { createUser as createZoomUser } from '@/lib/integrations/zoom'
 import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
+import { filterStaffListForStaffRole } from '@/lib/security/field-filter'
 import type { Json } from '@/lib/types/database'
 
 // Vercel Serverless Function のタイムアウトを60秒に延長
@@ -64,8 +65,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // staffロールのユーザーには機密フィールドを除外して返す
+    const staffData = (isOwner(user) || isAdmin(user))
+      ? (data || [])
+      : filterStaffListForStaffRole(data || [], user.staffId)
+
     return NextResponse.json({
-      data: data || [],
+      data: staffData,
       total: count || 0,
       page: params.page,
       limit: params.limit,

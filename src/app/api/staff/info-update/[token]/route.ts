@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { staffOnboardingSchema, employeeOnboardingSchema, isFreelanceType as isFreelance } from '@/lib/validations/staff'
+import { checkRateLimit, RATE_LIMITS, getClientIp } from '@/lib/security/rate-limit'
 
 // Vercel Serverless Function のタイムアウトを60秒に延長（ファイルアップロードに時間がかかるため）
 export const maxDuration = 60
@@ -46,6 +47,17 @@ async function findStaffByInfoUpdateToken(token: string) {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { token } = await params
+
+    // レート制限: トークン検証はブルートフォース対策
+    const ip = getClientIp(_request)
+    const rateLimitResult = checkRateLimit(`info-update:${ip}`, RATE_LIMITS.tokenValidation)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'リクエスト回数が制限を超えました。しばらくしてから再試行してください。' },
+        { status: 429 }
+      )
+    }
+
     const result = await findStaffByInfoUpdateToken(token)
 
     if (!result) {
