@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,6 +32,7 @@ import {
   UserCog,
   UserPlus,
   Trash2,
+  CheckSquare,
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -98,12 +99,21 @@ export default function UserRolesPage() {
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('owner')
+
+  // Selection state
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [bulkProcessing, setBulkProcessing] = useState(false)
 
   // Assign dialog
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignRoleKey, setAssignRoleKey] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [assigning, setAssigning] = useState(false)
+
+  // Bulk assign dialog (for "none" tab)
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [bulkAssignRoleKey, setBulkAssignRoleKey] = useState('')
 
   // Remove dialog
   const [removeTarget, setRemoveTarget] = useState<{
@@ -112,6 +122,9 @@ export default function UserRolesPage() {
     roleId: string
   } | null>(null)
   const [removingRole, setRemovingRole] = useState(false)
+
+  // Bulk remove confirm
+  const [bulkRemoveOpen, setBulkRemoveOpen] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -172,17 +185,53 @@ export default function UserRolesPage() {
     fetchData()
   }, [fetchData])
 
-  // Users filtered by role tab
-  const getUsersForTab = (tabKey: string) => {
-    if (tabKey === 'none') return users.filter((u) => u.roles.length === 0)
-    return users.filter((u) => u.roles.includes(tabKey))
-  }
+  // Clear selection when tab changes
+  useEffect(() => {
+    setSelectedUserIds(new Set())
+  }, [activeTab])
 
-  // Available users to add to a role (not already in that role)
+  const getUsersForTab = useCallback(
+    (tabKey: string) => {
+      if (tabKey === 'none') return users.filter((u) => u.roles.length === 0)
+      return users.filter((u) => u.roles.includes(tabKey))
+    },
+    [users]
+  )
+
   const getAvailableUsersForRole = (roleKey: string) => {
     return users.filter((u) => !u.roles.includes(roleKey))
   }
 
+  const currentTabUsers = useMemo(
+    () => getUsersForTab(activeTab),
+    [getUsersForTab, activeTab]
+  )
+
+  const isAllSelected =
+    currentTabUsers.length > 0 &&
+    currentTabUsers.every((u) => selectedUserIds.has(u.id))
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserIds(new Set())
+    } else {
+      setSelectedUserIds(new Set(currentTabUsers.map((u) => u.id)))
+    }
+  }
+
+  const toggleSelect = (userId: string) => {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
+  // Single assign
   const handleAssignRole = async () => {
     if (!selectedUserId || !assignRoleKey) return
     const roleId = roles.find((r) => r.name === assignRoleKey)?.id
@@ -193,19 +242,14 @@ export default function UserRolesPage() {
       const res = await fetch('/api/settings/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'assign',
-          user_id: selectedUserId,
-          role_id: roleId,
-        }),
+        body: JSON.stringify({ action: 'assign', user_id: selectedUserId, role_id: roleId }),
       })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error || 'ロールの割り当てに失敗しました')
         return
       }
-      const userName = users.find((u) => u.id === selectedUserId)?.displayName
-      toast.success(`${userName} にロールを割り当てました`)
+      toast.success(`${users.find((u) => u.id === selectedUserId)?.displayName} にロールを割り当てました`)
       setAssignOpen(false)
       setSelectedUserId('')
       fetchData()
@@ -216,6 +260,43 @@ export default function UserRolesPage() {
     }
   }
 
+  // Bulk assign
+  const handleBulkAssign = async () => {
+    const targetRoleKey = bulkAssignRoleKey || assignRoleKey
+    if (!targetRoleKey || selectedUserIds.size === 0) return
+    const roleId = roles.find((r) => r.name === targetRoleKey)?.id
+    if (!roleId) return
+
+    setBulkProcessing(true)
+    try {
+      const res = await fetch('/api/settings/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk_assign',
+          user_ids: Array.from(selectedUserIds),
+          role_id: roleId,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || '一括割り当てに失敗しました')
+        return
+      }
+      const tabLabel = ROLE_TABS.find((t) => t.key === targetRoleKey)?.label
+      toast.success(`${selectedUserIds.size}名に${tabLabel}ロールを一括割り当てしました`)
+      setBulkAssignOpen(false)
+      setBulkAssignRoleKey('')
+      setSelectedUserIds(new Set())
+      fetchData()
+    } catch {
+      toast.error('一括割り当てに失敗しました')
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
+  // Single remove
   const handleRemoveRole = async () => {
     if (!removeTarget) return
     setRemovingRole(true)
@@ -234,10 +315,8 @@ export default function UserRolesPage() {
         toast.error(data.error || 'ロールの解除に失敗しました')
         return
       }
-      const tabConfig = ROLE_TABS.find((t) => t.key === removeTarget.roleName)
-      toast.success(
-        `${removeTarget.user.displayName} の${tabConfig?.label || removeTarget.roleName}ロールを解除しました`
-      )
+      const tabLabel = ROLE_TABS.find((t) => t.key === removeTarget.roleName)?.label
+      toast.success(`${removeTarget.user.displayName} の${tabLabel}ロールを解除しました`)
       setRemoveTarget(null)
       fetchData()
     } catch {
@@ -247,11 +326,49 @@ export default function UserRolesPage() {
     }
   }
 
+  // Bulk remove
+  const handleBulkRemove = async () => {
+    if (selectedUserIds.size === 0) return
+    const roleId = roles.find((r) => r.name === activeTab)?.id
+    if (!roleId) return
+
+    setBulkProcessing(true)
+    try {
+      const res = await fetch('/api/settings/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk_remove',
+          user_ids: Array.from(selectedUserIds),
+          role_id: roleId,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || '一括解除に失敗しました')
+        return
+      }
+      const tabLabel = ROLE_TABS.find((t) => t.key === activeTab)?.label
+      toast.success(`${selectedUserIds.size}名の${tabLabel}ロールを一括解除しました`)
+      setBulkRemoveOpen(false)
+      setSelectedUserIds(new Set())
+      fetchData()
+    } catch {
+      toast.error('一括解除に失敗しました')
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
   const openAssignDialog = (roleKey: string) => {
     setAssignRoleKey(roleKey)
     setSelectedUserId('')
     setAssignOpen(true)
   }
+
+  // Can bulk operate on this tab?
+  const canBulkOperate = activeTab !== 'owner'
+  const hasSelection = selectedUserIds.size > 0
 
   if (loading) {
     return (
@@ -282,7 +399,7 @@ export default function UserRolesPage() {
         description="全ポータルユーザーのロール（権限グループ）を一覧・変更します。オーナーのみ操作可能です。"
       />
 
-      <Tabs defaultValue="owner">
+      <Tabs defaultValue="owner" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full sm:w-auto">
           {ROLE_TABS.map((tab) => {
             const Icon = tab.icon
@@ -308,6 +425,7 @@ export default function UserRolesPage() {
           return (
             <TabsContent key={tab.key} value={tab.key}>
               <Card>
+                {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b">
                   <div className="flex items-center gap-3">
                     <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tab.color}`}>
@@ -319,15 +437,57 @@ export default function UserRolesPage() {
                     </div>
                   </div>
                   {!isOwnerTab && !isNoneTab && (
-                    <Button
-                      size="sm"
-                      onClick={() => openAssignDialog(tab.key)}
-                    >
+                    <Button size="sm" onClick={() => openAssignDialog(tab.key)}>
                       <UserPlus className="h-4 w-4 mr-1.5" />
                       追加
                     </Button>
                   )}
                 </div>
+
+                {/* Bulk action bar */}
+                {canBulkOperate && hasSelection && activeTab === tab.key && (
+                  <div className="flex items-center gap-3 px-6 py-3 bg-primary/5 border-b">
+                    <CheckSquare className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      {selectedUserIds.size}名を選択中
+                    </span>
+                    <div className="flex-1" />
+                    {isNoneTab ? (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setBulkAssignRoleKey('')
+                          setBulkAssignOpen(true)
+                        }}
+                        disabled={bulkProcessing}
+                      >
+                        {bulkProcessing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                        <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                        一括割り当て
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setBulkRemoveOpen(true)}
+                          disabled={bulkProcessing}
+                        >
+                          {bulkProcessing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                          一括解除
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedUserIds(new Set())}
+                    >
+                      選択解除
+                    </Button>
+                  </div>
+                )}
 
                 <CardContent className="p-0">
                   {tabUsers.length === 0 ? (
@@ -341,21 +501,49 @@ export default function UserRolesPage() {
                     </div>
                   ) : (
                     <div className="divide-y">
+                      {/* Select all row */}
+                      {canBulkOperate && tabUsers.length > 1 && (
+                        <label className="flex items-center gap-3 px-6 py-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isAllSelected}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/50"
+                          />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            全て選択（{tabUsers.length}名）
+                          </span>
+                        </label>
+                      )}
+
                       {tabUsers.map((user) => (
                         <div
                           key={user.id}
-                          className="flex items-center gap-4 px-6 py-3"
+                          className={`flex items-center gap-4 px-6 py-3 ${
+                            selectedUserIds.has(user.id) ? 'bg-primary/5' : ''
+                          }`}
                         >
+                          {/* Checkbox */}
+                          {canBulkOperate && (
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.has(user.id)}
+                              onChange={() => toggleSelect(user.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/50 shrink-0"
+                            />
+                          )}
+
+                          {/* Avatar */}
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
                             {user.displayName?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
 
+                          {/* Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-medium text-sm truncate">
                                 {user.displayName}
                               </span>
-                              {/* 他のロールもバッジで表示 */}
                               {user.roles
                                 .filter((r) => r !== tab.key)
                                 .map((r) => {
@@ -363,23 +551,17 @@ export default function UserRolesPage() {
                                   if (!rc) return null
                                   const RIcon = rc.icon
                                   return (
-                                    <Badge
-                                      key={r}
-                                      variant={rc.badgeVariant}
-                                      className="text-xs shrink-0"
-                                    >
+                                    <Badge key={r} variant={rc.badgeVariant} className="text-xs shrink-0">
                                       <RIcon className="h-3 w-3 mr-0.5" />
                                       {rc.label}
                                     </Badge>
                                   )
                                 })}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {user.email}
-                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                           </div>
 
-                          {/* 解除ボタン（ownerタブは解除不可） */}
+                          {/* Remove button */}
                           {!isOwnerTab && !isNoneTab && (
                             <Button
                               variant="ghost"
@@ -388,11 +570,7 @@ export default function UserRolesPage() {
                               onClick={() => {
                                 const roleId = roles.find((r) => r.name === tab.key)?.id
                                 if (roleId) {
-                                  setRemoveTarget({
-                                    user,
-                                    roleName: tab.key,
-                                    roleId,
-                                  })
+                                  setRemoveTarget({ user, roleName: tab.key, roleId })
                                 }
                               }}
                               title="このロールから解除"
@@ -401,7 +579,7 @@ export default function UserRolesPage() {
                             </Button>
                           )}
 
-                          {/* 未割当タブはロール割り当てボタン */}
+                          {/* Assign button for "none" tab */}
                           {isNoneTab && (
                             <Button
                               variant="outline"
@@ -428,7 +606,7 @@ export default function UserRolesPage() {
         })}
       </Tabs>
 
-      {/* ロール割り当てダイアログ */}
+      {/* Single assign dialog */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -444,14 +622,10 @@ export default function UserRolesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 space-y-4">
-            {/* ロール選択（未割当タブから開いた場合） */}
             {!assignRoleKey && (
               <div className="space-y-1.5">
                 <Label>ロール</Label>
-                <Select
-                  value={assignRoleKey}
-                  onValueChange={(v) => { if (v) setAssignRoleKey(v) }}
-                >
+                <Select value={assignRoleKey} onValueChange={(v) => { if (v) setAssignRoleKey(v) }}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="ロールを選択">
                       {assignRoleKey
@@ -460,29 +634,18 @@ export default function UserRolesPage() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {roles
-                      .filter((r) => r.name !== 'owner')
-                      .map((r) => {
-                        const tab = ROLE_TABS.find((t) => t.key === r.name)
-                        return (
-                          <SelectItem key={r.id} value={r.name}>
-                            {tab?.label || r.name}
-                          </SelectItem>
-                        )
-                      })}
+                    {roles.filter((r) => r.name !== 'owner').map((r) => {
+                      const t = ROLE_TABS.find((t) => t.key === r.name)
+                      return <SelectItem key={r.id} value={r.name}>{t?.label || r.name}</SelectItem>
+                    })}
                   </SelectContent>
                 </Select>
               </div>
             )}
-
-            {/* ユーザー選択（ロールタブから開いた場合） */}
             {assignRoleKey && !selectedUserId && (
               <div className="space-y-1.5">
                 <Label>ユーザー</Label>
-                <Select
-                  value={selectedUserId}
-                  onValueChange={(v) => { if (v) setSelectedUserId(v) }}
-                >
+                <Select value={selectedUserId} onValueChange={(v) => { if (v) setSelectedUserId(v) }}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="ユーザーを選択">
                       {selectedUserId
@@ -492,14 +655,11 @@ export default function UserRolesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {getAvailableUsersForRole(assignRoleKey).length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        追加可能なユーザーがいません
-                      </div>
+                      <div className="px-3 py-2 text-sm text-muted-foreground">追加可能なユーザーがいません</div>
                     ) : (
                       getAvailableUsersForRole(assignRoleKey).map((u) => (
                         <SelectItem key={u.id} value={u.id}>
-                          {u.displayName}{' '}
-                          <span className="text-muted-foreground">({u.email})</span>
+                          {u.displayName} <span className="text-muted-foreground">({u.email})</span>
                         </SelectItem>
                       ))
                     )}
@@ -507,34 +667,18 @@ export default function UserRolesPage() {
                 </Select>
               </div>
             )}
-
-            {/* 未割当タブの場合: userは選択済み、ロールを選ぶ */}
             {selectedUserId && !assignRoleKey && (
               <div className="rounded-lg border p-3 text-sm">
-                <span className="font-medium">
-                  {users.find((u) => u.id === selectedUserId)?.displayName}
-                </span>
-                <span className="text-muted-foreground ml-1">
-                  ({users.find((u) => u.id === selectedUserId)?.email})
-                </span>
+                <span className="font-medium">{users.find((u) => u.id === selectedUserId)?.displayName}</span>
+                <span className="text-muted-foreground ml-1">({users.find((u) => u.id === selectedUserId)?.email})</span>
               </div>
             )}
           </div>
           <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAssignOpen(false)
-                setAssignRoleKey('')
-                setSelectedUserId('')
-              }}
-            >
+            <Button variant="outline" onClick={() => { setAssignOpen(false); setAssignRoleKey(''); setSelectedUserId('') }}>
               キャンセル
             </Button>
-            <Button
-              onClick={handleAssignRole}
-              disabled={!selectedUserId || !assignRoleKey || assigning}
-            >
+            <Button onClick={handleAssignRole} disabled={!selectedUserId || !assignRoleKey || assigning}>
               {assigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               割り当て
             </Button>
@@ -542,11 +686,97 @@ export default function UserRolesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ロール解除確認ダイアログ */}
-      <Dialog
-        open={!!removeTarget}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
-      >
+      {/* Bulk assign dialog (from "none" tab) */}
+      <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>一括ロール割り当て</DialogTitle>
+            <DialogDescription>
+              {selectedUserIds.size}名のユーザーにロールを一括で割り当てます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label>割り当てるロール</Label>
+              <Select value={bulkAssignRoleKey} onValueChange={(v) => { if (v) setBulkAssignRoleKey(v) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="ロールを選択">
+                    {bulkAssignRoleKey
+                      ? ROLE_TABS.find((t) => t.key === bulkAssignRoleKey)?.label || bulkAssignRoleKey
+                      : 'ロールを選択'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.filter((r) => r.name !== 'owner').map((r) => {
+                    const t = ROLE_TABS.find((t) => t.key === r.name)
+                    return <SelectItem key={r.id} value={r.name}>{t?.label || r.name}</SelectItem>
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground mb-2">対象ユーザー:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from(selectedUserIds).map((uid) => {
+                  const u = users.find((u) => u.id === uid)
+                  return (
+                    <Badge key={uid} variant="outline" className="text-xs">
+                      {u?.displayName || uid}
+                    </Badge>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setBulkAssignOpen(false); setBulkAssignRoleKey('') }}>
+              キャンセル
+            </Button>
+            <Button onClick={handleBulkAssign} disabled={!bulkAssignRoleKey || bulkProcessing}>
+              {bulkProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {selectedUserIds.size}名を一括割り当て
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk remove confirm dialog */}
+      <Dialog open={bulkRemoveOpen} onOpenChange={setBulkRemoveOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>一括ロール解除</DialogTitle>
+            <DialogDescription>
+              {selectedUserIds.size}名の
+              {ROLE_TABS.find((t) => t.key === activeTab)?.label}
+              ロールを一括で解除しますか？
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 rounded-lg border p-3">
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from(selectedUserIds).map((uid) => {
+                const u = users.find((u) => u.id === uid)
+                return (
+                  <Badge key={uid} variant="outline" className="text-xs">
+                    {u?.displayName || uid}
+                  </Badge>
+                )
+              })}
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setBulkRemoveOpen(false)}>
+              キャンセル
+            </Button>
+            <Button variant="destructive" onClick={handleBulkRemove} disabled={bulkProcessing}>
+              {bulkProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {selectedUserIds.size}名を一括解除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single remove dialog */}
+      <Dialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>ロールの解除</DialogTitle>
@@ -557,14 +787,8 @@ export default function UserRolesPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setRemoveTarget(null)}>
-              キャンセル
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRemoveRole}
-              disabled={removingRole}
-            >
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>キャンセル</Button>
+            <Button variant="destructive" onClick={handleRemoveRole} disabled={removingRole}>
               {removingRole && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               解除する
             </Button>

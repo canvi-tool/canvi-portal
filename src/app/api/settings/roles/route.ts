@@ -238,5 +238,63 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  if (action === 'bulk_assign') {
+    const { user_ids, role_id } = body as { user_ids: string[]; role_id: string }
+    if (!Array.isArray(user_ids) || user_ids.length === 0 || !role_id) {
+      return NextResponse.json({ error: 'user_ids（配列）と role_id は必須です' }, { status: 400 })
+    }
+
+    // Prevent assigning owner role
+    const { data: role } = await supabase!
+      .from('roles')
+      .select('name')
+      .eq('id', role_id)
+      .single()
+
+    if (role?.name === 'owner') {
+      return NextResponse.json({ error: 'オーナーロールは一括割り当てできません' }, { status: 400 })
+    }
+
+    const rows = user_ids.map((uid) => ({ user_id: uid, role_id }))
+    const { error } = await supabase!
+      .from('user_roles')
+      .upsert(rows, { onConflict: 'user_id,role_id' })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, count: user_ids.length })
+  }
+
+  if (action === 'bulk_remove') {
+    const { user_ids, role_id } = body as { user_ids: string[]; role_id: string }
+    if (!Array.isArray(user_ids) || user_ids.length === 0 || !role_id) {
+      return NextResponse.json({ error: 'user_ids（配列）と role_id は必須です' }, { status: 400 })
+    }
+
+    const { data: role } = await supabase!
+      .from('roles')
+      .select('name')
+      .eq('id', role_id)
+      .single()
+
+    if (role?.name === 'owner') {
+      return NextResponse.json({ error: 'オーナーロールは一括解除できません' }, { status: 400 })
+    }
+
+    const { error } = await supabase!
+      .from('user_roles')
+      .delete()
+      .in('user_id', user_ids)
+      .eq('role_id', role_id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, count: user_ids.length })
+  }
+
   return NextResponse.json({ error: '不明なアクションです' }, { status: 400 })
 }
