@@ -48,8 +48,28 @@ export async function GET(request: Request) {
         // 初回ユーザー（他にユーザーがいなければ）をオーナーに自動設定
         await assignRoleIfFirstUser(supabase, user.id)
 
-        // Google連携完了 → needs_google_link フラグをクリア
+        // Google連携: メールアドレス一致チェック + フラグクリア
         if (user.user_metadata?.needs_google_link) {
+          const googleIdentity = user.identities?.find(
+            (i) => i.provider === 'google'
+          )
+          const googleEmail = (googleIdentity?.identity_data?.email as string | undefined)?.toLowerCase()
+          const portalEmail = user.email?.toLowerCase()
+
+          if (googleEmail && googleEmail !== portalEmail) {
+            // メール不一致 → Google identityを解除してエラー
+            if (googleIdentity?.id) {
+              await supabase.auth.unlinkIdentity({
+                id: googleIdentity.id,
+                provider: 'google',
+              } as Parameters<typeof supabase.auth.unlinkIdentity>[0])
+            }
+            return NextResponse.redirect(
+              `${origin}/setup-password?error=email_mismatch`
+            )
+          }
+
+          // メール一致 → フラグクリア
           const admin = createAdminClient()
           await admin.auth.admin.updateUserById(user.id, {
             user_metadata: { needs_google_link: false },

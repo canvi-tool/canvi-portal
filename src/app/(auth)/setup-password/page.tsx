@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,12 +18,21 @@ export default function SetupPasswordPage() {
 }
 
 function SetupPasswordInner() {
+  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [needsGoogleLinkOnly, setNeedsGoogleLinkOnly] = useState(false)
+  const [googleError, setGoogleError] = useState('')
+
+  // URLパラメータからエラーチェック
+  useEffect(() => {
+    if (searchParams.get('error') === 'email_mismatch') {
+      setGoogleError('Canvi Portalに登録されているメールアドレスと異なるGoogleアカウントが選択されました。正しいアカウントで再度お試しください。')
+    }
+  }, [searchParams])
 
   // パスワード設定済みだがGoogle連携未完了のユーザーは直接Google連携画面を表示
   useEffect(() => {
@@ -88,12 +98,27 @@ function SetupPasswordInner() {
     }
   }
 
+  const [userEmail, setUserEmail] = useState('')
+
+  // ユーザーのメアドを取得（Google login_hint用）
+  useEffect(() => {
+    const getEmail = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email) setUserEmail(user.email)
+    }
+    getEmail()
+  }, [])
+
   const handleGoogleLink = async () => {
     const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
+    await supabase.auth.linkIdentity({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/callback`,
+        queryParams: {
+          login_hint: userEmail,
+        },
       },
     })
   }
@@ -122,6 +147,12 @@ function SetupPasswordInner() {
               </>
             )}
           </div>
+
+          {googleError && (
+            <div className="rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950 p-3">
+              <p className="text-sm text-red-700 dark:text-red-300">{googleError}</p>
+            </div>
+          )}
 
           {/* Google連携（必須） */}
           <div className="rounded-lg border-2 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-4">
