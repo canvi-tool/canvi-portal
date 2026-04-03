@@ -21,26 +21,43 @@ export async function GET() {
       return NextResponse.json({ users: [] })
     }
 
-    // Supabase Auth の全ユーザー情報を取得（identities含む）
+    // auth.identities を直接クエリ（listUsers の identities が不完全な場合があるため）
+    const authSchemaClient = createAdminClient()
+    const { data: identitiesRaw } = await (authSchemaClient as ReturnType<typeof createAdminClient>)
+      .schema('auth' as 'public')
+      .from('identities' as never)
+      .select('user_id, provider, identity_data' as '*')
+
+    // Google identity を user_id でマップ
+    const googleIdentityMap = new Map<string, { email: string | null }>()
+    if (identitiesRaw) {
+      for (const identity of identitiesRaw as unknown as { user_id: string; provider: string; identity_data: Record<string, unknown> }[]) {
+        if (identity.provider === 'google') {
+          googleIdentityMap.set(identity.user_id, {
+            email: (identity.identity_data?.email as string) || null,
+          })
+        }
+      }
+    }
+
+    // auth.users から needs_password_setup メタデータを取得
     const { data: authData } = await admin.auth.admin.listUsers({
       perPage: 1000,
     })
-
     const authUsers = authData?.users || []
 
     // 各ユーザーのGoogle連携状況をチェック
     const usersWithGoogleStatus = users.map((u) => {
       const authUser = authUsers.find((au) => au.id === u.id)
-      const identities = authUser?.identities || []
-      const googleIdentity = identities.find((i) => i.provider === 'google')
+      const googleInfo = googleIdentityMap.get(u.id)
       const hasPasswordSetup = !(authUser?.user_metadata?.needs_password_setup)
 
       return {
         id: u.id,
         email: u.email,
         display_name: u.display_name,
-        google_linked: !!googleIdentity,
-        google_email: googleIdentity?.identity_data?.email || null,
+        google_linked: !!googleInfo,
+        google_email: googleInfo?.email || null,
         password_setup_done: hasPasswordSetup,
       }
     })
