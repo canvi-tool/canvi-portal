@@ -37,6 +37,23 @@ export async function GET(request: Request) {
           )
         }
 
+        // Google OAuthログイン時: ポータルのメールアドレスとGoogleアカウントのメールが一致するか検証
+        // needs_google_link フロー以外でも、Googleアカウントのメールが一致しない場合はブロック
+        const googleIdentityForCheck = user.identities?.find(
+          (i) => i.provider === 'google'
+        )
+        if (googleIdentityForCheck && !user.user_metadata?.needs_google_link) {
+          const googleEmail = (googleIdentityForCheck.identity_data?.email as string | undefined)?.toLowerCase()
+          const portalEmail = user.email?.toLowerCase()
+          if (googleEmail && portalEmail && googleEmail !== portalEmail) {
+            // Googleアカウントのメールがポータルのメールと不一致 → ログアウト
+            await supabase.auth.signOut()
+            return NextResponse.redirect(
+              `${origin}/login?error=email_mismatch`
+            )
+          }
+        }
+
         // Upsert user record in public.users table
         // 既存の display_name を優先し、Google の full_name やメールで上書きしない
         const { data: existingUser } = await supabase

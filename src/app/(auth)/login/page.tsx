@@ -57,6 +57,9 @@ function LoginPageInner() {
     if (urlError === 'domain_not_allowed') {
       return `@${ALLOWED_EMAIL_DOMAINS[0]} ドメインのアカウントのみログインできます`
     }
+    if (urlError === 'email_mismatch') {
+      return 'ポータルに登録されているメールアドレスと同じGoogleアカウントでログインしてください'
+    }
     if (urlError === 'auth_failed') {
       return '認証に失敗しました。もう一度お試しください。'
     }
