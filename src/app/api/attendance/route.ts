@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
+import { sendSlackMessage, buildClockInNotification } from '@/lib/integrations/slack'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -140,6 +141,10 @@ export async function POST(request: NextRequest) {
       console.error('POST /api/attendance error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Slack通知（非同期・失敗してもエラーにしない）
+    const staffName = user.displayName || user.email || 'メンバー'
+    sendSlackMessage(buildClockInNotification(staffName)).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })
   } catch (error) {

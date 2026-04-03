@@ -25,6 +25,7 @@ import {
   Calculator,
   Loader2,
   FileWarning,
+  Clock,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -160,6 +161,111 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
   REPORT_OVERDUE: '未報告',
   PAYMENT_ISSUE: '支払',
   CUSTOM: 'その他',
+}
+
+// --- Attendance Summary Card ---
+
+function AttendanceSummaryCard() {
+  const [summary, setSummary] = useState<{
+    today: Array<{
+      staff_id: string
+      display_name: string
+      status: string
+      clock_in: string | null
+      clock_out: string | null
+      work_minutes: number | null
+    }>
+    summary: { total_staff: number; clocked_in: number; on_break: number; clocked_out: number; not_clocked_in: number }
+  } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/attendance/summary')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setSummary(data))
+      .catch(() => {})
+  }, [])
+
+  if (!summary) return null
+
+  const { summary: s, today } = summary
+
+  const statusDot: Record<string, string> = {
+    clocked_in: 'bg-green-500',
+    on_break: 'bg-yellow-500',
+    clocked_out: 'bg-blue-400',
+    not_clocked_in: 'bg-gray-300',
+  }
+
+  const statusLabel: Record<string, string> = {
+    clocked_in: '勤務中',
+    on_break: '休憩中',
+    clocked_out: '退勤済',
+    not_clocked_in: '未出勤',
+    modified: '修正済',
+    approved: '承認済',
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" />
+            本日の勤怠状況
+          </CardTitle>
+          <Link href="/attendance" className="text-xs text-primary hover:underline flex items-center gap-0.5">
+            詳細 <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {/* サマリーバー */}
+        <div className="flex gap-4 mb-3 text-sm">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            勤務中 <strong>{s.clocked_in}</strong>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-yellow-500" />
+            休憩中 <strong>{s.on_break}</strong>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-blue-400" />
+            退勤済 <strong>{s.clocked_out}</strong>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-gray-300" />
+            未出勤 <strong>{s.not_clocked_in}</strong>
+          </span>
+        </div>
+
+        {/* メンバーリスト（最大10件） */}
+        {today.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2 text-center">稼働中スタッフはいません</p>
+        ) : (
+          <div className="space-y-1.5">
+            {today.slice(0, 10).map((member) => (
+              <div key={member.staff_id} className="flex items-center gap-2 text-sm">
+                <span className={cn('h-2 w-2 rounded-full shrink-0', statusDot[member.status] || 'bg-gray-300')} />
+                <span className="font-medium truncate flex-1">{member.display_name}</span>
+                <span className="text-muted-foreground text-xs">
+                  {statusLabel[member.status] || member.status}
+                </span>
+                {member.clock_in && (
+                  <span className="text-muted-foreground text-xs font-mono">
+                    {new Date(member.clock_in).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
+                  </span>
+                )}
+              </div>
+            ))}
+            {today.length > 10 && (
+              <p className="text-xs text-muted-foreground text-center pt-1">他 {today.length - 10}名</p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 // --- Main Page ---
@@ -309,6 +415,9 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Today's Attendance (Owner/Admin only) */}
+          {d.isOwner && <AttendanceSummaryCard />}
 
           {/* Recent Alerts */}
           <Card>

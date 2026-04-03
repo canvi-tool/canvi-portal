@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { attendanceModifySchema } from '@/lib/validations/attendance'
+import { sendSlackMessage, buildClockOutNotification } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -70,6 +71,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (error) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
+
+        // Slack通知（退勤）
+        const staffName = user.displayName || user.email || 'メンバー'
+        const hours = Math.floor(workMinutes / 60)
+        const mins = workMinutes % 60
+        sendSlackMessage(buildClockOutNotification(staffName, `${hours}h ${mins}m`)).catch(() => {})
+
         return NextResponse.json(data)
       }
 
