@@ -85,6 +85,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (error) {
+      // ユニーク制約違反（project_code重複）
+      if (error.code === '23505' && error.message.includes('projects_project_code_key')) {
+        return NextResponse.json(
+          { error: `PJコード「${project_code || `${project_type}-${project_number}`}」は既に使用されています` },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
