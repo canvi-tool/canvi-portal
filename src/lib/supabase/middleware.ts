@@ -114,5 +114,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // 認証関連ページはキャッシュ無効化（ブラウザバック時の古い状態防止）
+  const noCachePaths = ['/login', '/callback', '/setup-password']
+  if (noCachePaths.some((p) => request.nextUrl.pathname.startsWith(p))) {
+    supabaseResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    supabaseResponse.headers.set('Pragma', 'no-cache')
+  }
+
   return supabaseResponse
 }
