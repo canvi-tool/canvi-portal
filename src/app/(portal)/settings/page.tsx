@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Shield, SlidersHorizontal, Plug, FileText, Users, ShieldCheck, UserCog, Link2 } from 'lucide-react'
+import { Shield, ShieldCheck, Link2 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,22 +14,10 @@ const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 const SETTING_CARDS = [
   {
-    title: 'ポータルユーザー管理',
-    description: 'ポータルにログインできるユーザーの招待・管理を行います。招待されたユーザーのみログイン可能です。',
-    href: '/settings/users',
-    icon: Users,
-  },
-  {
-    title: 'ロール管理',
-    description: 'ユーザーのロールと権限を管理します。各ロールに対してリソースごとの権限を設定できます。',
-    href: '/settings/roles',
-    icon: Shield,
-  },
-  {
-    title: 'ユーザーロール管理',
-    description: '全ポータルユーザーのロール（権限グループ）を一覧表示し、割り当て・解除を行います。',
+    title: 'ロール・権限管理',
+    description: 'ユーザーへのロール割り当てと、各ロールの権限設定を一元管理します。',
     href: '/settings/user-roles',
-    icon: UserCog,
+    icon: Shield,
   },
   {
     title: 'マイナンバー担当者管理',
@@ -42,24 +30,6 @@ const SETTING_CARDS = [
     description: '全メンバーのGoogleアカウント連携状況を確認します。連携済・未連携のステータスを一覧で管理できます。',
     href: '/settings/google-auth',
     icon: Link2,
-  },
-  {
-    title: 'カスタムフィールド',
-    description: 'スタッフ・契約・プロジェクトなどのエンティティにカスタムフィールドを追加・管理します。',
-    href: '/settings/custom-fields',
-    icon: SlidersHorizontal,
-  },
-  {
-    title: '外部連携',
-    description: 'freee Sign、Google カレンダー、メール送信、Claude AI などの外部サービスとの連携を設定します。',
-    href: '/settings/integrations',
-    icon: Plug,
-  },
-  {
-    title: '契約テンプレート',
-    description: '契約書のテンプレートを管理します。変数の設定やテンプレートの有効/無効を切り替えられます。',
-    href: '/contracts/templates',
-    icon: FileText,
   },
 ]
 
