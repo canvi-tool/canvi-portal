@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
+import { sendEmail, buildWelcomeLoginEmail } from '@/lib/email/send'
 import { z } from 'zod'
 
 const inviteSchema = z.object({
@@ -88,10 +89,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 初回ログイン案内メールを送信
+    let emailSent = false
+    let emailError: string | undefined
+    try {
+      const loginUrl = process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/login`
+        : 'https://canvi-portal.vercel.app/login'
+
+      const emailContent = buildWelcomeLoginEmail({
+        displayName: display_name,
+        email,
+        initialPassword,
+        loginUrl,
+      })
+
+      await sendEmail({
+        to: email,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      })
+      emailSent = true
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : 'メール送信に失敗しました'
+    }
+
     return NextResponse.json({
-      message: `${display_name} のアカウントを作成しました`,
+      message: `${display_name} のアカウントを作成しました${emailSent ? '（案内メール送信済）' : ''}`,
       user_id: userData.user?.id,
       initial_password: initialPassword,
+      email_sent: emailSent,
+      email_error: emailError,
     })
   } catch (err) {
     if (err instanceof z.ZodError) {

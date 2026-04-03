@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,11 +23,7 @@ interface ApproveStaffCardProps {
 }
 
 const ORG_UNITS = [
-  { value: '/', label: 'canvi.co.jp（ルート）' },
-  { value: '/管理部', label: '管理部' },
-  { value: '/営業部', label: '営業部' },
-  { value: '/開発部', label: '開発部' },
-  { value: '/スタッフ', label: 'スタッフ' },
+  { value: '/', label: 'canvi.co.jp' },
 ]
 
 const PORTAL_ROLES = [
@@ -168,7 +164,12 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
           <div className="space-y-1.5">
             <Label>組織部門</Label>
             <Select value={orgUnit} onValueChange={setOrgUnit}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValueWithLabel
+                  value={orgUnit}
+                  labels={Object.fromEntries(ORG_UNITS.map(o => [o.value, o.label]))}
+                />
+              </SelectTrigger>
               <SelectContent>
                 {ORG_UNITS.map((ou) => (
                   <SelectItem key={ou.value} value={ou.value}>{ou.label}</SelectItem>
@@ -179,7 +180,12 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
           <div className="space-y-1.5">
             <Label>ポータルロール <span className="text-red-500">*</span></Label>
             <Select value={portalRole} onValueChange={setPortalRole}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValueWithLabel
+                  value={portalRole}
+                  labels={Object.fromEntries(PORTAL_ROLES.map(r => [r.value, r.label]))}
+                />
+              </SelectTrigger>
               <SelectContent>
                 {PORTAL_ROLES.map((r) => (
                   <SelectItem key={r.value} value={r.value}>

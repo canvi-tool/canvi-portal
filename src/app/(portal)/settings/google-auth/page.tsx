@@ -6,11 +6,22 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   CheckCircle2,
   XCircle,
   KeyRound,
   Loader2,
+  Send,
+  Mail,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -47,6 +58,35 @@ export default function GoogleAuthPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const [sendEmailOpen, setSendEmailOpen] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailResult, setEmailResult] = useState<{ success_count: number; fail_count: number; results: { display_name: string; email: string; success: boolean; error?: string }[] } | null>(null)
+
+  const handleSendWelcomeEmails = async () => {
+    setSendingEmail(true)
+    try {
+      const res = await fetch('/api/users/send-welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'メール送信に失敗しました')
+        return
+      }
+      setEmailResult(data)
+      setSendEmailOpen(false)
+      toast.success(data.message)
+      // リロードして最新状態を反映
+      fetchData()
+    } catch {
+      toast.error('メール送信に失敗しました')
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   const linkedCount = users.filter((u) => u.google_linked).length
   const unlinkedCount = users.filter((u) => !u.google_linked).length
   const passwordPendingCount = users.filter((u) => !u.password_setup_done).length
@@ -67,6 +107,12 @@ export default function GoogleAuthPage() {
       <PageHeader
         title="Googleアカウント連携管理"
         description="全メンバーのGoogleアカウント連携状況を一覧で確認できます。各メンバーは自分のアカウント設定からGoogle連携を行います。"
+        actions={
+          <Button onClick={() => setSendEmailOpen(true)}>
+            <Send className="mr-2 h-4 w-4" />
+            初回ログイン案内メールを一括送信
+          </Button>
+        }
       />
 
       {/* サマリーカード */}
@@ -192,6 +238,89 @@ export default function GoogleAuthPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 一括メール送信確認ダイアログ */}
+      <Dialog open={sendEmailOpen} onOpenChange={setSendEmailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              初回ログイン案内メール一括送信
+            </DialogTitle>
+            <DialogDescription>
+              全メンバーに初回ログイン案内メールを送信します。
+              各メンバーの初期パスワードが再生成され、メールにログイン情報が記載されます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-3 text-sm">
+            <p className="font-medium text-amber-800 dark:text-amber-200 mb-1">送信内容</p>
+            <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5 list-disc list-inside">
+              <li>メールアドレス（ログインID）</li>
+              <li>新しい初期パスワード（Canvi+4桁+ca形式で再生成）</li>
+              <li>ログインURL</li>
+              <li>パスワード設定 → Google連携の手順</li>
+            </ul>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            対象: 自分以外の全ユーザー（{users.length > 0 ? users.length - 1 : 0}名）
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendEmailOpen(false)} disabled={sendingEmail}>
+              キャンセル
+            </Button>
+            <Button onClick={handleSendWelcomeEmails} disabled={sendingEmail}>
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  送信中...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  全員に送信
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 送信結果ダイアログ */}
+      <Dialog open={!!emailResult} onOpenChange={(open) => { if (!open) setEmailResult(null) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              メール送信結果
+            </DialogTitle>
+            <DialogDescription>
+              {emailResult?.success_count}名に送信完了
+              {emailResult?.fail_count ? `、${emailResult.fail_count}名失敗` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto divide-y text-sm">
+            {emailResult?.results.map((r, i) => (
+              <div key={i} className="flex items-center gap-3 py-2">
+                {r.success ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{r.display_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{r.email}</p>
+                </div>
+                {!r.success && r.error && (
+                  <span className="text-xs text-red-500 shrink-0">{r.error}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setEmailResult(null)}>閉じる</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

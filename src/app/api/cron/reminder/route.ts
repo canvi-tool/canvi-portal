@@ -132,8 +132,8 @@ function buildReminderHtml(params: {
   formType: string
 }) {
   return `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="text-align: center; margin-bottom: 30px;">
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
+      <div style="margin-bottom: 30px;">
         <div style="display: inline-block; background: #4f46e5; color: white; font-size: 24px; font-weight: bold; width: 48px; height: 48px; line-height: 48px; border-radius: 12px;">C</div>
         <h1 style="margin: 10px 0 0; font-size: 20px; color: #1e293b;">Canvi Portal</h1>
       </div>
@@ -142,7 +142,7 @@ function buildReminderHtml(params: {
         ${params.formType}フォームのご入力がまだ完了しておりません。<br />
         お手数ですが、以下のリンクからご入力をお願いいたします。
       </p>
-      <div style="text-align: center; margin: 30px 0;">
+      <div style="margin: 30px 0;">
         <a href="${params.formUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
           ${params.formType}フォームを開く
         </a>
@@ -151,7 +151,7 @@ function buildReminderHtml(params: {
         ※既にご入力済みの場合は、このメールは無視してください。
       </p>
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-      <p style="color: #94a3b8; font-size: 12px; text-align: center;">Canvi Portal</p>
+      <p style="color: #94a3b8; font-size: 12px;">Canvi Portal</p>
     </div>
   `
 }
