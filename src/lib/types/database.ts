@@ -1666,6 +1666,97 @@ export interface Database {
           },
         ]
       }
+      attendance_records: {
+        Row: {
+          id: string
+          user_id: string
+          staff_id: string | null
+          project_id: string | null
+          date: string
+          clock_in: string | null
+          clock_out: string | null
+          break_start: string | null
+          break_end: string | null
+          break_minutes: number
+          work_minutes: number | null
+          overtime_minutes: number
+          status: 'clocked_in' | 'on_break' | 'clocked_out' | 'modified' | 'approved'
+          location_type: string | null
+          note: string | null
+          modified_by: string | null
+          modification_reason: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          staff_id?: string | null
+          project_id?: string | null
+          date: string
+          clock_in?: string | null
+          clock_out?: string | null
+          break_start?: string | null
+          break_end?: string | null
+          break_minutes?: number
+          work_minutes?: number | null
+          overtime_minutes?: number
+          status?: string
+          location_type?: string | null
+          note?: string | null
+          modified_by?: string | null
+          modification_reason?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          staff_id?: string | null
+          project_id?: string | null
+          date?: string
+          clock_in?: string | null
+          clock_out?: string | null
+          break_start?: string | null
+          break_end?: string | null
+          break_minutes?: number
+          work_minutes?: number | null
+          overtime_minutes?: number
+          status?: string
+          location_type?: string | null
+          note?: string | null
+          modified_by?: string | null
+          modification_reason?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'attendance_records_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'attendance_records_staff_id_fkey'
+            columns: ['staff_id']
+            isOneToOne: false
+            referencedRelation: 'staff'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'attendance_records_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1674,6 +1765,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
+      attendance_status: 'clocked_in' | 'on_break' | 'clocked_out' | 'modified' | 'approved'
       employment_type: 'employee' | 'contractor' | 'freelancer'
       staff_status:
         | 'pre_contract'

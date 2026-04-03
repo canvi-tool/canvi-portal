@@ -29,6 +29,7 @@ import {
   ChevronRight,
   type LucideIcon,
 } from 'lucide-react'
+import { Clock } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -37,6 +38,7 @@ const iconMap: Record<string, LucideIcon> = {
   Briefcase,
   FileStack,
   CalendarDays,
+  Clock,
   ClipboardList,
   BarChart3,
   Wallet,

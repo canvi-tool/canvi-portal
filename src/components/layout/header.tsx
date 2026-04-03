@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { MobileSidebar, type SidebarProps } from '@/components/layout/sidebar'
 import { Bell, Settings, User, LogOut } from 'lucide-react'
+import { ClockWidgetCompact } from '@/components/shared/clock-widget'
 
 interface HeaderProps {
   user?: SidebarProps['user'] & { avatarUrl?: string }
@@ -50,6 +51,9 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Clock Widget */}
+      <ClockWidgetCompact />
 
       {/* Notifications */}
       <Link
