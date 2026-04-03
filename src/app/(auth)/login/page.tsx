@@ -212,8 +212,8 @@ function LoginPageInner() {
         password,
       })
       if (signInError) throw signInError
-      // 初回ログイン: パスワード未設定→設定画面へ
-      if (signInData.user?.user_metadata?.needs_password_setup) {
+      // 初回ログイン: パスワード未設定 or Google連携未完了 → セットアップ画面へ
+      if (signInData.user?.user_metadata?.needs_password_setup || signInData.user?.user_metadata?.needs_google_link) {
         window.location.href = '/setup-password'
         return
       }

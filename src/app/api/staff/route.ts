@@ -8,6 +8,7 @@ import { createUser as createZoomUser } from '@/lib/integrations/zoom'
 import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import { filterStaffListForStaffRole } from '@/lib/security/field-filter'
+import { sendEmail, buildWelcomeLoginEmail } from '@/lib/email/send'
 import type { Json } from '@/lib/types/database'
 
 // Vercel Serverless Function のタイムアウトを60秒に延長
@@ -175,6 +176,10 @@ export async function POST(request: NextRequest) {
     const createGoogleAccount = body.create_google_account === true
     const createZoomAccount = body.create_zoom_account === true
 
+    // 共通の初期パスワード生成: Canvi + 電話番号下4桁 + ca
+    const phoneDigits = formData.phone ? String(formData.phone).replace(/\D/g, '').slice(-4) : '0000'
+    const sharedInitialPassword = `Canvi${phoneDigits.padStart(4, '0')}ca`
+
     // Google Workspace provisioning
     if (createGoogleAccount && body.google_email_prefix) {
       try {
@@ -184,6 +189,7 @@ export async function POST(request: NextRequest) {
           givenName: formData.first_name,
           familyName: formData.last_name,
           orgUnitPath: body.google_org_unit || '/スタッフ',
+          password: sharedInitialPassword,
         })
         provisioning.google_workspace = {
           success: true,
@@ -244,29 +250,38 @@ export async function POST(request: NextRequest) {
           }
         } else {
           const adminClient = createAdminClient()
-          const { data: inviteData, error: inviteError } =
-            await adminClient.auth.admin.inviteUserByEmail(portalEmail, {
-              data: {
-                display_name: `${formData.last_name} ${formData.first_name}`,
+          const displayName = `${formData.last_name} ${formData.first_name}`
+          const initialPassword = sharedInitialPassword
+
+          // createUser で直接作成（inviteUserByEmail ではなく）
+          // needs_password_setup / needs_google_link フラグを確実にセット
+          const { data: createData, error: createError } =
+            await adminClient.auth.admin.createUser({
+              email: portalEmail,
+              password: initialPassword,
+              email_confirm: true,
+              user_metadata: {
+                display_name: displayName,
                 invited_role: portalRole || 'staff',
+                needs_password_setup: true,
+                needs_google_link: true,
               },
-              redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'}/setup-password`,
             })
 
-          if (inviteError) {
+          if (createError) {
             provisioning.portal = {
               success: false,
-              error: inviteError.message?.includes('already been registered')
+              error: createError.message?.includes('already been registered') || createError.message?.includes('already exists')
                 ? 'このメールアドレスは既に登録されています'
-                : inviteError.message || 'ポータルアカウントの作成に失敗しました',
+                : createError.message || 'ポータルアカウントの作成に失敗しました',
             }
-          } else if (inviteData.user) {
+          } else if (createData.user) {
             // Create users record
             await adminClient.from('users').upsert(
               {
-                id: inviteData.user.id,
+                id: createData.user.id,
                 email: portalEmail,
-                display_name: `${formData.last_name} ${formData.first_name}`,
+                display_name: displayName,
               },
               { onConflict: 'id' }
             )
@@ -281,7 +296,7 @@ export async function POST(request: NextRequest) {
 
             if (roleData) {
               await adminClient.from('user_roles').upsert(
-                { user_id: inviteData.user.id, role_id: roleData.id },
+                { user_id: createData.user.id, role_id: roleData.id },
                 { onConflict: 'user_id,role_id' }
               )
             }
@@ -289,8 +304,30 @@ export async function POST(request: NextRequest) {
             // Link staff to user
             await supabase
               .from('staff')
-              .update({ user_id: inviteData.user.id })
+              .update({ user_id: createData.user.id })
               .eq('id', staff.id)
+
+            // ウェルカムメール送信
+            try {
+              const loginUrl = process.env.NEXT_PUBLIC_APP_URL
+                ? `${process.env.NEXT_PUBLIC_APP_URL}/login`
+                : 'https://canvi-portal.vercel.app/login'
+
+              const emailContent = buildWelcomeLoginEmail({
+                displayName,
+                email: portalEmail,
+                initialPassword,
+                loginUrl,
+              })
+
+              await sendEmail({
+                to: portalEmail,
+                subject: emailContent.subject,
+                html: emailContent.html,
+              })
+            } catch (emailErr) {
+              console.error('Welcome email send error:', emailErr)
+            }
 
             provisioning.portal = {
               success: true,

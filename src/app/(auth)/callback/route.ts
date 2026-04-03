@@ -34,12 +34,24 @@ export async function GET(request: Request) {
         }
 
         // Upsert user record in public.users table
+        // 既存の display_name を優先し、Google の full_name やメールで上書きしない
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('display_name')
+          .eq('id', user.id)
+          .single()
+
+        const displayName =
+          existingUser?.display_name ||
+          user.user_metadata.display_name ||
+          user.user_metadata.full_name ||
+          user.email!
+
         await supabase.from('users').upsert(
           {
             id: user.id,
             email: user.email!,
-            display_name:
-              user.user_metadata.full_name || user.email!,
+            display_name: displayName,
             avatar_url: user.user_metadata.avatar_url,
           },
           { onConflict: 'id' }
