@@ -18,6 +18,10 @@ export async function GET(request: Request) {
     const supabase = await createServerSupabaseClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
+    if (error) {
+      console.error('OAuth callback exchangeCodeForSession error:', error.message, error)
+    }
+
     if (!error) {
       const {
         data: { user },
@@ -98,6 +102,7 @@ export async function GET(request: Request) {
     }
   }
 
+  console.error('OAuth callback: no code or exchange failed. code:', code ? 'present' : 'missing', 'searchParams:', Object.fromEntries(searchParams.entries()))
   return NextResponse.redirect(`${origin}/login?error=auth_failed`)
 }
 
