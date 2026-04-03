@@ -227,8 +227,8 @@ export function buildWelcomeLoginEmail(params: {
         </div>
 
         <p style="color: #94a3b8; font-size: 12px; line-height: 1.6;">
-          ※ 初期パスワードは初回ログイン専用です。<br />ログイン後に必ずパスワードを再設定してください。<br />
-          ※ Google連携後は、Googleアカウントでもログインが可能になります。<br />
+          ※ 初期パスワードは「Canvi＋電話番号下4桁＋ca」です。<br />ログイン後に必ずパスワードを再設定してください。<br />
+          ※ パスワード設定後、Googleアカウント連携を行うとポータルをご利用いただけます。<br />
           ※ ご不明な点がございましたら管理者にお問い合わせください。
         </p>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
@@ -251,8 +251,9 @@ export function buildAccountActivatedEmail(params: {
           <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>初期パスワード:</strong></p>
           <p style="margin: 4px 0 0; font-size: 18px; color: #78350f; font-weight: 600; font-family: monospace;">${params.initialPassword}</p>
           <p style="margin: 8px 0 0; font-size: 12px; color: #92400e;">
-            Google Workspace / Canvi Portal 共通のパスワードです。<br />
-            ログイン後、セキュリティのためパスワードの変更を推奨します。
+            Google Workspace / Canvi Portal 共通の初期パスワードです。<br />
+            「Canvi＋電話番号下4桁＋ca」の形式です。<br />
+            Canvi Portalは初回ログイン後にパスワードを再設定してください。
           </p>
         </div>
       `

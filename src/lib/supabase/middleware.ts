@@ -95,11 +95,12 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  // 初回ログイン: パスワード未設定→パスワード設定画面へ強制リダイレクト
-  if (user && user.user_metadata?.needs_password_setup) {
+  // 初回ログイン: パスワード未設定 or Google連携未完了 → セットアップ画面へ強制リダイレクト
+  if (user && (user.user_metadata?.needs_password_setup || user.user_metadata?.needs_google_link)) {
     if (
       !request.nextUrl.pathname.startsWith('/setup-password') &&
-      !request.nextUrl.pathname.startsWith('/api')
+      !request.nextUrl.pathname.startsWith('/api') &&
+      !request.nextUrl.pathname.startsWith('/callback')
     ) {
       const url = request.nextUrl.clone()
       url.pathname = '/setup-password'

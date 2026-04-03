@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 
@@ -46,6 +47,14 @@ export async function GET(request: Request) {
 
         // 初回ユーザー（他にユーザーがいなければ）をオーナーに自動設定
         await assignRoleIfFirstUser(supabase, user.id)
+
+        // Google連携完了 → needs_google_link フラグをクリア
+        if (user.user_metadata?.needs_google_link) {
+          const admin = createAdminClient()
+          await admin.auth.admin.updateUserById(user.id, {
+            user_metadata: { needs_google_link: false },
+          })
+        }
 
         // 招待ユーザー（パスワード未設定）→ パスワード設定画面へ
         if (user.user_metadata?.needs_password_setup) {

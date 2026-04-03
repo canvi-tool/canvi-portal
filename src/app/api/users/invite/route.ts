@@ -20,10 +20,11 @@ const inviteSchema = z.object({
   role: z.enum(['admin', 'staff']).default('staff'),
 })
 
-/** 初期パスワードを生成: Canvi + ランダム4桁 + ca */
-function generateInitialPassword(): string {
-  const digits = String(Math.floor(1000 + Math.random() * 9000))
-  return `Canvi${digits}ca`
+/** 電話番号下4桁から初期パスワードを生成: Canvi + 下4桁 + ca */
+function generateInitialPassword(phone: string | null): string {
+  const digits = phone ? phone.replace(/\D/g, '').slice(-4) : '0000'
+  const padded = digits.padStart(4, '0')
+  return `Canvi${padded}ca`
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +36,14 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    const initialPassword = generateInitialPassword()
+    // staffテーブルから電話番号を取得
+    const { data: staffRecord } = await admin
+      .from('staff')
+      .select('phone')
+      .eq('email', email)
+      .single()
+
+    const initialPassword = generateInitialPassword(staffRecord?.phone ?? null)
 
     // Supabase Admin API でユーザーを直接作成（初期パスワード付き）
     const { data: userData, error: createError } =
@@ -47,6 +55,7 @@ export async function POST(request: NextRequest) {
           display_name,
           invited_role: role,
           needs_password_setup: true,
+          needs_google_link: true,
         },
       })
 
