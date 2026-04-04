@@ -93,6 +93,7 @@ export function canAccessRoute(role: DemoRole, path: string): boolean {
       '/dashboard',
       '/projects',
       '/shifts',
+      '/calendar',
       '/reports/work',
       '/reports/performance',
       '/alerts',

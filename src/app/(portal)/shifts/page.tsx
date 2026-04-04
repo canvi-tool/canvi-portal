@@ -1,11 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
   Clock,
   CheckCircle2,
   AlertTriangle,
@@ -15,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -24,35 +20,18 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
-import { ShiftWeeklyTimeline } from './_components/shift-weekly-timeline'
+import { ShiftFullCalendar, type CalendarShift } from './_components/shift-fullcalendar'
+import { ShiftCreateDialog } from './_components/shift-create-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+import { useAuth } from '@/components/providers/auth-provider'
 
 // --- Types ---
-
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
-
-interface Shift {
-  id: string
-  staffId: string
-  staffName: string
-  projectId: string
-  projectName: string
-  date: string
-  startTime: string
-  endTime: string
-  status: ShiftStatus
-  notes?: string
-  submittedAt?: string
-  approvedAt?: string
-  approvalMode: 'AUTO' | 'APPROVAL'
-  googleCalendarSynced?: boolean
-}
 
 interface ProjectOption {
   id: string
   name: string
+  shiftApprovalMode: 'AUTO' | 'APPROVAL'
 }
 
 interface StaffOption {
@@ -60,85 +39,45 @@ interface StaffOption {
   name: string
 }
 
-// --- Status helpers ---
-
-const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string }> = {
-  DRAFT: { label: '下書き', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-300' },
-  SUBMITTED: { label: '申請中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-300' },
-  APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
-  REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
-  NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
-}
-
-// --- Calendar helpers ---
-
-const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month, 0).getDate()
-}
-
-function getFirstDayOfWeek(year: number, month: number) {
-  return new Date(year, month - 1, 1).getDay()
-}
-
-function formatDateStr(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
-function getWeekDates(baseDate: Date): string[] {
-  const dates: string[] = []
-  const dayOfWeek = baseDate.getDay()
-  const startOfWeek = new Date(baseDate)
-  startOfWeek.setDate(startOfWeek.getDate() - dayOfWeek)
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfWeek)
-    d.setDate(d.getDate() + i)
-    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
-  }
-  return dates
-}
-
 // --- Component ---
 
 export default function ShiftsPage() {
   const router = useRouter()
-  const today = useMemo(() => new Date(), [])
-  const todayStr = useMemo(() => {
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  }, [today])
 
-  const [year, setYear] = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth() + 1)
-  const [viewMode, setViewMode] = useState<string>('weekly')
-  const [filterStaff, setFilterStaff] = useState<string>('all')
-  const [filterProject, setFilterProject] = useState<string>('all')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [selectedDate, setSelectedDate] = useState<Date>(today)
-
-  // Data from API
-  const [shifts, setShifts] = useState<Shift[]>([])
+  // Data
+  const [shifts, setShifts] = useState<CalendarShift[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Edit dialog state
-  const [editingShift, setEditingShift] = useState<Shift | null>(null)
+  // Filters
+  const [filterStaff, setFilterStaff] = useState<string>('all')
+  const [filterProject, setFilterProject] = useState<string>('all')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
+
+  // Date range from FullCalendar
+  const [dateRange, setDateRange] = useState({ start: '', end: '' })
+
+  // Create dialog
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
+
+  // Edit dialog
+  const [editingShift, setEditingShift] = useState<{
+    id: string; staffId: string; staffName: string; projectId: string;
+    projectName: string; date: string; startTime: string; endTime: string;
+    status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
+    notes?: string;
+  } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-  // 日付範囲を計算（表示モードに応じて広めに取得）
-  const dateRange = useMemo(() => {
-    // 月の前後1週間を含む範囲
-    const startDate = new Date(year, month - 2, 1)
-    const endDate = new Date(year, month + 1, 0)
-    return {
-      start: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`,
-      end: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`,
-    }
-  }, [year, month])
+  const { demoRole, demoAccount } = useAuth()
+  const isManager = demoRole === 'owner' || demoRole === 'admin'
+  const currentStaffId = demoAccount?.id || ''
 
   // シフトデータ取得
   const fetchShifts = useCallback(async () => {
+    if (!dateRange.start || !dateRange.end) return
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -156,7 +95,7 @@ export default function ShiftsPage() {
       const list = data.data || (Array.isArray(data) ? data : [])
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mapped: Shift[] = list.map((s: any) => {
+      const mapped: CalendarShift[] = list.map((s: any) => {
         const staff = s.staff || {}
         const project = s.project || {}
         return {
@@ -168,12 +107,11 @@ export default function ShiftsPage() {
           date: s.shift_date,
           startTime: (s.start_time || '').slice(0, 5),
           endTime: (s.end_time || '').slice(0, 5),
-          status: s.status as ShiftStatus,
+          status: s.status,
+          shiftType: s.shift_type || 'WORK',
           notes: s.notes,
-          submittedAt: s.submitted_at,
-          approvedAt: s.approved_at,
+          googleMeetUrl: s.google_meet_url,
           approvalMode: project.shift_approval_mode || 'AUTO',
-          googleCalendarSynced: s.google_calendar_synced || false,
         }
       })
 
@@ -192,7 +130,11 @@ export default function ShiftsPage() {
       .then(res => {
         const list = res.data || (Array.isArray(res) ? res : [])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setProjects(list.map((p: any) => ({ id: p.id, name: p.name })))
+        setProjects(list.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          shiftApprovalMode: p.shift_approval_mode || 'AUTO',
+        })))
       })
       .catch(() => {})
 
@@ -213,15 +155,103 @@ export default function ShiftsPage() {
     fetchShifts()
   }, [fetchShifts])
 
-  const handleShiftClick = (shift: { id: string; staffId: string; staffName: string; projectId: string; projectName: string; date: string; startTime: string; endTime: string; status: ShiftStatus; notes?: string }) => {
-    const fullShift = shifts.find(s => s.id === shift.id)
-    if (fullShift) {
-      setEditingShift(fullShift)
-      setEditDialogOpen(true)
-    }
-  }
+  // FullCalendar handlers
 
-  const handleShiftSave = async (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
+  const handleDateRangeChange = useCallback((start: string, end: string) => {
+    setDateRange({ start, end })
+  }, [])
+
+  const handleShiftClick = useCallback((shift: CalendarShift) => {
+    setEditingShift({
+      id: shift.id,
+      staffId: shift.staffId,
+      staffName: shift.staffName,
+      projectId: shift.projectId,
+      projectName: shift.projectName,
+      date: shift.date,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      status: shift.status,
+      notes: shift.notes,
+    })
+    setEditDialogOpen(true)
+  }, [])
+
+  const handleShiftDragUpdate = useCallback(async (
+    shiftId: string, date: string, startTime: string, endTime: string
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shift_date: date,
+          start_time: startTime,
+          end_time: endTime,
+          _dragUpdate: true,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'シフトの更新に失敗しました')
+        return false
+      }
+      toast.success('シフトを移動しました')
+      fetchShifts()
+      return true
+    } catch {
+      toast.error('シフトの更新に失敗しました')
+      return false
+    }
+  }, [fetchShifts])
+
+  const handleShiftCopy = useCallback(async (shiftId: string, targetDate: string) => {
+    const source = shifts.find(s => s.id === shiftId)
+    if (!source || !targetDate) return
+
+    try {
+      const res = await fetch('/api/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_id: source.staffId,
+          project_id: source.projectId,
+          shift_date: targetDate,
+          start_time: source.startTime,
+          end_time: source.endTime,
+          shift_type: source.shiftType,
+          notes: source.notes,
+          created_by: source.staffId,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success(`${targetDate} にシフトをコピーしました`)
+      fetchShifts()
+    } catch {
+      toast.error('シフトのコピーに失敗しました')
+    }
+  }, [shifts, fetchShifts])
+
+  const handleShiftDelete = useCallback(async (shiftId: string) => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('シフトを削除しました')
+        fetchShifts()
+      } else {
+        toast.error('シフトの削除に失敗しました')
+      }
+    } catch {
+      toast.error('シフトの削除に失敗しました')
+    }
+  }, [fetchShifts])
+
+  const handleSlotSelect = useCallback((date: string, startTime: string, endTime: string) => {
+    setCreateInitial({ date, startTime, endTime })
+    setCreateDialogOpen(true)
+  }, [])
+
+  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
     try {
       const res = await fetch(`/api/shifts/${updated.id}`, {
         method: 'PUT',
@@ -240,23 +270,9 @@ export default function ShiftsPage() {
     } catch {
       toast.error('シフトの更新に失敗しました')
     }
-  }
+  }, [fetchShifts])
 
-  const handleShiftDelete = async (shiftId: string) => {
-    try {
-      const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
-      if (res.ok) {
-        toast.success('シフトを削除しました')
-        fetchShifts()
-      } else {
-        toast.error('シフトの削除に失敗しました')
-      }
-    } catch {
-      toast.error('シフトの削除に失敗しました')
-    }
-  }
-
-  const handleShiftApprove = async (shiftId: string) => {
+  const handleShiftApprove = useCallback(async (shiftId: string) => {
     try {
       const res = await fetch(`/api/shifts/${shiftId}/approve`, {
         method: 'POST',
@@ -266,15 +282,13 @@ export default function ShiftsPage() {
       if (res.ok) {
         toast.success('シフトを承認しました')
         fetchShifts()
-      } else {
-        toast.error('シフトの承認に失敗しました')
       }
     } catch {
       toast.error('シフトの承認に失敗しました')
     }
-  }
+  }, [fetchShifts])
 
-  const handleShiftReject = async (shiftId: string) => {
+  const handleShiftReject = useCallback(async (shiftId: string) => {
     try {
       const res = await fetch(`/api/shifts/${shiftId}/approve`, {
         method: 'POST',
@@ -284,84 +298,38 @@ export default function ShiftsPage() {
       if (res.ok) {
         toast.success('シフトを却下しました')
         fetchShifts()
-      } else {
-        toast.error('シフトの却下に失敗しました')
       }
     } catch {
       toast.error('シフトの却下に失敗しました')
     }
-  }
-
-  const handlePrevMonth = () => {
-    if (month === 1) { setYear(year - 1); setMonth(12) } else { setMonth(month - 1) }
-  }
-  const handleNextMonth = () => {
-    if (month === 12) { setYear(year + 1); setMonth(1) } else { setMonth(month + 1) }
-  }
-  const handlePrevWeek = () => {
-    const d = new Date(selectedDate)
-    d.setDate(d.getDate() - 7)
-    setSelectedDate(d)
-  }
-  const handleNextWeek = () => {
-    const d = new Date(selectedDate)
-    d.setDate(d.getDate() + 7)
-    setSelectedDate(d)
-  }
-  const handlePrevDay = () => {
-    const d = new Date(selectedDate)
-    d.setDate(d.getDate() - 1)
-    setSelectedDate(d)
-  }
-  const handleNextDay = () => {
-    const d = new Date(selectedDate)
-    d.setDate(d.getDate() + 1)
-    setSelectedDate(d)
-  }
+  }, [fetchShifts])
 
   // Stats
   const totalShifts = shifts.length
   const pendingCount = shifts.filter(s => s.status === 'SUBMITTED').length
   const approvedCount = shifts.filter(s => s.status === 'APPROVED').length
 
-  // Month shifts grouped by date
-  const monthShiftsByDate = useMemo(() => {
-    const map: Record<string, Shift[]> = {}
-    for (const shift of shifts) {
-      const [sy, sm] = shift.date.split('-').map(Number)
-      if (sy === year && sm === month) {
-        if (!map[shift.date]) map[shift.date] = []
-        map[shift.date].push(shift)
-      }
-    }
-    return map
-  }, [shifts, year, month])
-
-  // Week dates
-  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate])
-
-  // Day shifts
-  const selectedDayStr = useMemo(() => {
-    return `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
-  }, [selectedDate])
-  const dayShifts = useMemo(() => {
-    return shifts.filter(s => s.date === selectedDayStr).sort((a, b) => a.startTime.localeCompare(b.startTime))
-  }, [shifts, selectedDayStr])
-
-  // Calendar grid
-  const daysInMonth = getDaysInMonth(year, month)
-  const firstDay = getFirstDayOfWeek(year, month)
-
   // Filter labels
-  const projectLabels: Record<string, string> = { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
-  const staffLabels: Record<string, string> = { all: '全スタッフ', ...Object.fromEntries(staffList.map(s => [s.id, s.name])) }
-  const statusLabels: Record<string, string> = { all: '全ステータス', ...Object.fromEntries(Object.entries(STATUS_CONFIG).map(([k, v]) => [k, v.label])) }
+  const projectLabels = useMemo<Record<string, string>>(() => (
+    { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
+  ), [projects])
+  const staffLabels = useMemo<Record<string, string>>(() => (
+    { all: '全スタッフ', ...Object.fromEntries(staffList.map(s => [s.id, s.name])) }
+  ), [staffList])
+  const statusLabels = useMemo<Record<string, string>>(() => ({
+    all: '全ステータス',
+    DRAFT: '下書き',
+    SUBMITTED: '申請中',
+    APPROVED: '承認済',
+    REJECTED: '却下',
+    NEEDS_REVISION: '修正依頼',
+  }), [])
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="シフト管理"
-        description="シフトデータを管理します"
+        description="ドラッグ&リサイズでシフトを直感的に管理"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -376,13 +344,6 @@ export default function ShiftsPage() {
                   {pendingCount}
                 </Badge>
               )}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => router.push('/shifts/new')}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              シフト登録
             </Button>
           </div>
         }
@@ -438,9 +399,8 @@ export default function ShiftsPage() {
             <SelectValueWithLabel value={filterStatus} labels={statusLabels} placeholder="全状態" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全ステータス</SelectItem>
-            {Object.entries(STATUS_CONFIG).map(([key, val]) => (
-              <SelectItem key={key} value={key}>{val.label}</SelectItem>
+            {Object.entries(statusLabels).map(([key, val]) => (
+              <SelectItem key={key} value={key}>{val}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -462,161 +422,33 @@ export default function ShiftsPage() {
         )}
       </div>
 
-      {/* Calendar with Navigation */}
-      <Tabs value={viewMode} onValueChange={setViewMode}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={viewMode === 'monthly' ? handlePrevMonth : viewMode === 'weekly' ? handlePrevWeek : handlePrevDay}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-semibold min-w-[120px] text-center">
-              {viewMode === 'monthly' && `${year}年${month}月`}
-              {viewMode === 'weekly' && `${weekDates[0]?.slice(5).replace('-', '/')} ~ ${weekDates[6]?.slice(5).replace('-', '/')}`}
-              {viewMode === 'daily' && `${selectedDate.getMonth() + 1}/${selectedDate.getDate()}(${WEEKDAY_LABELS[selectedDate.getDay()]})`}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={viewMode === 'monthly' ? handleNextMonth : viewMode === 'weekly' ? handleNextWeek : handleNextDay}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs h-8 px-3 ml-1"
-              onClick={() => {
-                setSelectedDate(today)
-                setYear(today.getFullYear())
-                setMonth(today.getMonth() + 1)
-              }}
-            >
-              今日
-            </Button>
-          </div>
+      {/* FullCalendar */}
+      <ShiftFullCalendar
+        shifts={shifts}
+        isManager={isManager}
+        onShiftClick={handleShiftClick}
+        onShiftDragUpdate={handleShiftDragUpdate}
+        onShiftCopy={handleShiftCopy}
+        onShiftDelete={handleShiftDelete}
+        onSlotSelect={handleSlotSelect}
+        onDateRangeChange={handleDateRangeChange}
+      />
 
-          <TabsList className="h-8">
-            <TabsTrigger value="monthly" className="text-xs px-3 h-6">月</TabsTrigger>
-            <TabsTrigger value="weekly" className="text-xs px-3 h-6">週</TabsTrigger>
-            <TabsTrigger value="daily" className="text-xs px-3 h-6">日</TabsTrigger>
-          </TabsList>
-        </div>
+      {/* Create Dialog */}
+      <ShiftCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        initialDate={createInitial.date}
+        initialStartTime={createInitial.startTime}
+        initialEndTime={createInitial.endTime}
+        projects={projects}
+        staffList={staffList}
+        currentStaffId={currentStaffId}
+        isManager={isManager}
+        onCreated={fetchShifts}
+      />
 
-        {/* Monthly View */}
-        <TabsContent value="monthly">
-          <Card>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-7 border-b">
-                {WEEKDAY_LABELS.map((label, i) => (
-                  <div
-                    key={label}
-                    className={cn(
-                      'py-2 text-center text-xs font-medium',
-                      i === 0 && 'text-red-500',
-                      i === 6 && 'text-blue-500',
-                      i !== 0 && i !== 6 && 'text-muted-foreground'
-                    )}
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7">
-                {Array.from({ length: firstDay }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[110px] border-b border-r p-1" />
-                ))}
-                {Array.from({ length: daysInMonth }).map((_, i) => {
-                  const day = i + 1
-                  const dateStr = formatDateStr(year, month, day)
-                  const dayOfWeek = (firstDay + i) % 7
-                  const dayShifts = monthShiftsByDate[dateStr] || []
-                  const isToday = dateStr === todayStr
-
-                  return (
-                    <div
-                      key={day}
-                      className={cn(
-                        'min-h-[110px] border-b border-r p-1 cursor-pointer transition-colors hover:bg-muted/50',
-                        isToday && 'bg-blue-50/50'
-                      )}
-                      onClick={() => {
-                        setSelectedDate(new Date(dateStr + 'T00:00:00'))
-                        setViewMode('daily')
-                      }}
-                    >
-                      <div className={cn(
-                        'text-xs font-medium mb-1',
-                        dayOfWeek === 0 && 'text-red-500',
-                        dayOfWeek === 6 && 'text-blue-500'
-                      )}>
-                        {isToday ? (
-                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-[10px]">
-                            {day}
-                          </span>
-                        ) : day}
-                      </div>
-                      <div className="space-y-0.5">
-                        {dayShifts.slice(0, 3).map(shift => (
-                          <div
-                            key={shift.id}
-                            className={cn(
-                              'text-[10px] leading-tight px-1 py-0.5 rounded border truncate',
-                              STATUS_CONFIG[shift.status]?.bgColor,
-                              STATUS_CONFIG[shift.status]?.color
-                            )}
-                          >
-                            {shift.startTime.slice(0, 5)} {shift.staffName}
-                          </div>
-                        ))}
-                        {dayShifts.length > 3 && (
-                          <div className="text-[10px] text-muted-foreground px-1">
-                            +{dayShifts.length - 3}件
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center gap-4 mt-3 flex-wrap">
-            {Object.entries(STATUS_CONFIG).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-1.5">
-                <span className={cn('inline-block w-3 h-3 rounded border', val.bgColor)} />
-                <span className="text-xs text-muted-foreground">{val.label}</span>
-              </div>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Weekly View */}
-        <TabsContent value="weekly">
-          <ShiftWeeklyTimeline
-            weekDates={weekDates}
-            shifts={shifts}
-            onShiftClick={handleShiftClick}
-          />
-        </TabsContent>
-
-        {/* Daily View */}
-        <TabsContent value="daily">
-          <ShiftWeeklyTimeline
-            weekDates={[selectedDayStr]}
-            shifts={dayShifts}
-            onShiftClick={handleShiftClick}
-          />
-        </TabsContent>
-      </Tabs>
-
-      {/* Shift Edit Dialog */}
+      {/* Edit Dialog */}
       <ShiftEditDialog
         shift={editingShift}
         open={editDialogOpen}

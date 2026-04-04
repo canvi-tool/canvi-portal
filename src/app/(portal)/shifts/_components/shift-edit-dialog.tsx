@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Clock, User, Briefcase, Calendar, Pencil, Trash2, CheckCircle2, XCircle, Send } from 'lucide-react'
+import { Clock, User, Briefcase, Calendar, Pencil, Trash2, CheckCircle2, XCircle, Send, Video, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +28,7 @@ interface ShiftItem {
   endTime: string
   status: ShiftStatus
   notes?: string
+  googleMeetUrl?: string | null
 }
 
 interface ShiftEditDialogProps {
@@ -196,6 +197,30 @@ export function ShiftEditDialog({
               <span className="text-muted-foreground">{shift.notes}</span>
             </div>
           ) : null}
+
+          {/* Google Meet URL */}
+          {shift.googleMeetUrl && (
+            <div className="flex items-center gap-3 text-sm">
+              <Video className="h-4 w-4 text-blue-500 shrink-0" />
+              <a
+                href={shift.googleMeetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline truncate"
+              >
+                Google Meet に参加
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(shift.googleMeetUrl!)
+                }}
+                className="p-1 rounded hover:bg-muted"
+                title="URLをコピー"
+              >
+                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

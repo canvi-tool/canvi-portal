@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createServerSupabaseClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
       console.error('OAuth callback exchangeCodeForSession error:', error.message, error)
@@ -26,6 +26,20 @@ export async function GET(request: Request) {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+
+      // Google OAuthトークンを保存（Calendar API用）
+      const providerToken = sessionData?.session?.provider_token
+      const providerRefreshToken = sessionData?.session?.provider_refresh_token
+      if (user && (providerToken || providerRefreshToken)) {
+        const admin = createAdminClient()
+        await admin.from('users').update({
+          google_access_token: providerToken || null,
+          google_refresh_token: providerRefreshToken || null,
+          google_token_expires_at: providerToken
+            ? new Date(Date.now() + 3600 * 1000).toISOString()
+            : null,
+        }).eq('id', user.id)
+      }
 
       if (user) {
         // ドメイン制限チェック

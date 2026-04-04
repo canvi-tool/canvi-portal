@@ -16,6 +16,9 @@ export interface Database {
           display_name: string
           avatar_url: string | null
           locale: string
+          google_access_token: string | null
+          google_refresh_token: string | null
+          google_token_expires_at: string | null
           created_at: string
           updated_at: string
         }
@@ -25,6 +28,9 @@ export interface Database {
           display_name: string
           avatar_url?: string | null
           locale?: string
+          google_access_token?: string | null
+          google_refresh_token?: string | null
+          google_token_expires_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -34,6 +40,9 @@ export interface Database {
           display_name?: string
           avatar_url?: string | null
           locale?: string
+          google_access_token?: string | null
+          google_refresh_token?: string | null
+          google_token_expires_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -669,9 +678,11 @@ export interface Database {
           start_time: string
           end_time: string
           status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          shift_type: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes: string | null
           google_calendar_event_id: string | null
           google_calendar_synced: boolean
+          google_meet_url: string | null
           submitted_at: string | null
           approved_at: string | null
           approved_by: string | null
@@ -688,9 +699,11 @@ export interface Database {
           start_time: string
           end_time: string
           status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes?: string | null
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean
+          google_meet_url?: string | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
@@ -707,9 +720,11 @@ export interface Database {
           start_time?: string
           end_time?: string
           status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes?: string | null
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean
+          google_meet_url?: string | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null

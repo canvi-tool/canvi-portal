@@ -156,6 +156,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'プロジェクト', href: '/projects', icon: 'Briefcase' },
   { label: '書類管理', href: '/documents', icon: 'FileStack' },
   { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
+  { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
   { label: '勤怠管理', href: '/attendance', icon: 'Clock' },
   { label: '勤務報告', href: '/reports/work', icon: 'ClipboardList' },
   { label: '業務実績', href: '/reports/performance', icon: 'BarChart3' },

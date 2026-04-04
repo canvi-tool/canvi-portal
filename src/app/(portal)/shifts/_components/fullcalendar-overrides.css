@@ -1,0 +1,166 @@
+/* FullCalendar + shadcn/Tailwind統合CSS */
+
+/* 基本フォント・ボーダー */
+.fc {
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-today-bg-color: hsl(var(--primary) / 0.04);
+  font-family: inherit;
+}
+
+.fc .fc-scrollgrid {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ヘッダーツールバー非表示（独自ヘッダー使用） */
+.fc .fc-header-toolbar {
+  display: none !important;
+}
+
+/* 列ヘッダー */
+.fc .fc-col-header-cell {
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.3);
+}
+
+.fc .fc-col-header-cell.fc-day-today {
+  color: hsl(var(--primary));
+}
+
+/* 時間軸 */
+.fc .fc-timegrid-slot-label {
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+  padding-right: 8px;
+}
+
+.fc .fc-timegrid-slot {
+  height: 2.5rem;
+}
+
+/* イベント */
+.fc .fc-timegrid-event {
+  border-radius: 6px;
+  border: none;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+  font-size: 0.7rem;
+  overflow: hidden;
+}
+
+.fc .fc-timegrid-event:hover {
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  transform: translateY(-1px);
+}
+
+.fc .fc-timegrid-event .fc-event-main {
+  padding: 2px 6px;
+  overflow: hidden;
+}
+
+.fc .fc-timegrid-event .fc-event-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc .fc-timegrid-event .fc-event-time {
+  font-size: 0.65rem;
+  opacity: 0.85;
+}
+
+/* リサイズハンドル */
+.fc .fc-timegrid-event .fc-event-resizer {
+  height: 8px;
+  bottom: 0;
+  cursor: s-resize;
+}
+
+.fc .fc-timegrid-event .fc-event-resizer::after {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+  margin: 3px auto 0;
+}
+
+/* 今日のハイライト */
+.fc .fc-day-today {
+  background: hsl(var(--primary) / 0.03) !important;
+}
+
+/* 全日イベント（有給・休暇等） */
+.fc .fc-daygrid-event {
+  border-radius: 4px;
+  border: none;
+  font-size: 0.7rem;
+  padding: 1px 4px;
+}
+
+/* 現在時刻の赤線 */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: hsl(var(--destructive));
+  border-width: 2px;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: hsl(var(--destructive));
+}
+
+/* スクロール */
+.fc .fc-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* ステータスドット */
+.shift-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+/* 右クリックメニュー */
+.shift-context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+  padding: 4px;
+}
+
+.shift-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  color: hsl(var(--popover-foreground));
+}
+
+.shift-context-menu-item:hover {
+  background: hsl(var(--accent));
+}
+
+.shift-context-menu-separator {
+  height: 1px;
+  background: hsl(var(--border));
+  margin: 4px 0;
+}

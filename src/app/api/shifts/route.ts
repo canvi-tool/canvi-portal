@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema } from '@/lib/validations/shift'
 import { getProjectAccess } from '@/lib/auth/project-access'
+import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -287,6 +288,7 @@ export async function POST(request: NextRequest) {
       shift_date: parsed.data.shift_date,
       start_time: parsed.data.start_time,
       end_time: parsed.data.end_time,
+      shift_type: parsed.data.shift_type || 'WORK',
       notes: parsed.data.notes || null,
       created_by: body.created_by || null,
     }
@@ -309,6 +311,13 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // AUTO承認時はGoogleカレンダー同期（fire-and-forget）
+    if (isAutoApproval && data?.id) {
+      syncShiftToCalendar(data.id).catch((e) =>
+        console.error('Calendar sync failed:', e)
+      )
     }
 
     return NextResponse.json(data, { status: 201 })

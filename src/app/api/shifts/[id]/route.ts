@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { shiftFormSchema } from '@/lib/validations/shift'
+import { shiftFormSchema, shiftDragUpdateSchema } from '@/lib/validations/shift'
+import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
+import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -98,27 +100,39 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-
-    const parsed = shiftFormSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'バリデーションエラー', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const isDragUpdate = body._dragUpdate === true
 
     if (DEMO_MODE) {
       return NextResponse.json({
         ...DEMO_SHIFT,
         id,
-        ...parsed.data,
+        ...body,
         updated_at: new Date().toISOString(),
       })
     }
 
+    // ドラッグ操作は部分更新スキーマ、通常は全体スキーマ
+    if (isDragUpdate) {
+      const parsed = shiftDragUpdateSchema.safeParse(body)
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: 'バリデーションエラー', details: parsed.error.flatten() },
+          { status: 400 }
+        )
+      }
+    } else {
+      const parsed = shiftFormSchema.safeParse(body)
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: 'バリデーションエラー', details: parsed.error.flatten() },
+          { status: 400 }
+        )
+      }
+    }
+
     const supabase = await createServerSupabaseClient()
 
-    // ステータスチェック: APPROVED済みのシフトは直接編集不可
+    // ステータスチェック
     const { data: existing } = await supabase
       .from('shifts')
       .select('status')
@@ -130,24 +144,41 @@ export async function PUT(
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
     }
 
+    // APPROVED済みシフトは管理者/オーナーのみ編集可能
     if (existing.status === 'APPROVED') {
-      return NextResponse.json(
-        { error: '承認済みのシフトは直接編集できません。修正を申請してください。' },
-        { status: 400 }
-      )
+      const currentUser = await getCurrentUser()
+      if (!currentUser || !isManagerOrOwner(currentUser)) {
+        return NextResponse.json(
+          { error: '承認済みのシフトは管理者のみ編集できます。' },
+          { status: 403 }
+        )
+      }
+    }
+
+    // 更新データ構築
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (isDragUpdate) {
+      // ドラッグ操作: 日時のみ更新
+      updateData.shift_date = body.shift_date
+      updateData.start_time = body.start_time
+      updateData.end_time = body.end_time
+    } else {
+      // 通常更新: 全フィールド
+      updateData.staff_id = body.staff_id
+      updateData.project_id = body.project_id
+      updateData.shift_date = body.shift_date
+      updateData.start_time = body.start_time
+      updateData.end_time = body.end_time
+      updateData.shift_type = body.shift_type || 'WORK'
+      updateData.notes = body.notes || null
     }
 
     const { data, error } = await supabase
       .from('shifts')
-      .update({
-        staff_id: parsed.data.staff_id,
-        project_id: parsed.data.project_id,
-        shift_date: parsed.data.shift_date,
-        start_time: parsed.data.start_time,
-        end_time: parsed.data.end_time,
-        notes: parsed.data.notes || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .is('deleted_at', null)
       .select()
@@ -158,6 +189,13 @@ export async function PUT(
         return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // APPROVED状態のシフトが変更された場合、Googleカレンダーも同期
+    if (data?.status === 'APPROVED' && data?.id) {
+      syncShiftToCalendar(data.id).catch((e) =>
+        console.error('Calendar sync failed:', e)
+      )
     }
 
     return NextResponse.json(data)
@@ -174,11 +212,22 @@ export async function DELETE(
   try {
     const { id } = await params
 
+    // 認証チェック
+    const currentUser = await getCurrentUser()
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
     if (DEMO_MODE) {
       return NextResponse.json({ success: true })
     }
 
     const supabase = await createServerSupabaseClient()
+
+    // Googleカレンダーからイベント削除（fire-and-forget）
+    deleteShiftFromCalendar(id).catch((e) =>
+      console.error('Calendar delete failed:', e)
+    )
 
     // 論理削除
     const { error } = await supabase

@@ -202,6 +202,10 @@ export function isStaff(user: UserWithRole): boolean {
   return hasRole(user, 'staff')
 }
 
+export function isManagerOrOwner(user: UserWithRole): boolean {
+  return hasRole(user, 'owner') || hasRole(user, 'admin')
+}
+
 export async function checkPermission(
   resource: string,
   action: string

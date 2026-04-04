@@ -232,6 +232,131 @@ export class GoogleCalendarClient {
     }
   }
 
+  async createEvent(params: {
+    calendarId?: string
+    summary: string
+    description?: string
+    startDateTime: string
+    endDateTime: string
+    timeZone?: string
+    withMeet?: boolean
+    attendees?: string[]
+  }): Promise<{ eventId: string; meetUrl: string | null }> {
+    const {
+      calendarId = 'primary',
+      summary,
+      description,
+      startDateTime,
+      endDateTime,
+      timeZone = 'Asia/Tokyo',
+      withMeet = false,
+      attendees,
+    } = params
+
+    const requestBody: calendar_v3.Schema$Event = {
+      summary,
+      description,
+      start: { dateTime: startDateTime, timeZone },
+      end: { dateTime: endDateTime, timeZone },
+    }
+
+    if (attendees?.length) {
+      requestBody.attendees = attendees.map((email) => ({ email }))
+    }
+
+    if (withMeet) {
+      requestBody.conferenceData = {
+        createRequest: {
+          requestId: `canvi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      }
+    }
+
+    const response = await this.calendar.events.insert({
+      calendarId,
+      requestBody,
+      conferenceDataVersion: withMeet ? 1 : 0,
+    })
+
+    return {
+      eventId: response.data.id || '',
+      meetUrl: response.data.conferenceData?.entryPoints?.find(
+        (ep) => ep.entryPointType === 'video'
+      )?.uri || null,
+    }
+  }
+
+  async updateEvent(params: {
+    calendarId?: string
+    eventId: string
+    summary?: string
+    description?: string
+    startDateTime?: string
+    endDateTime?: string
+    timeZone?: string
+  }): Promise<void> {
+    const {
+      calendarId = 'primary',
+      eventId,
+      summary,
+      description,
+      startDateTime,
+      endDateTime,
+      timeZone = 'Asia/Tokyo',
+    } = params
+
+    const requestBody: calendar_v3.Schema$Event = {}
+    if (summary !== undefined) requestBody.summary = summary
+    if (description !== undefined) requestBody.description = description
+    if (startDateTime) requestBody.start = { dateTime: startDateTime, timeZone }
+    if (endDateTime) requestBody.end = { dateTime: endDateTime, timeZone }
+
+    await this.calendar.events.patch({
+      calendarId,
+      eventId,
+      requestBody,
+    })
+  }
+
+  async deleteEvent(calendarId: string = 'primary', eventId: string): Promise<void> {
+    await this.calendar.events.delete({
+      calendarId,
+      eventId,
+    })
+  }
+
+  async getFreeBusy(params: {
+    emails: string[]
+    timeMin: string
+    timeMax: string
+    timeZone?: string
+  }): Promise<Record<string, Array<{ start: string; end: string }>>> {
+    const { emails, timeMin, timeMax, timeZone = 'Asia/Tokyo' } = params
+
+    const response = await this.calendar.freebusy.query({
+      requestBody: {
+        timeMin,
+        timeMax,
+        timeZone,
+        items: emails.map((id) => ({ id })),
+      },
+    })
+
+    const result: Record<string, Array<{ start: string; end: string }>> = {}
+    const calendars = response.data.calendars || {}
+
+    for (const email of emails) {
+      const cal = calendars[email]
+      result[email] = (cal?.busy || []).map((b) => ({
+        start: b.start || '',
+        end: b.end || '',
+      }))
+    }
+
+    return result
+  }
+
   static async getAuthUrl(): Promise<string> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,

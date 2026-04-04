@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
+import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
+import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -15,6 +17,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+
+    // 認証・権限チェック: マネージャーまたはオーナーのみ承認可能
+    const currentUser = await getCurrentUser()
+    if (!currentUser || !isManagerOrOwner(currentUser)) {
+      return NextResponse.json({ error: '承認権限がありません' }, { status: 403 })
+    }
+
     const body = await request.json().catch(() => ({}))
 
     const parsed = shiftApprovalSchema.safeParse({ action: 'APPROVE', ...body })
@@ -52,15 +61,14 @@ export async function POST(
     }
 
     const now = new Date().toISOString()
-    const approvedBy = body.approved_by || body.performed_by
 
-    // ステータスを APPROVED に更新
+    // ステータスを APPROVED に更新（認証済みユーザーIDを使用）
     const { data, error } = await supabase
       .from('shifts')
       .update({
         status: 'APPROVED',
         approved_at: now,
-        approved_by: approvedBy || null,
+        approved_by: currentUser.id,
         updated_at: now,
       })
       .eq('id', id)
@@ -76,8 +84,15 @@ export async function POST(
       shift_id: id,
       action: 'APPROVE',
       comment: comment || null,
-      performed_by: approvedBy,
+      performed_by: currentUser.id,
     })
+
+    // 承認時にGoogleカレンダー同期（fire-and-forget）
+    if (data?.id) {
+      syncShiftToCalendar(data.id).catch((e) =>
+        console.error('Calendar sync on approve failed:', e)
+      )
+    }
 
     return NextResponse.json({
       ...data,

@@ -56,16 +56,6 @@ export async function POST(request: NextRequest) {
       timeMax
     )
 
-    // Log sync result
-    console.log('Sync result:', {
-      calendar_id,
-      project_id,
-      staff_id,
-      start_date,
-      end_date,
-      ...result,
-    })
-
     return NextResponse.json({
       ...result,
       synced_at: new Date().toISOString(),

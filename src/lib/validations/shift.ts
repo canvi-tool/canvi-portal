@@ -1,11 +1,23 @@
 import { z } from 'zod'
 
+export const SHIFT_TYPES = ['WORK', 'PAID_LEAVE', 'ABSENCE', 'HALF_DAY_LEAVE', 'SPECIAL_LEAVE'] as const
+export type ShiftType = typeof SHIFT_TYPES[number]
+
+export const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
+  WORK: '通常勤務',
+  PAID_LEAVE: '有給休暇',
+  ABSENCE: '欠勤',
+  HALF_DAY_LEAVE: '半休',
+  SPECIAL_LEAVE: '特別休暇',
+}
+
 export const shiftFormSchema = z.object({
   staff_id: z.string().min(1, 'スタッフは必須です'),
   project_id: z.string().min(1, 'プロジェクトは必須です'),
   shift_date: z.string().min(1, '日付は必須です'),
   start_time: z.string().min(1, '開始時刻は必須です'),
   end_time: z.string().min(1, '終了時刻は必須です'),
+  shift_type: z.enum(SHIFT_TYPES).default('WORK'),
   notes: z.string().optional(),
 }).refine((data) => data.start_time < data.end_time, {
   message: '終了時刻は開始時刻より後にしてください',
@@ -13,6 +25,17 @@ export const shiftFormSchema = z.object({
 })
 
 export type ShiftFormValues = z.input<typeof shiftFormSchema>
+
+export const shiftDragUpdateSchema = z.object({
+  shift_date: z.string().min(1),
+  start_time: z.string().min(1),
+  end_time: z.string().min(1),
+}).refine((data) => data.start_time < data.end_time, {
+  message: '終了時刻は開始時刻より後にしてください',
+  path: ['end_time'],
+})
+
+export type ShiftDragUpdateValues = z.infer<typeof shiftDragUpdateSchema>
 
 export const shiftApprovalSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT', 'NEEDS_REVISION', 'MODIFY', 'COMMENT']),
