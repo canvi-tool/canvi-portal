@@ -396,6 +396,113 @@ export async function createSlackChannel(
   }
 }
 
+// =============== ユーザー検索・チャンネル招待 ===============
+
+/**
+ * メールアドレスからSlackユーザーIDを検索（users.lookupByEmail）
+ * 必要スコープ: users:read.email
+ */
+export async function lookupSlackUserByEmail(
+  email: string
+): Promise<{ slackUserId?: string; error?: string }> {
+  const token = getBotToken()
+  if (!token) {
+    return { error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    const params = new URLSearchParams({ email })
+    const res = await fetch(`https://slack.com/api/users.lookupByEmail?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      if (data.error === 'users_not_found') {
+        return { error: `Slackにこのメールアドレスのユーザーが見つかりません: ${email}` }
+      }
+      if (data.error === 'missing_scope') {
+        return { error: 'Botに users:read.email スコープが必要です' }
+      }
+      return { error: `Slack API error: ${data.error}` }
+    }
+
+    return { slackUserId: data.user?.id }
+  } catch (err) {
+    return { error: (err as Error).message }
+  }
+}
+
+/**
+ * Slackチャンネルにユーザーを招待（conversations.invite）
+ * 必要スコープ: channels:manage (public) / groups:write (private)
+ */
+export async function inviteUserToSlackChannel(
+  channelId: string,
+  slackUserId: string
+): Promise<{ success: boolean; error?: string; alreadyInChannel?: boolean }> {
+  const token = getBotToken()
+  if (!token) {
+    return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/conversations.invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        users: slackUserId,
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      if (data.error === 'already_in_channel') {
+        return { success: true, alreadyInChannel: true }
+      }
+      const errorMessages: Record<string, string> = {
+        'channel_not_found': 'チャンネルが見つかりません',
+        'not_in_channel': 'Botがチャンネルに参加していません',
+        'cant_invite_self': '自分自身を招待することはできません',
+        'user_not_found': 'ユーザーが見つかりません',
+        'cant_invite': 'このユーザーを招待できません',
+        'is_archived': 'アーカイブ済みチャンネルには招待できません',
+      }
+      return { success: false, error: errorMessages[data.error] || `Slack API error: ${data.error}` }
+    }
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/**
+ * メールアドレスからSlackユーザーを検索し、チャンネルに招待する
+ * 一連の処理をまとめたヘルパー
+ */
+export async function inviteStaffToSlackChannel(
+  email: string,
+  channelId: string
+): Promise<{ success: boolean; error?: string; alreadyInChannel?: boolean; slackUserId?: string }> {
+  // 1. メールアドレスからSlack User IDを検索
+  const lookup = await lookupSlackUserByEmail(email)
+  if (!lookup.slackUserId) {
+    return { success: false, error: lookup.error || 'Slackユーザーが見つかりません' }
+  }
+
+  // 2. チャンネルに招待
+  const invite = await inviteUserToSlackChannel(channelId, lookup.slackUserId)
+  return {
+    ...invite,
+    slackUserId: lookup.slackUserId,
+  }
+}
+
 // =============== 通知テンプレート ===============
 
 /**
@@ -410,7 +517,7 @@ export function buildClockInNotification(staffName: string, projectName?: string
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:green_circle: *${staffName}* さんが出勤しました`,
+          text: `🟢 *${staffName}* さんが出勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*時刻:* ${timeStr}` },
@@ -433,7 +540,7 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:red_circle: *${staffName}* さんが退勤しました`,
+          text: `🔴 *${staffName}* さんが退勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*時刻:* ${timeStr}` },

@@ -42,6 +42,8 @@ export function ProjectForm({
   submitLabel = '保存',
 }: ProjectFormProps) {
   const [clients, setClients] = useState<Client[]>([])
+  const [isLoadingNumber, setIsLoadingNumber] = useState(false)
+  const isEditMode = !!defaultValues?.project_number
 
   const {
     register,
@@ -80,6 +82,24 @@ export function ProjectForm({
       setValue('project_code', `${projectType}-${projectNumber}`)
     }
   }, [projectType, projectNumber, setValue])
+
+  // 新規作成時: プロジェクトタイプ変更で次の空き番号を自動取得
+  useEffect(() => {
+    if (isEditMode) return // 編集時は自動採番しない
+
+    if (!projectType) return
+
+    setIsLoadingNumber(true)
+    fetch(`/api/projects/next-number?type=${projectType}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.next_number) {
+          setValue('project_number', res.next_number)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingNumber(false))
+  }, [projectType, isEditMode, setValue])
 
   // Fetch clients
   useEffect(() => {
@@ -127,21 +147,27 @@ export function ProjectForm({
             name="project_number"
             control={control}
             render={({ field }) => (
-              <Input
-                value={field.value}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, '').slice(0, 3)
-                  field.onChange(v)
-                }}
-                onBlur={() => {
-                  if (field.value) {
-                    field.onChange(field.value.padStart(3, '0'))
-                  }
-                }}
-                placeholder="001"
-                className="w-20"
-                maxLength={3}
-              />
+              <div className="relative">
+                <Input
+                  value={field.value}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 3)
+                    field.onChange(v)
+                  }}
+                  onBlur={() => {
+                    if (field.value) {
+                      field.onChange(field.value.padStart(3, '0'))
+                    }
+                  }}
+                  placeholder="001"
+                  className="w-20"
+                  maxLength={3}
+                  disabled={isLoadingNumber}
+                />
+                {isLoadingNumber && (
+                  <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                )}
+              </div>
             )}
           />
           <span className="text-sm text-muted-foreground">

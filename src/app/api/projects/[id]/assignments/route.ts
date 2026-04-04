@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { assignmentFormSchema } from '@/lib/validations/assignment'
+import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildMemberAssignedNotification } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -81,6 +82,48 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // --- Slack連携: チャンネル招待 + アサイン通知 ---
+    // バックグラウンドで実行（レスポンスを遅延させない）
+    const staffData = data.staff as { display_name?: string; email?: string } | null
+    const staffEmail = staffData?.email
+    const staffName = staffData?.display_name || '不明'
+
+    // プロジェクト情報を取得（Slackチャンネル情報含む）
+    const { data: project } = await supabase
+      .from('projects')
+      .select('name, slack_channel_id, slack_channel_name')
+      .eq('id', projectId)
+      .single()
+
+    if (project?.slack_channel_id && staffEmail) {
+      // Slackチャンネルにスタッフを招待
+      const inviteResult = await inviteStaffToSlackChannel(
+        staffEmail,
+        project.slack_channel_id
+      )
+      if (!inviteResult.success && !inviteResult.alreadyInChannel) {
+        console.warn(
+          `Slack channel invite failed for ${staffEmail} to ${project.slack_channel_name}:`,
+          inviteResult.error
+        )
+      }
+    }
+
+    // アサイン通知を送信
+    if (project?.slack_channel_id) {
+      const notification = buildMemberAssignedNotification(
+        staffName,
+        project.name || 'プロジェクト',
+        parsed.data.role_title || undefined
+      )
+      await sendProjectNotificationIfEnabled(
+        notification,
+        projectId,
+        project.slack_channel_id,
+        'member_assigned'
+      )
     }
 
     return NextResponse.json(data, { status: 201 })
