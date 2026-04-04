@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { attendanceModifySchema } from '@/lib/validations/attendance'
-import { sendSlackMessage, buildClockOutNotification } from '@/lib/integrations/slack'
+import {
+  sendProjectNotification,
+  buildClockOutNotification,
+  buildBreakStartNotification,
+  buildBreakEndNotification,
+} from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -72,11 +77,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（退勤）
+        // Slack通知（退勤） - プロジェクト紐付けチャンネルに送信
+        let projectSlackChannelId: string | null = null
+        if (record.project_id) {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('slack_channel_id')
+            .eq('id', record.project_id)
+            .single()
+          projectSlackChannelId = proj?.slack_channel_id || null
+        }
         const staffName = user.displayName || user.email || 'メンバー'
         const hours = Math.floor(workMinutes / 60)
         const mins = workMinutes % 60
-        sendSlackMessage(buildClockOutNotification(staffName, `${hours}h ${mins}m`)).catch(() => {})
+        sendProjectNotification(
+          buildClockOutNotification(staffName, `${hours}h ${mins}m`),
+          projectSlackChannelId
+        ).catch(() => {})
 
         return NextResponse.json(data)
       }
@@ -99,6 +116,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (error) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
+
+        // Slack通知（休憩開始）
+        if (record.project_id) {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('slack_channel_id')
+            .eq('id', record.project_id)
+            .single()
+          const breakStaffName = user.displayName || user.email || 'メンバー'
+          sendProjectNotification(
+            buildBreakStartNotification(breakStaffName),
+            proj?.slack_channel_id || null
+          ).catch(() => {})
+        }
+
         return NextResponse.json(data)
       }
 
@@ -127,6 +159,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (error) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
+
+        // Slack通知（休憩終了）
+        if (record.project_id) {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('slack_channel_id')
+            .eq('id', record.project_id)
+            .single()
+          const breakEndStaffName = user.displayName || user.email || 'メンバー'
+          sendProjectNotification(
+            buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
+            proj?.slack_channel_id || null
+          ).catch(() => {})
+        }
+
         return NextResponse.json(data)
       }
 

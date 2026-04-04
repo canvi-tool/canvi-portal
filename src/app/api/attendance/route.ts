@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
-import { sendSlackMessage, buildClockInNotification } from '@/lib/integrations/slack'
+import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -143,8 +143,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Slack通知（非同期・失敗してもエラーにしない）
+    // プロジェクトに紐付くSlackチャンネルに送信
+    let projectSlackChannelId: string | null = null
+    let projectName: string | undefined
+    if (parsed.data.project_id) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('slack_channel_id, name')
+        .eq('id', parsed.data.project_id)
+        .single()
+      projectSlackChannelId = proj?.slack_channel_id || null
+      projectName = proj?.name
+    }
     const staffName = user.displayName || user.email || 'メンバー'
-    sendSlackMessage(buildClockInNotification(staffName)).catch(() => {})
+    sendProjectNotification(
+      buildClockInNotification(staffName, projectName),
+      projectSlackChannelId
+    ).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })
   } catch (error) {

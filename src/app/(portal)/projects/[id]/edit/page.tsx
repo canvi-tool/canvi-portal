@@ -69,6 +69,8 @@ export default function EditProjectPage({ params }: PageProps) {
     start_date: project.start_date || '',
     end_date: project.end_date || '',
     google_calendar_id: customFields?.google_calendar_id || '',
+    slack_channel_id: project.slack_channel_id || '',
+    slack_channel_name: project.slack_channel_name || '',
   }
 
   return (

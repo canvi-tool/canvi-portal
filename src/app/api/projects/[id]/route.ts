@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const { project_code, project_type, project_number, google_calendar_id, client_id, ...rest } = parsed.data
+    const { project_code, project_type, project_number, google_calendar_id, client_id, slack_channel_id, slack_channel_name, ...rest } = parsed.data
 
     const { data, error } = await supabase
       .from('projects')
@@ -75,6 +75,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         client_name: rest.client_name || null,
         start_date: rest.start_date || null,
         end_date: rest.end_date || null,
+        slack_channel_id: slack_channel_id || null,
+        slack_channel_name: slack_channel_name || null,
         custom_fields: {
           google_calendar_id: google_calendar_id || null,
         },

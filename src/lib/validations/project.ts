@@ -43,6 +43,16 @@ export const projectFormSchema = z.object({
     .max(500, 'Google Calendar IDは500文字以内で入力してください')
     .optional()
     .or(z.literal('')),
+  slack_channel_id: z
+    .string()
+    .max(100)
+    .optional()
+    .or(z.literal('')),
+  slack_channel_name: z
+    .string()
+    .max(200)
+    .optional()
+    .or(z.literal('')),
 })
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>

@@ -477,6 +477,8 @@ export interface Database {
           custom_fields: Json | null
           metadata: Json | null
           shift_approval_mode: 'AUTO' | 'APPROVAL'
+          slack_channel_id: string | null
+          slack_channel_name: string | null
           created_by: string | null
           created_at: string
           updated_at: string
@@ -496,6 +498,8 @@ export interface Database {
           custom_fields?: Json | null
           metadata?: Json | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
+          slack_channel_id?: string | null
+          slack_channel_name?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -515,6 +519,8 @@ export interface Database {
           custom_fields?: Json | null
           metadata?: Json | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
+          slack_channel_id?: string | null
+          slack_channel_name?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string

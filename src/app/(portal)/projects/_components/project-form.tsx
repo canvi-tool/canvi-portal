@@ -17,12 +17,18 @@ import {
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Hash, AlertCircle } from 'lucide-react'
 
 interface Client {
   id: string
   client_code: string
   name: string
+}
+
+interface SlackChannel {
+  id: string
+  name: string
+  is_private: boolean
 }
 
 interface ProjectFormProps {
@@ -41,6 +47,9 @@ export function ProjectForm({
   submitLabel = '保存',
 }: ProjectFormProps) {
   const [clients, setClients] = useState<Client[]>([])
+  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([])
+  const [slackLoading, setSlackLoading] = useState(false)
+  const [slackError, setSlackError] = useState<string | null>(null)
 
   const {
     register,
@@ -63,6 +72,8 @@ export function ProjectForm({
       start_date: '',
       end_date: '',
       google_calendar_id: '',
+      slack_channel_id: '',
+      slack_channel_name: '',
       ...defaultValues,
     },
   })
@@ -87,6 +98,19 @@ export function ProjectForm({
         else if (Array.isArray(res)) setClients(res)
       })
       .catch(() => {})
+  }, [])
+
+  // Fetch Slack channels
+  useEffect(() => {
+    setSlackLoading(true)
+    fetch('/api/slack/channels')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.channels) setSlackChannels(res.channels)
+        if (res.error && !res.channels?.length) setSlackError(res.error)
+      })
+      .catch(() => setSlackError('Slackチャンネルの取得に失敗しました'))
+      .finally(() => setSlackLoading(false))
   }, [])
 
   return (
@@ -273,6 +297,55 @@ export function ProjectForm({
           placeholder="カレンダーIDを入力"
           {...register('google_calendar_id')}
         />
+      </div>
+
+      {/* Slack チャンネル連携 */}
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5">
+          <Hash className="h-4 w-4" />
+          Slack通知チャンネル
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          このPJの出退勤通知・アラートを送信するSlackチャンネルを選択
+        </p>
+        {slackError && !slackChannels.length ? (
+          <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください</span>
+          </div>
+        ) : (
+          <Controller
+            name="slack_channel_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value || undefined}
+                onValueChange={(val) => {
+                  if (val === '__none__') {
+                    field.onChange('')
+                    setValue('slack_channel_name', '')
+                  } else {
+                    field.onChange(val)
+                    const ch = slackChannels.find((c) => c.id === val)
+                    setValue('slack_channel_name', ch ? `#${ch.name}` : '')
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={slackLoading ? '読込中...' : 'チャンネルを選択'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">（通知なし）</SelectItem>
+                  {slackChannels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      {ch.is_private ? '🔒' : '#'} {ch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        )}
       </div>
 
       {/* Actions */}
