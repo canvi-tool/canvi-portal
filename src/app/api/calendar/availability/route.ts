@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     // Googleカレンダーからbusy時間を取得
     // 各メンバーの自分のトークンで自分のカレンダーを取得
-    let googleBusy: Record<string, Array<{ start: string; end: string }>> = {}
+    const googleBusy: Record<string, Array<{ start: string; end: string }>> = {}
 
     const busyPromises = users.map(async (u) => {
       const token = await getValidTokenForUser(u.id)
