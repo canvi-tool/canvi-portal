@@ -15,12 +15,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import {
@@ -88,7 +89,8 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<string>('overview')
 
   // Add member form state
-  const [newStaffId, setNewStaffId] = useState('')
+  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set())
+  const [staffFilter, setStaffFilter] = useState('')
   const [newRole, setNewRole] = useState('')
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
@@ -113,19 +115,34 @@ export default function ProjectDetailPage({ params }: PageProps) {
   }
 
   const handleAddMember = async () => {
-    if (!newStaffId || !newStartDate) {
+    if (selectedStaffIds.size === 0 || !newStartDate) {
       toast.error('スタッフと開始日は必須です')
       return
     }
     try {
-      await createAssignment.mutateAsync({
-        staff_id: newStaffId,
-        role_title: newRole,
-        status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
-        start_date: newStartDate,
-        end_date: newEndDate || undefined,
-      })
-      toast.success('メンバーを追加しました')
+      let successCount = 0
+      const errors: string[] = []
+      for (const staffId of selectedStaffIds) {
+        try {
+          await createAssignment.mutateAsync({
+            staff_id: staffId,
+            role_title: newRole,
+            status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
+            start_date: newStartDate,
+            end_date: newEndDate || undefined,
+          })
+          successCount++
+        } catch (error) {
+          const staffName = (staffList || []).find(s => s.id === staffId)
+          errors.push(`${staffName?.last_name || ''}${staffName?.first_name || ''}: ${error instanceof Error ? error.message : '失敗'}`)
+        }
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount}名のメンバーを追加しました`)
+      }
+      if (errors.length > 0) {
+        for (const e of errors) toast.error(e)
+      }
       setAddMemberOpen(false)
       resetAddForm()
     } catch (error) {
@@ -146,8 +163,21 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   }
 
+  const toggleStaffSelection = (staffId: string) => {
+    setSelectedStaffIds(prev => {
+      const next = new Set(prev)
+      if (next.has(staffId)) {
+        next.delete(staffId)
+      } else {
+        next.add(staffId)
+      }
+      return next
+    })
+  }
+
   const resetAddForm = () => {
-    setNewStaffId('')
+    setSelectedStaffIds(new Set())
+    setStaffFilter('')
     setNewRole('')
     setNewStartDate('')
     setNewEndDate('')
@@ -685,19 +715,54 @@ export default function ProjectDetailPage({ params }: PageProps) {
             <div className="space-y-2">
               <Label>
                 スタッフ <span className="text-destructive">*</span>
+                {selectedStaffIds.size > 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                    {selectedStaffIds.size}名選択中
+                  </span>
+                )}
               </Label>
-              <Select value={newStaffId} onValueChange={(val) => setNewStaffId(val ?? '')}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="スタッフを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(staffList || []).map((staff) => (
-                    <SelectItem key={staff.id} value={staff.id}>
-                      {staff.last_name} {staff.first_name} ({staff.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                placeholder="名前で検索..."
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <ScrollArea className="h-[180px] rounded-md border">
+                <div className="p-2 space-y-1">
+                  {(() => {
+                    const assignedIds = new Set((assignments || []).map(a => a.staff_id))
+                    const available = (staffList || [])
+                      .filter(s => !assignedIds.has(s.id))
+                      .filter(s => {
+                        if (!staffFilter) return true
+                        const name = `${s.last_name}${s.first_name}${s.email}`
+                        return name.toLowerCase().includes(staffFilter.toLowerCase())
+                      })
+                    if (available.length === 0) {
+                      return (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          対象スタッフがいません
+                        </p>
+                      )
+                    }
+                    return available.map(staff => (
+                      <label
+                        key={staff.id}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer text-sm"
+                      >
+                        <Checkbox
+                          checked={selectedStaffIds.has(staff.id)}
+                          onChange={() => toggleStaffSelection(staff.id)}
+                        />
+                        <span>{staff.last_name} {staff.first_name}</span>
+                        <span className="text-xs text-muted-foreground ml-auto truncate">
+                          {staff.email}
+                        </span>
+                      </label>
+                    ))
+                  })()}
+                </div>
+              </ScrollArea>
             </div>
 
             <div className="space-y-2">

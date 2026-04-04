@@ -83,52 +83,60 @@ export async function POST(request: NextRequest) {
       warnings: [] as string[],
     }
 
-    // Step 1: Slackユーザー検索
+    // Step 1: Slackユーザー検索（手動入力されたSlack User IDがあればそちらを使用）
     let slackUserId: string | undefined
-    const lookup = await lookupSlackUserByEmail(staff.email)
 
-    if (lookup.slackUserId) {
-      slackUserId = lookup.slackUserId
+    if (body.slack_user_id && typeof body.slack_user_id === 'string') {
+      // 手動入力されたSlack User ID
+      slackUserId = body.slack_user_id.trim()
       results.user_found = true
     } else {
-      // Step 2: ユーザーが見つからない → ワークスペースに招待
-      const invite = await inviteUserToSlackWorkspace(staff.email, channel_ids)
+      const lookup = await lookupSlackUserByEmail(staff.email)
 
-      if (!invite.success) {
-        // already_in_team の場合はメールが異なる可能性
-        if (invite.error?.includes('既にワークスペースに参加')) {
-          results.warnings.push('ユーザーは既にワークスペースに参加していますが、メールアドレスが一致しません')
+      if (lookup.slackUserId) {
+        slackUserId = lookup.slackUserId
+        results.user_found = true
+      } else {
+        // ユーザーが見つからない → ワークスペース招待を試行
+        const invite = await inviteUserToSlackWorkspace(staff.email, channel_ids)
+
+        if (!invite.success) {
+          // admin スコープがない or 既に参加済みだがメール不一致
+          return NextResponse.json(
+            {
+              error: 'Slackユーザーが見つかりません。' +
+                'Slack管理画面からユーザーを招待した後、再度お試しください。' +
+                'または「Slack User ID手動入力」をお使いください。',
+              error_code: 'user_not_found',
+              original_error: invite.error,
+              results,
+            },
+            { status: 400 }
+          )
         }
 
-        return NextResponse.json(
-          {
-            error: invite.error || 'Slackへの招待に失敗しました',
+        results.workspace_invited = true
+
+        // 招待後、少し待ってからユーザーID取得を試行
+        await new Promise((r) => setTimeout(r, 2000))
+        const lookupRetry = await lookupSlackUserByEmail(staff.email)
+        slackUserId = lookupRetry.slackUserId
+
+        if (!slackUserId) {
+          return NextResponse.json({
+            success: true,
+            message: 'Slack招待メールを送信しました。ユーザーが招待を承認した後、自動的に連携されます。',
             results,
-          },
-          { status: 400 }
-        )
-      }
-
-      results.workspace_invited = true
-
-      // 招待後、少し待ってからユーザーID取得を試行
-      // （招待直後はユーザーがまだ参加していない可能性が高い）
-      await new Promise((r) => setTimeout(r, 2000))
-      const lookupRetry = await lookupSlackUserByEmail(staff.email)
-      slackUserId = lookupRetry.slackUserId
-
-      if (!slackUserId) {
-        // 招待は成功したがユーザーがまだ参加していない
-        // DB保存は後で sync-users で行う
-        return NextResponse.json({
-          success: true,
-          message: 'Slack招待メールを送信しました。ユーザーが招待を承認した後、自動的に連携されます。',
-          results,
-        })
+          })
+        }
       }
     }
 
-    results.slack_user_id = slackUserId
+    results.slack_user_id = slackUserId ?? null
+
+    if (!slackUserId) {
+      return NextResponse.json({ error: 'Slack User IDを特定できませんでした' }, { status: 400 })
+    }
 
     // Step 3: 表示名を更新
     const profileResult = await updateSlackUserProfile(slackUserId, display_name)

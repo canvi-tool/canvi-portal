@@ -5,11 +5,21 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { ClientForm } from '../_components/client-form'
 import type { ClientFormValues } from '@/lib/validations/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function NewClientPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [nextCode, setNextCode] = useState<string>('')
+
+  useEffect(() => {
+    fetch('/api/clients/next-code')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.code) setNextCode(data.code)
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(data: ClientFormValues) {
     try {
@@ -43,7 +53,14 @@ export default function NewClientPage() {
         title="クライアント新規登録"
         description="新しいクライアントの情報を入力してください"
       />
-      <ClientForm onSubmit={handleSubmit} isLoading={isLoading} />
+      {nextCode && (
+        <ClientForm
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          defaultValues={{ client_code: nextCode }}
+          codeReadOnly
+        />
+      )}
     </div>
   )
 }

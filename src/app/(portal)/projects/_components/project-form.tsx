@@ -12,7 +12,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
@@ -258,7 +257,11 @@ export function ProjectForm({
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="クライアントを選択" />
+                <SelectValueWithLabel
+                  value={field.value || null}
+                  labels={Object.fromEntries(clients.map(c => [c.id, `${c.name}（${c.client_code}）`]))}
+                  placeholder="クライアントを選択"
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">（なし）</SelectItem>

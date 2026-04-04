@@ -69,6 +69,8 @@ export function SlackProvisionDialog({
   const [channelsLoading, setChannelsLoading] = useState(false)
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set())
   const [channelFilter, setChannelFilter] = useState('')
+  const [manualSlackId, setManualSlackId] = useState('')
+  const [showManualInput, setShowManualInput] = useState(false)
 
   // チャンネル一覧取得
   const fetchChannels = useCallback(async () => {
@@ -91,6 +93,8 @@ export function SlackProvisionDialog({
       setDisplayName(generateSlackDisplayName(staff))
       setSelectedChannels(new Set())
       setChannelFilter('')
+      setManualSlackId('')
+      setShowManualInput(false)
       fetchChannels()
     }
   }, [staff, open, fetchChannels])
@@ -116,19 +120,30 @@ export function SlackProvisionDialog({
     setLoading(true)
 
     try {
+      const payload: Record<string, unknown> = {
+        staff_id: staff.id,
+        display_name: displayName.trim(),
+        channel_ids: Array.from(selectedChannels),
+      }
+      if (manualSlackId.trim()) {
+        payload.slack_user_id = manualSlackId.trim()
+      }
+
       const res = await fetch('/api/slack/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          staff_id: staff.id,
-          display_name: displayName.trim(),
-          channel_ids: Array.from(selectedChannels),
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
+        // ユーザー未発見 → 手動入力モードを表示
+        if (data.error_code === 'user_not_found') {
+          setShowManualInput(true)
+          toast.error('Slackユーザーが見つかりません。手動でSlack User IDを入力するか、Slack管理画面から招待してください。')
+          return
+        }
         throw new Error(data.error || 'Slack連携に失敗しました')
       }
 
@@ -185,6 +200,25 @@ export function SlackProvisionDialog({
               形式: 英字名（頭大文字） / 姓名
             </p>
           </div>
+
+          {/* Slack User ID 手動入力（ユーザー未発見時） */}
+          {showManualInput && (
+            <div className="space-y-2 rounded-md border border-orange-200 bg-orange-50 p-3">
+              <Label htmlFor="manual-slack-id" className="text-orange-800">
+                Slack User ID（手動入力）
+              </Label>
+              <Input
+                id="manual-slack-id"
+                value={manualSlackId}
+                onChange={(e) => setManualSlackId(e.target.value)}
+                placeholder="U0XXXXXXXXX"
+                className="font-mono"
+              />
+              <p className="text-xs text-orange-600">
+                Slackでユーザーのプロフィールを開き「⋮」→「メンバーIDをコピー」で取得できます
+              </p>
+            </div>
+          )}
 
           {/* チャンネル選択 */}
           <div className="space-y-2">

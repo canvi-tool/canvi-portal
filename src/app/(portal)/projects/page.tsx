@@ -21,7 +21,7 @@ import {
 import { PROJECT_STATUS_LABELS } from '@/lib/constants'
 import { useProjects, useBulkUpdateProjectStatus, type Project } from '@/hooks/use-projects'
 import { toast } from 'sonner'
-import { Plus, Search, Briefcase, Users } from 'lucide-react'
+import { Plus, Search, Briefcase, Users, MessageSquare } from 'lucide-react'
 
 const BULK_STATUS_OPTIONS = [
   { value: 'active', label: '稼働中に変更' },
@@ -148,6 +148,16 @@ export default function ProjectsPage() {
       accessor: (row) => row.end_date ?? '',
       cell: (row) =>
         row.end_date || <span className="text-muted-foreground">-</span>,
+    },
+    {
+      key: 'slack',
+      header: 'Slack',
+      accessor: (row) => row.slack_channel_id ?? '',
+      cell: (row) => (
+        <MessageSquare
+          className={`h-4 w-4 ${row.slack_channel_id ? 'text-green-600' : 'text-gray-300'}`}
+        />
+      ),
     },
     {
       key: 'assignment_count',

@@ -88,9 +88,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // --- Slack連携: チャンネル招待 + アサイン通知 ---
     // バックグラウンドで実行（レスポンスを遅延させない）
-    const staffData = data.staff as { display_name?: string; email?: string } | null
+    const staffData = data.staff as { last_name?: string; first_name?: string; email?: string } | null
     const staffEmail = staffData?.email
-    const staffName = staffData?.display_name || '不明'
+    const staffName = staffData ? `${staffData.last_name || ''} ${staffData.first_name || ''}`.trim() || '不明' : '不明'
 
     // プロジェクト情報を取得（Slackチャンネル情報含む）
     const { data: project } = await supabase

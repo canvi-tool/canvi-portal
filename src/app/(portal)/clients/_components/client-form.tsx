@@ -27,6 +27,7 @@ interface ClientFormProps {
   defaultValues?: Partial<ClientFormValues>
   onSubmit: (data: ClientFormValues) => void | Promise<void>
   isLoading?: boolean
+  codeReadOnly?: boolean
 }
 
 function FormField({
@@ -52,7 +53,7 @@ function FormField({
   )
 }
 
-export function ClientForm({ defaultValues, onSubmit, isLoading }: ClientFormProps) {
+export function ClientForm({ defaultValues, onSubmit, isLoading, codeReadOnly }: ClientFormProps) {
   const {
     register,
     handleSubmit,
@@ -92,6 +93,8 @@ export function ClientForm({ defaultValues, onSubmit, isLoading }: ClientFormPro
               <Input
                 {...register('client_code')}
                 placeholder="例: CLT-001"
+                readOnly={codeReadOnly}
+                className={codeReadOnly ? 'bg-muted' : ''}
               />
             </FormField>
 
