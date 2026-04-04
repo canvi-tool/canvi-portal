@@ -78,14 +78,11 @@ export async function GET(request: NextRequest) {
 
       try {
         const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-        const result = await client.getFreeBusy({
-          emails: [u.email],
-          timeMin,
-          timeMax,
-        })
-        return { email: u.email, busy: result[u.email] || [] }
+        // events.list APIを使用（calendar.eventsスコープで動作する）
+        const busy = await client.getBusyFromEvents({ timeMin, timeMax })
+        return { email: u.email, busy }
       } catch (e) {
-        console.warn(`FreeBusy API failed for ${u.email}:`, e)
+        console.warn(`Calendar API failed for ${u.email}:`, e)
         return { email: u.email, busy: [] as Array<{ start: string; end: string }> }
       }
     })

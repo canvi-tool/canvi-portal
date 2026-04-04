@@ -357,6 +357,35 @@ export class GoogleCalendarClient {
     return result
   }
 
+  /**
+   * events.list APIを使ってbusy時間を取得する（calendar.events スコープで動作）
+   * freeBusy APIが使えない場合のフォールバック
+   */
+  async getBusyFromEvents(params: {
+    timeMin: string
+    timeMax: string
+    timeZone?: string
+  }): Promise<Array<{ start: string; end: string }>> {
+    const { timeMin, timeMax } = params
+
+    const response = await this.calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
+    })
+
+    const events = response.data.items || []
+    return events
+      .filter(e => e.status !== 'cancelled' && (e.start?.dateTime || e.start?.date))
+      .map(e => ({
+        start: e.start?.dateTime || e.start?.date || '',
+        end: e.end?.dateTime || e.end?.date || '',
+      }))
+  }
+
   static async getAuthUrl(): Promise<string> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
