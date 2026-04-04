@@ -388,7 +388,7 @@ export function StaffDetailClient({
                           {a.project?.name || '不明なプロジェクト'}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {a.role && <span className="mr-2">{a.role}</span>}
+                          {a.role_title && <span className="mr-2">{a.role_title}</span>}
                           {a.start_date}
                           {a.end_date ? ` ~ ${a.end_date}` : ' ~'}
                         </p>

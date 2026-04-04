@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updated_at: new Date().toISOString(),
     }
 
-    if (parsed.data.role !== undefined) updateData.role = parsed.data.role || null
+    if (parsed.data.role_title !== undefined) updateData.role_title = parsed.data.role_title || null
     if (parsed.data.status !== undefined) updateData.status = parsed.data.status
     if (parsed.data.start_date !== undefined) updateData.start_date = parsed.data.start_date
     if (parsed.data.end_date !== undefined) updateData.end_date = parsed.data.end_date || null

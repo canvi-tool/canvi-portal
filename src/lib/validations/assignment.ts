@@ -2,12 +2,12 @@ import { z } from 'zod'
 
 export const assignmentFormSchema = z.object({
   staff_id: z.string().min(1, 'スタッフを選択してください'),
-  role: z
+  role_title: z
     .string()
     .max(200, '役割は200文字以内で入力してください')
     .optional()
     .or(z.literal('')),
-  status: z.enum(['pending', 'active', 'suspended', 'ended'], {
+  status: z.enum(['proposed', 'confirmed', 'in_progress', 'completed', 'cancelled'], {
     message: 'ステータスを選択してください',
   }),
   start_date: z.string().min(1, '開始日は必須です'),
@@ -102,8 +102,9 @@ export function validateParams(ruleType: CompensationRuleTypeValue, params: unkn
 }
 
 export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
-  pending: '未開始',
-  active: '稼働中',
-  suspended: '停止中',
-  ended: '終了',
+  proposed: '提案中',
+  confirmed: '確定',
+  in_progress: '稼働中',
+  completed: '完了',
+  cancelled: 'キャンセル',
 }

@@ -206,8 +206,8 @@ async function importAssignments(supabase: any, rows: AssignmentCsvRow[], result
     const record = {
       project_id: projectId,
       staff_id: staffId,
-      role: row.role || null,
-      status: row.status || 'active',
+      role_title: row.role || null,
+      status: row.status || 'confirmed',
       start_date: row.start_date,
       end_date: row.end_date || null,
     }

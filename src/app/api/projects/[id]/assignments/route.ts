@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .select('id')
       .eq('project_id', projectId)
       .eq('staff_id', parsed.data.staff_id)
-      .in('status', ['pending', 'active'])
+      .in('status', ['proposed', 'confirmed', 'in_progress'])
       .maybeSingle()
 
     if (existing) {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .insert({
         project_id: projectId,
         staff_id: parsed.data.staff_id,
-        role: parsed.data.role || null,
+        role_title: parsed.data.role_title || null,
         status: parsed.data.status,
         start_date: parsed.data.start_date,
         end_date: parsed.data.end_date || null,

@@ -93,8 +93,8 @@ function AssignmentCard({
             <CardTitle className="text-base">
               {assignment.staff ? `${assignment.staff.last_name} ${assignment.staff.first_name}` : '(不明)'}
             </CardTitle>
-            {assignment.role && (
-              <Badge variant="outline">{assignment.role}</Badge>
+            {assignment.role_title && (
+              <Badge variant="outline">{assignment.role_title}</Badge>
             )}
             <StatusBadge
               status={assignment.status}
@@ -172,7 +172,7 @@ export default function AssignmentsPage({ params }: PageProps) {
   const [newRole, setNewRole] = useState('')
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
-  const [newStatus, setNewStatus] = useState('active')
+  const [newStatus, setNewStatus] = useState('confirmed')
 
   const handleAddAssignment = async () => {
     if (!newStaffId || !newStartDate) {
@@ -182,8 +182,8 @@ export default function AssignmentsPage({ params }: PageProps) {
     try {
       await createAssignment.mutateAsync({
         staff_id: newStaffId,
-        role: newRole,
-        status: newStatus as 'pending' | 'active' | 'suspended' | 'ended',
+        role_title: newRole,
+        status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
         start_date: newStartDate,
         end_date: newEndDate || undefined,
       })
@@ -193,7 +193,7 @@ export default function AssignmentsPage({ params }: PageProps) {
       setNewRole('')
       setNewStartDate('')
       setNewEndDate('')
-      setNewStatus('active')
+      setNewStatus('confirmed')
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'メンバーの追加に失敗しました'
@@ -326,7 +326,7 @@ export default function AssignmentsPage({ params }: PageProps) {
 
             <div className="space-y-2">
               <Label>ステータス</Label>
-              <Select value={newStatus} onValueChange={(val) => setNewStatus(val ?? 'active')}>
+              <Select value={newStatus} onValueChange={(val) => setNewStatus(val ?? 'confirmed')}>
                 <SelectTrigger className="w-full">
                   <SelectValueWithLabel value={newStatus} labels={ASSIGNMENT_STATUS_LABELS} />
                 </SelectTrigger>

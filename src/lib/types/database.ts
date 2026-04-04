@@ -540,34 +540,58 @@ export interface Database {
           id: string
           project_id: string
           staff_id: string
-          role: string | null
+          role_title: string | null
           status: string
           start_date: string
           end_date: string | null
+          shift_start: string | null
+          shift_end: string | null
+          break_minutes: number | null
+          notes: string | null
+          custom_fields: Json | null
+          created_by: string | null
+          updated_by: string | null
           created_at: string
           updated_at: string
+          deleted_at: string | null
         }
         Insert: {
           id?: string
           project_id: string
           staff_id: string
-          role?: string | null
+          role_title?: string | null
           status?: string
           start_date: string
           end_date?: string | null
+          shift_start?: string | null
+          shift_end?: string | null
+          break_minutes?: number | null
+          notes?: string | null
+          custom_fields?: Json | null
+          created_by?: string | null
+          updated_by?: string | null
           created_at?: string
           updated_at?: string
+          deleted_at?: string | null
         }
         Update: {
           id?: string
           project_id?: string
           staff_id?: string
-          role?: string | null
+          role_title?: string | null
           status?: string
           start_date?: string
           end_date?: string | null
+          shift_start?: string | null
+          shift_end?: string | null
+          break_minutes?: number | null
+          notes?: string | null
+          custom_fields?: Json | null
+          created_by?: string | null
+          updated_by?: string | null
           created_at?: string
           updated_at?: string
+          deleted_at?: string | null
         }
         Relationships: [
           {

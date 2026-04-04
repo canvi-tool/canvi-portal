@@ -21,10 +21,11 @@ interface AssignmentTableProps {
 }
 
 const ASSIGNMENT_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'outline',
-  active: 'default',
-  suspended: 'secondary',
-  ended: 'destructive',
+  proposed: 'outline',
+  confirmed: 'default',
+  in_progress: 'default',
+  completed: 'secondary',
+  cancelled: 'destructive',
 }
 
 export function AssignmentTable({
@@ -46,10 +47,10 @@ export function AssignmentTable({
       ),
     },
     {
-      key: 'role',
+      key: 'role_title',
       header: '役割',
-      accessor: (row) => row.role ?? '',
-      cell: (row) => row.role || <span className="text-muted-foreground">-</span>,
+      accessor: (row) => row.role_title ?? '',
+      cell: (row) => row.role_title || <span className="text-muted-foreground">-</span>,
     },
     {
       key: 'status',

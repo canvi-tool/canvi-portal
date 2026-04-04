@@ -79,7 +79,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [newRole, setNewRole] = useState('')
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
-  const [newStatus, setNewStatus] = useState('active')
+  const [newStatus, setNewStatus] = useState('confirmed')
 
   const { data: staffList } = useStaffList()
 
@@ -103,8 +103,8 @@ export default function ProjectDetailPage({ params }: PageProps) {
     try {
       await createAssignment.mutateAsync({
         staff_id: newStaffId,
-        role: newRole,
-        status: newStatus as 'pending' | 'active' | 'suspended' | 'ended',
+        role_title: newRole,
+        status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
         start_date: newStartDate,
         end_date: newEndDate || undefined,
       })
@@ -134,7 +134,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
     setNewRole('')
     setNewStartDate('')
     setNewEndDate('')
-    setNewStatus('active')
+    setNewStatus('confirmed')
   }
 
   if (projectLoading) {
@@ -346,8 +346,8 @@ export default function ProjectDetailPage({ params }: PageProps) {
                           <span className="font-medium">
                             {assignment.staff ? `${assignment.staff.last_name} ${assignment.staff.first_name}` : '(不明)'}
                           </span>
-                          {assignment.role && (
-                            <Badge variant="outline">{assignment.role}</Badge>
+                          {assignment.role_title && (
+                            <Badge variant="outline">{assignment.role_title}</Badge>
                           )}
                         </div>
                         <Link href={`/projects/${id}/assignments?highlight=${assignment.id}`}>
