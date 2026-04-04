@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -43,6 +44,12 @@ import {
   useStaffList,
 } from '@/hooks/use-projects'
 import {
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+  NOTIFICATION_CATEGORIES,
+  type ProjectNotificationSettings,
+} from '@/hooks/use-notification-settings'
+import {
   Pencil,
   Trash2,
   ArrowLeft,
@@ -54,6 +61,8 @@ import {
   FileText,
   ClipboardList,
   CalendarDays,
+  Bell,
+  Hash,
 } from 'lucide-react'
 
 interface PageProps {
@@ -82,6 +91,10 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [newStatus, setNewStatus] = useState('confirmed')
 
   const { data: staffList } = useStaffList()
+
+  // Slack通知設定
+  const { data: notificationSettings, isLoading: notificationLoading } = useNotificationSettings(id)
+  const updateNotification = useUpdateNotificationSettings(id)
 
   const handleDeleteProject = async () => {
     try {
@@ -135,6 +148,37 @@ export default function ProjectDetailPage({ params }: PageProps) {
     setNewStartDate('')
     setNewEndDate('')
     setNewStatus('confirmed')
+  }
+
+  const handleToggleNotification = async (
+    key: keyof ProjectNotificationSettings,
+    value: boolean
+  ) => {
+    try {
+      await updateNotification.mutateAsync({ [key]: value })
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '通知設定の更新に失敗しました'
+      )
+    }
+  }
+
+  const handleToggleAllInCategory = async (
+    items: { key: keyof ProjectNotificationSettings }[],
+    enable: boolean
+  ) => {
+    const updates: Partial<ProjectNotificationSettings> = {}
+    for (const item of items) {
+      updates[item.key] = enable as never
+    }
+    try {
+      await updateNotification.mutateAsync(updates)
+      toast.success(enable ? '通知をONにしました' : '通知をOFFにしました')
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '通知設定の更新に失敗しました'
+      )
+    }
   }
 
   if (projectLoading) {
@@ -245,6 +289,10 @@ export default function ProjectDetailPage({ params }: PageProps) {
           <TabsTrigger value="shifts">
             <CalendarDays className="h-3.5 w-3.5 mr-1" />
             シフト
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="h-3.5 w-3.5 mr-1" />
+            Slack通知
           </TabsTrigger>
         </TabsList>
 
@@ -414,6 +462,119 @@ export default function ProjectDetailPage({ params }: PageProps) {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Slack Notification Settings Tab */}
+        <TabsContent value="notifications">
+          <div className="space-y-4">
+            {/* Slack Channel Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Slack通知設定
+                </CardTitle>
+                <CardDescription>
+                  このプロジェクトでどのイベントをSlackに通知するか設定します
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 rounded-lg border p-3 bg-muted/30">
+                  <Hash className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">
+                      通知先チャンネル:{' '}
+                      {project.slack_channel_name ? (
+                        <span className="font-mono text-primary">#{project.slack_channel_name}</span>
+                      ) : (
+                        <span className="text-muted-foreground">未設定</span>
+                      )}
+                    </p>
+                    {!project.slack_channel_id && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        プロジェクト編集画面からSlackチャンネルを設定してください
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Notification Toggles */}
+            {notificationLoading ? (
+              <LoadingSkeleton variant="card" rows={3} />
+            ) : (
+              NOTIFICATION_CATEGORIES.map((category) => {
+                const allEnabled = category.items.every(
+                  (item) => notificationSettings?.[item.key] === true
+                )
+                const someEnabled = category.items.some(
+                  (item) => notificationSettings?.[item.key] === true
+                )
+
+                return (
+                  <Card key={category.key}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <span>{category.icon}</span>
+                          {category.label}
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {category.items.filter((item) => notificationSettings?.[item.key] === true).length}
+                            /{category.items.length}
+                          </Badge>
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          disabled={updateNotification.isPending}
+                          onClick={() =>
+                            handleToggleAllInCategory(category.items, !allEnabled)
+                          }
+                        >
+                          {allEnabled ? 'すべてOFF' : someEnabled ? 'すべてON' : 'すべてON'}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="divide-y">
+                        {category.items.map((item) => {
+                          const isEnabled = notificationSettings?.[item.key] === true
+                          return (
+                            <div
+                              key={item.key}
+                              className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                            >
+                              <div className="space-y-0.5 pr-4">
+                                <Label
+                                  htmlFor={`notify-${item.key}`}
+                                  className="text-sm font-medium cursor-pointer"
+                                >
+                                  {item.label}
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.description}
+                                </p>
+                              </div>
+                              <Switch
+                                id={`notify-${item.key}`}
+                                checked={isEnabled}
+                                disabled={updateNotification.isPending}
+                                onCheckedChange={(checked) =>
+                                  handleToggleNotification(item.key, checked)
+                                }
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 

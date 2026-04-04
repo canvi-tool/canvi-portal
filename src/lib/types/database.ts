@@ -1787,6 +1787,80 @@ export interface Database {
           },
         ]
       }
+      project_notification_settings: {
+        Row: {
+          id: string
+          project_id: string
+          attendance_clock_in: boolean
+          attendance_clock_out: boolean
+          attendance_missing: boolean
+          shift_submitted: boolean
+          shift_approved: boolean
+          shift_rejected: boolean
+          report_submitted: boolean
+          report_overdue: boolean
+          contract_unsigned: boolean
+          payment_anomaly: boolean
+          overtime_warning: boolean
+          leave_requested: boolean
+          member_assigned: boolean
+          member_removed: boolean
+          general_alert: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          attendance_clock_in?: boolean
+          attendance_clock_out?: boolean
+          attendance_missing?: boolean
+          shift_submitted?: boolean
+          shift_approved?: boolean
+          shift_rejected?: boolean
+          report_submitted?: boolean
+          report_overdue?: boolean
+          contract_unsigned?: boolean
+          payment_anomaly?: boolean
+          overtime_warning?: boolean
+          leave_requested?: boolean
+          member_assigned?: boolean
+          member_removed?: boolean
+          general_alert?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          attendance_clock_in?: boolean
+          attendance_clock_out?: boolean
+          attendance_missing?: boolean
+          shift_submitted?: boolean
+          shift_approved?: boolean
+          shift_rejected?: boolean
+          report_submitted?: boolean
+          report_overdue?: boolean
+          contract_unsigned?: boolean
+          payment_anomaly?: boolean
+          overtime_warning?: boolean
+          leave_requested?: boolean
+          member_assigned?: boolean
+          member_removed?: boolean
+          general_alert?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_notification_settings_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: true
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
