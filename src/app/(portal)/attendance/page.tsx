@@ -1,9 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
-import { useAttendanceRecords, useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd } from '@/hooks/use-attendance'
-import { useProjects } from '@/hooks/use-projects'
+import {
+  useAttendanceRecords,
+  useTodayAttendance,
+  useMyProjects,
+  useClockIn,
+  useClockOut,
+  useBreakStart,
+  useBreakEnd,
+} from '@/hooks/use-attendance'
+import type { AttendanceRecord, MyProject } from '@/hooks/use-attendance'
 import { toast } from 'sonner'
 import { ATTENDANCE_STATUS_LABELS, LOCATION_TYPE_LABELS } from '@/lib/validations/attendance'
 import {
@@ -15,13 +23,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -38,6 +39,9 @@ import {
   Timer,
   Clock,
   Calendar,
+  FolderOpen,
+  ArrowLeft,
+  RotateCw,
 } from 'lucide-react'
 
 function formatTime(dateStr: string | null) {
@@ -66,95 +70,162 @@ function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'outli
   }
 }
 
-export default function AttendancePage() {
-  // sonner toast is imported at top level
-  const [selectedProject, setSelectedProject] = useState<string>('')
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date()
-    d.setDate(1) // 月初
-    return d.toISOString().split('T')[0]
-  })
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0])
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'clocked_in': return 'bg-green-500'
+    case 'on_break': return 'bg-yellow-500'
+    case 'clocked_out': return 'bg-gray-400'
+    default: return 'bg-gray-300'
+  }
+}
 
-  const { data: todayData } = useTodayAttendance()
-  const { data: projects } = useProjects()
-  const { data: recordsData, isLoading } = useAttendanceRecords({
-    date_from: dateFrom,
-    date_to: dateTo,
-  })
+/** プロジェクトごとの今日の打刻状態を計算 */
+function getProjectTodayStatus(records: AttendanceRecord[], projectId: string) {
+  const projectRecords = records.filter((r) => r.project_id === projectId)
+  const activeRecord = projectRecords.find(
+    (r) => r.status === 'clocked_in' || r.status === 'on_break'
+  )
+  return {
+    records: projectRecords,
+    activeRecord,
+    isActive: !!activeRecord,
+    totalRecords: projectRecords.length,
+  }
+}
 
+/** 経過時間を計算して表示用文字列を返す */
+function calcElapsed(clockIn: string, breakMinutes: number) {
+  const start = new Date(clockIn).getTime()
+  const now = Date.now()
+  const mins = Math.max(0, Math.floor((now - start) / 60000) - (breakMinutes || 0))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${h}h ${m.toString().padStart(2, '0')}m`
+}
+
+// ======= プロジェクト選択画面 =======
+function ProjectSelector({
+  projects,
+  todayRecords,
+  onSelectProject,
+}: {
+  projects: MyProject[]
+  todayRecords: AttendanceRecord[]
+  onSelectProject: (project: MyProject) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        打刻するプロジェクトを選択してください
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => {
+          const status = getProjectTodayStatus(todayRecords, project.id)
+          return (
+            <Card
+              key={project.id}
+              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+              onClick={() => onSelectProject(project)}
+            >
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {project.project_code}
+                    </p>
+                    <p className="font-medium truncate">{project.name}</p>
+                  </div>
+                  {status.isActive && status.activeRecord && (
+                    <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                      <span className={`h-2 w-2 rounded-full animate-pulse ${getStatusColor(status.activeRecord.status)}`} />
+                      <span className="text-xs font-medium">
+                        {status.activeRecord.status === 'clocked_in' ? '勤務中' : '休憩中'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {status.totalRecords > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {status.records.map((r, i) => (
+                      <Badge
+                        key={r.id}
+                        variant={getStatusBadgeVariant(r.status)}
+                        className="text-xs"
+                      >
+                        {i + 1}回目: {formatTime(r.clock_in)}
+                        {r.clock_out ? ` 〜 ${formatTime(r.clock_out)}` : ''}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ======= プロジェクト打刻画面 =======
+function ProjectAttendance({
+  project,
+  todayRecords,
+  onBack,
+}: {
+  project: MyProject
+  todayRecords: AttendanceRecord[]
+  onBack: () => void
+}) {
   const clockIn = useClockIn()
   const clockOut = useClockOut()
   const breakStart = useBreakStart()
   const breakEnd = useBreakEnd()
 
-  const records = recordsData?.data || []
-  const todayStatus = todayData?.status || 'not_clocked_in'
-  const todayRecord = todayData?.record
+  const status = getProjectTodayStatus(todayRecords, project.id)
+  const activeRecord = status.activeRecord
 
-  // 月次集計
-  const monthlySummary = useMemo(() => {
-    const totalWork = records.reduce((sum, r) => sum + (r.work_minutes || 0), 0)
-    const totalOvertime = records.reduce((sum, r) => sum + (r.overtime_minutes || 0), 0)
-    const totalBreak = records.reduce((sum, r) => sum + (r.break_minutes || 0), 0)
-    const workDays = records.filter(r => r.clock_out).length
-    return { totalWork, totalOvertime, totalBreak, workDays }
-  }, [records])
-
-  // 現在時刻リアルタイム表示用
-  const [currentTime, setCurrentTime] = useState('')
+  // リアルタイム経過時間
   const [elapsed, setElapsed] = useState('')
-
-  useState(() => {
+  useEffect(() => {
+    if (!activeRecord?.clock_in || activeRecord.status === 'clocked_out') {
+      setElapsed('')
+      return
+    }
     const update = () => {
-      setCurrentTime(
-        new Date().toLocaleTimeString('ja-JP', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZone: 'Asia/Tokyo',
-        })
-      )
-      if (todayRecord?.clock_in && todayStatus !== 'clocked_out') {
-        const start = new Date(todayRecord.clock_in).getTime()
-        const now = Date.now()
-        const mins = Math.floor((now - start) / 60000) - (todayRecord.break_minutes || 0)
-        const h = Math.floor(mins / 60)
-        const m = mins % 60
-        setElapsed(`${h}h ${m.toString().padStart(2, '0')}m`)
-      }
+      setElapsed(calcElapsed(activeRecord.clock_in!, activeRecord.break_minutes || 0))
     }
     update()
     const interval = setInterval(update, 1000)
     return () => clearInterval(interval)
-  })
+  }, [activeRecord?.clock_in, activeRecord?.status, activeRecord?.break_minutes])
 
   const handleClockIn = async () => {
     try {
       await clockIn.mutateAsync({
-        project_id: selectedProject || undefined,
+        project_id: project.id,
         location_type: 'remote',
       })
-      toast.success('出勤しました')
+      toast.success(`${project.name} に出勤しました`)
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
 
   const handleClockOut = async () => {
-    if (!todayRecord?.id) return
+    if (!activeRecord?.id) return
     try {
-      await clockOut.mutateAsync(todayRecord.id)
-      toast.success('退勤しました')
+      await clockOut.mutateAsync(activeRecord.id)
+      toast.success(`${project.name} を退勤しました`)
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
 
   const handleBreakStart = async () => {
-    if (!todayRecord?.id) return
+    if (!activeRecord?.id) return
     try {
-      await breakStart.mutateAsync(todayRecord.id)
+      await breakStart.mutateAsync(activeRecord.id)
       toast.success('休憩開始')
     } catch (err) {
       toast.error((err as Error).message)
@@ -162,83 +233,73 @@ export default function AttendancePage() {
   }
 
   const handleBreakEnd = async () => {
-    if (!todayRecord?.id) return
+    if (!activeRecord?.id) return
     try {
-      await breakEnd.mutateAsync(todayRecord.id)
+      await breakEnd.mutateAsync(activeRecord.id)
       toast.success('休憩終了')
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
 
+  const canClockIn = !activeRecord // 未出勤 or 退勤済みの場合は再出勤可能
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="勤怠管理"
-        description="出退勤の打刻と勤怠記録の管理を行います。"
-      />
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 -ml-2">
+        <ArrowLeft className="h-4 w-4" />
+        プロジェクト選択に戻る
+      </Button>
 
-      {/* 打刻カード */}
       <Card className="border-2">
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* 現在時刻 */}
-            <div className="text-center sm:text-left">
-              <p className="text-4xl font-mono font-bold tracking-wider">{currentTime}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {new Date().toLocaleDateString('ja-JP', {
-                  year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
-                  timeZone: 'Asia/Tokyo',
-                })}
-              </p>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-mono">{project.project_code}</p>
+              <CardTitle className="text-lg">{project.name}</CardTitle>
             </div>
-
-            {/* ステータス */}
-            <div className="flex-1 flex flex-col items-center gap-2">
-              {todayStatus === 'clocked_in' && (
+            {activeRecord && (
+              <div className="flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full animate-pulse ${getStatusColor(activeRecord.status)}`} />
+                <Badge className={
+                  activeRecord.status === 'clocked_in'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                }>
+                  {activeRecord.status === 'clocked_in' ? '勤務中' : '休憩中'}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            {/* ステータス情報 */}
+            <div className="flex-1 text-center sm:text-left space-y-1">
+              {activeRecord ? (
                 <>
-                  <Badge className="bg-green-100 text-green-700 text-sm px-3 py-1">勤務中</Badge>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Timer className="h-4 w-4" />
-                    <span className="text-xl font-mono font-semibold">{elapsed}</span>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    出勤: {formatTime(activeRecord.clock_in)}
+                  </p>
+                  {elapsed && (
+                    <div className="flex items-center gap-1.5 justify-center sm:justify-start">
+                      <Timer className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-2xl font-mono font-semibold">{elapsed}</span>
+                    </div>
+                  )}
                 </>
-              )}
-              {todayStatus === 'on_break' && (
-                <Badge className="bg-yellow-100 text-yellow-700 text-sm px-3 py-1">休憩中</Badge>
-              )}
-              {todayStatus === 'clocked_out' && (
-                <Badge variant="outline" className="text-sm px-3 py-1">退勤済</Badge>
-              )}
-              {todayStatus === 'not_clocked_in' && (
-                <Badge variant="outline" className="text-sm px-3 py-1 text-muted-foreground">未出勤</Badge>
-              )}
-              {todayRecord?.clock_in && (
-                <p className="text-xs text-muted-foreground">
-                  出勤: {formatTime(todayRecord.clock_in)}
-                  {todayRecord.clock_out && ` / 退勤: ${formatTime(todayRecord.clock_out)}`}
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {status.totalRecords > 0
+                    ? `本日 ${status.totalRecords} 回打刻済み — 再出勤可能`
+                    : '未出勤'}
                 </p>
               )}
             </div>
 
-            {/* PJ選択 + アクションボタン */}
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              {todayStatus === 'not_clocked_in' && projects && projects.length > 0 && (
-                <Select value={selectedProject} onValueChange={setSelectedProject}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="PJ選択（任意）" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.filter(p => p.status === 'active').map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.project_code} - {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              {todayStatus === 'not_clocked_in' && (
+            {/* アクションボタン */}
+            <div className="flex gap-2">
+              {canClockIn && (
                 <Button
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 min-w-[120px]"
@@ -246,12 +307,19 @@ export default function AttendancePage() {
                   disabled={clockIn.isPending}
                 >
                   <LogIn className="h-5 w-5 mr-2" />
-                  {clockIn.isPending ? '処理中...' : '出勤'}
+                  {status.totalRecords > 0 ? (
+                    <>
+                      <RotateCw className="h-4 w-4 mr-1" />
+                      再出勤
+                    </>
+                  ) : (
+                    '出勤'
+                  )}
                 </Button>
               )}
 
-              {todayStatus === 'clocked_in' && (
-                <div className="flex gap-2">
+              {activeRecord?.status === 'clocked_in' && (
+                <>
                   <Button
                     size="lg"
                     variant="outline"
@@ -270,10 +338,10 @@ export default function AttendancePage() {
                     <LogOut className="h-5 w-5 mr-2" />
                     退勤
                   </Button>
-                </div>
+                </>
               )}
 
-              {todayStatus === 'on_break' && (
+              {activeRecord?.status === 'on_break' && (
                 <Button
                   size="lg"
                   className="bg-blue-600 hover:bg-blue-700 min-w-[120px]"
@@ -286,8 +354,173 @@ export default function AttendancePage() {
               )}
             </div>
           </div>
+
+          {/* このPJの今日の打刻履歴 */}
+          {status.totalRecords > 0 && (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-xs text-muted-foreground mb-2">本日の打刻履歴</p>
+              <div className="space-y-1.5">
+                {status.records.map((r, i) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-3 text-sm py-1 px-2 rounded bg-muted/50"
+                  >
+                    <span className="text-xs text-muted-foreground w-12">{i + 1}回目</span>
+                    <span className="font-mono">{formatTime(r.clock_in)}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-mono">
+                      {r.clock_out ? formatTime(r.clock_out) : '---'}
+                    </span>
+                    {r.work_minutes != null && r.clock_out && (
+                      <span className="text-muted-foreground text-xs">
+                        ({formatMinutes(r.work_minutes)})
+                      </span>
+                    )}
+                    <Badge variant={getStatusBadgeVariant(r.status)} className="text-xs ml-auto">
+                      {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ======= メインページ =======
+export default function AttendancePage() {
+  const [selectedProject, setSelectedProject] = useState<MyProject | null>(null)
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0])
+
+  const { data: todayData } = useTodayAttendance()
+  const { data: myProjects, isLoading: projectsLoading } = useMyProjects()
+  const { data: recordsData, isLoading } = useAttendanceRecords({
+    date_from: dateFrom,
+    date_to: dateTo,
+  })
+
+  const todayRecords = todayData?.records || []
+  const records = recordsData?.data || []
+
+  // 現在時刻リアルタイム表示
+  const [currentTime, setCurrentTime] = useState('')
+  useEffect(() => {
+    const update = () => {
+      setCurrentTime(
+        new Date().toLocaleTimeString('ja-JP', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZone: 'Asia/Tokyo',
+        })
+      )
+    }
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // アサインPJが1つだけの場合は自動選択
+  useEffect(() => {
+    if (myProjects && myProjects.length === 1 && !selectedProject) {
+      setSelectedProject(myProjects[0])
+    }
+  }, [myProjects, selectedProject])
+
+  // 月次集計
+  const monthlySummary = useMemo(() => {
+    const totalWork = records.reduce((sum, r) => sum + (r.work_minutes || 0), 0)
+    const totalOvertime = records.reduce((sum, r) => sum + (r.overtime_minutes || 0), 0)
+    const totalBreak = records.reduce((sum, r) => sum + (r.break_minutes || 0), 0)
+    const workDays = new Set(records.filter((r) => r.clock_out).map((r) => r.date)).size
+    return { totalWork, totalOvertime, totalBreak, workDays }
+  }, [records])
+
+  // 勤務中のPJ数
+  const activeProjectCount = useMemo(() => {
+    return todayRecords.filter(
+      (r) => r.status === 'clocked_in' || r.status === 'on_break'
+    ).length
+  }, [todayRecords])
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="勤怠管理"
+        description="出退勤の打刻と勤怠記録の管理を行います。"
+      />
+
+      {/* 時計 + 全体ステータス */}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="text-center sm:text-left">
+              <p className="text-4xl font-mono font-bold tracking-wider">{currentTime}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {new Date().toLocaleDateString('ja-JP', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  weekday: 'short',
+                  timeZone: 'Asia/Tokyo',
+                })}
+              </p>
+            </div>
+            <div className="flex-1 flex items-center justify-center sm:justify-end gap-3">
+              {activeProjectCount > 0 ? (
+                <Badge className="bg-green-100 text-green-700 text-sm px-3 py-1">
+                  {activeProjectCount}件 勤務中
+                </Badge>
+              ) : todayRecords.length > 0 ? (
+                <Badge variant="outline" className="text-sm px-3 py-1">
+                  本日 {todayRecords.length} 件打刻済
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-sm px-3 py-1 text-muted-foreground">
+                  未出勤
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* プロジェクト選択 or 打刻画面 */}
+      {projectsLoading ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            プロジェクトを読み込み中...
+          </CardContent>
+        </Card>
+      ) : !myProjects || myProjects.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>アサインされているプロジェクトがありません</p>
+            <p className="text-xs mt-1">管理者にプロジェクトへのアサインを依頼してください</p>
+          </CardContent>
+        </Card>
+      ) : selectedProject ? (
+        <ProjectAttendance
+          project={selectedProject}
+          todayRecords={todayRecords}
+          onBack={() => setSelectedProject(null)}
+        />
+      ) : (
+        <ProjectSelector
+          projects={myProjects}
+          todayRecords={todayRecords}
+          onSelectProject={setSelectedProject}
+        />
+      )}
 
       {/* 月次サマリー */}
       <div className="grid gap-4 sm:grid-cols-4">
@@ -296,7 +529,10 @@ export default function AttendancePage() {
             <CardTitle className="text-sm text-muted-foreground font-normal">勤務日数</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{monthlySummary.workDays}<span className="text-sm font-normal text-muted-foreground ml-1">日</span></p>
+            <p className="text-2xl font-bold">
+              {monthlySummary.workDays}
+              <span className="text-sm font-normal text-muted-foreground ml-1">日</span>
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -312,7 +548,9 @@ export default function AttendancePage() {
             <CardTitle className="text-sm text-muted-foreground font-normal">残業時間</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className={`text-2xl font-bold ${monthlySummary.totalOvertime > 0 ? 'text-orange-500' : ''}`}>
+            <p
+              className={`text-2xl font-bold ${monthlySummary.totalOvertime > 0 ? 'text-orange-500' : ''}`}
+            >
               {formatMinutes(monthlySummary.totalOvertime)}
             </p>
           </CardContent>
@@ -383,7 +621,9 @@ export default function AttendancePage() {
                     <TableRow key={record.id}>
                       <TableCell className="font-medium whitespace-nowrap">
                         {new Date(record.date).toLocaleDateString('ja-JP', {
-                          month: 'short', day: 'numeric', weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          weekday: 'short',
                         })}
                       </TableCell>
                       <TableCell className="text-sm">
@@ -393,17 +633,30 @@ export default function AttendancePage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{formatTime(record.clock_in)}</TableCell>
-                      <TableCell className="font-mono text-sm">{formatTime(record.clock_out)}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {formatTime(record.clock_in)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {formatTime(record.clock_out)}
+                      </TableCell>
                       <TableCell className="text-sm">
                         {record.break_minutes > 0 ? `${record.break_minutes}分` : '-'}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{formatMinutes(record.work_minutes)}</TableCell>
-                      <TableCell className={`font-mono text-sm ${record.overtime_minutes > 0 ? 'text-orange-500' : ''}`}>
-                        {record.overtime_minutes > 0 ? formatMinutes(record.overtime_minutes) : '-'}
+                      <TableCell className="font-mono text-sm">
+                        {formatMinutes(record.work_minutes)}
+                      </TableCell>
+                      <TableCell
+                        className={`font-mono text-sm ${record.overtime_minutes > 0 ? 'text-orange-500' : ''}`}
+                      >
+                        {record.overtime_minutes > 0
+                          ? formatMinutes(record.overtime_minutes)
+                          : '-'}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {record.location_type ? LOCATION_TYPE_LABELS[record.location_type] || record.location_type : '-'}
+                        {record.location_type
+                          ? LOCATION_TYPE_LABELS[record.location_type] ||
+                            record.location_type
+                          : '-'}
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(record.status)}>

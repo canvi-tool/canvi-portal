@@ -28,8 +28,20 @@ export interface AttendanceRecord {
 }
 
 export interface TodayStatus {
+  /** 後方互換: アクティブまたは最新のレコード */
   record: AttendanceRecord | null
   status: string
+  /** 今日の全打刻レコード（複数PJ対応） */
+  records: AttendanceRecord[]
+}
+
+export interface MyProject {
+  id: string
+  name: string
+  project_code: string
+  status: string
+  slack_channel_id: string | null
+  slack_channel_name: string | null
 }
 
 // ---- Fetchers ----
@@ -37,6 +49,17 @@ export interface TodayStatus {
 async function fetchTodayStatus(): Promise<TodayStatus> {
   const res = await fetch('/api/attendance/today')
   if (!res.ok) throw new Error('打刻状態の取得に失敗しました')
+  const data = await res.json()
+  return {
+    record: data.record || null,
+    status: data.status || 'not_clocked_in',
+    records: data.records || [],
+  }
+}
+
+async function fetchMyProjects(): Promise<MyProject[]> {
+  const res = await fetch('/api/my-projects')
+  if (!res.ok) throw new Error('アサインプロジェクトの取得に失敗しました')
   return res.json()
 }
 
@@ -119,6 +142,7 @@ async function breakEnd(id: string): Promise<AttendanceRecord> {
 export const attendanceKeys = {
   all: ['attendance'] as const,
   today: () => [...attendanceKeys.all, 'today'] as const,
+  myProjects: () => [...attendanceKeys.all, 'my-projects'] as const,
   lists: () => [...attendanceKeys.all, 'list'] as const,
   list: (params?: Record<string, unknown>) => [...attendanceKeys.lists(), params] as const,
 }
@@ -130,6 +154,14 @@ export function useTodayAttendance() {
     queryKey: attendanceKeys.today(),
     queryFn: fetchTodayStatus,
     refetchInterval: 60000, // 1分ごとに更新
+  })
+}
+
+/** 自分がアサインされているプロジェクト一覧 */
+export function useMyProjects() {
+  return useQuery({
+    queryKey: attendanceKeys.myProjects(),
+    queryFn: fetchMyProjects,
   })
 }
 
