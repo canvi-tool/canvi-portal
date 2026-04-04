@@ -106,9 +106,16 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'バリデーションエラー', details: parsed.error.flatten() }, { status: 400 })
         }
         const { user_id, role_id } = parsed.data
+
+        // 既存ロールを全て削除してから新しいロールを割り当て（1人1ロール）
+        await admin
+          .from('user_roles')
+          .delete()
+          .eq('user_id', user_id)
+
         const { error } = await admin
           .from('user_roles')
-          .upsert({ user_id, role_id }, { onConflict: 'user_id,role_id' })
+          .insert({ user_id, role_id })
 
         if (error) {
           return NextResponse.json({ error: error.message }, { status: 500 })
@@ -139,10 +146,17 @@ export async function POST(request: NextRequest) {
         if (!Array.isArray(user_ids) || !role_id) {
           return NextResponse.json({ error: 'user_ids と role_id は必須です' }, { status: 400 })
         }
+
+        // 既存ロールを全て削除してから新しいロールを割り当て（1人1ロール）
+        await admin
+          .from('user_roles')
+          .delete()
+          .in('user_id', user_ids)
+
         const rows = user_ids.map((uid: string) => ({ user_id: uid, role_id }))
         const { error } = await admin
           .from('user_roles')
-          .upsert(rows, { onConflict: 'user_id,role_id' })
+          .insert(rows)
 
         if (error) {
           return NextResponse.json({ error: error.message }, { status: 500 })
