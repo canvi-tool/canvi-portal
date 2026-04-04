@@ -17,8 +17,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { SHIFT_TYPE_LABELS, type ShiftType, SHIFT_TYPES } from '@/lib/validations/shift'
 import { toast } from 'sonner'
 
@@ -153,17 +153,20 @@ export function ShiftCreateDialog({
             <Label>プロジェクト</Label>
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="プロジェクトを選択" />
+                <SelectValueWithLabel
+                  value={projectId}
+                  labels={Object.fromEntries(projects.map(p => [p.id, p.name]))}
+                  placeholder="プロジェクトを選択"
+                />
               </SelectTrigger>
               <SelectContent>
                 {projects.map(p => (
                   <SelectItem key={p.id} value={p.id}>
-                    <div className="flex items-center gap-2">
-                      {p.name}
-                      <Badge variant="outline" className="text-[10px] py-0">
-                        {p.shiftApprovalMode === 'AUTO' ? '自動承認' : '承認制'}
-                      </Badge>
-                    </div>
+                    {p.name}
+                    {' '}
+                    <span className="text-[10px] text-muted-foreground">
+                      ({p.shiftApprovalMode === 'AUTO' ? '自動承認' : '承認制'})
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -200,7 +203,10 @@ export function ShiftCreateDialog({
             <Label>種別</Label>
             <Select value={shiftType} onValueChange={(v) => setShiftType(v as ShiftType)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValueWithLabel
+                  value={shiftType}
+                  labels={SHIFT_TYPE_LABELS}
+                />
               </SelectTrigger>
               <SelectContent>
                 {SHIFT_TYPES.map(t => (
