@@ -163,5 +163,4 @@ export const NAV_ITEMS: NavItem[] = [
   { label: '退職・離任', href: '/retirement', icon: 'UserMinus' },
   { label: 'アラート', href: '/alerts', icon: 'Bell' },
   { label: '設定', href: '/settings', icon: 'Settings' },
-  { label: 'アカウント管理', href: '/accounts', icon: 'KeyRound' },
 ]

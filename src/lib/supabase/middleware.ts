@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
     const portalPaths = [
       '/dashboard', '/staff', '/clients', '/contracts', '/projects',
       '/documents', '/shifts', '/attendance', '/reports', '/payments', '/retirement',
-      '/ai', '/alerts', '/settings', '/accounts',
+      '/ai', '/alerts', '/settings',
     ]
     if (!demoRole && portalPaths.some((p) => request.nextUrl.pathname.startsWith(p))) {
       const url = request.nextUrl.clone()

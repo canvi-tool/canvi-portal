@@ -99,7 +99,7 @@ export function canAccessRoute(role: DemoRole, path: string): boolean {
     ]
     return staffAllowed.some((p) => path === p || path.startsWith(p + '/'))
   }
-  // 管理者は設定以外すべて（アカウント管理はOK）
+  // 管理者は設定以外すべて
   if (role === 'admin') {
     if (path.startsWith('/settings')) return false
     return true
