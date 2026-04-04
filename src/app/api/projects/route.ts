@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== 'all') {
       query = query.eq('status', status)
+    } else {
+      // デフォルトではアーカイブ済みプロジェクトを非表示
+      query = query.not('status', 'in', '("archived")')
     }
 
     const { data, error } = await query
@@ -50,7 +53,7 @@ export async function GET(request: NextRequest) {
         .from('project_assignments')
         .select('project_id')
         .in('project_id', projectIds)
-        .eq('status', 'confirmed')
+        .in('status', ['confirmed', 'in_progress'])
 
       if (assignments) {
         assignmentCounts = assignments.reduce(

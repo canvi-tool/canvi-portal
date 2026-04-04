@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -29,10 +30,30 @@ const BULK_STATUS_OPTIONS = [
   { value: 'archived', label: 'アーカイブに変更' },
 ]
 
+/** PJコードのプレフィックスからタイプを判定 */
+function getProjectType(project: Project): string {
+  // project_type カラムがあればそれを使用
+  const pt = (project as Record<string, unknown>).project_type as string | undefined
+  if (pt) return pt.toUpperCase()
+  // フォールバック: project_code のプレフィックスから判定
+  const code = project.project_code || ''
+  if (code.startsWith('BPO')) return 'BPO'
+  if (code.startsWith('RPO')) return 'RPO'
+  return 'ETC'
+}
+
+const PROJECT_TYPE_TABS = [
+  { value: 'all', label: 'すべて' },
+  { value: 'BPO', label: 'BPO' },
+  { value: 'RPO', label: 'RPO' },
+  { value: 'ETC', label: 'ETC' },
+] as const
+
 export default function ProjectsPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [typeTab, setTypeTab] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const bulkUpdate = useBulkUpdateProjectStatus()
@@ -41,6 +62,26 @@ export default function ProjectsPage() {
     search: search || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   })
+
+  // タブでフィルタリング
+  const filteredProjects = useMemo(() => {
+    if (!projects) return []
+    if (typeTab === 'all') return projects
+    return projects.filter((p) => getProjectType(p) === typeTab)
+  }, [projects, typeTab])
+
+  // 各タブのカウント
+  const tabCounts = useMemo(() => {
+    if (!projects) return { all: 0, BPO: 0, RPO: 0, ETC: 0 }
+    const counts = { all: projects.length, BPO: 0, RPO: 0, ETC: 0 }
+    for (const p of projects) {
+      const type = getProjectType(p)
+      if (type === 'BPO') counts.BPO++
+      else if (type === 'RPO') counts.RPO++
+      else counts.ETC++
+    }
+    return counts
+  }, [projects])
 
   const handleBulkStatusChange = async (status: string) => {
     const ids = Array.from(selectedIds)
@@ -134,6 +175,20 @@ export default function ProjectsPage() {
         }
       />
 
+      {/* BPO / RPO / ETC タブ */}
+      <Tabs value={typeTab} onValueChange={(val) => { setTypeTab(val); setSelectedIds(new Set()) }}>
+        <TabsList>
+          {PROJECT_TYPE_TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                {tabCounts[tab.value as keyof typeof tabCounts]}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
@@ -161,7 +216,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Data */}
-      {!isLoading && projects?.length === 0 && !search && statusFilter === 'all' ? (
+      {!isLoading && filteredProjects.length === 0 && !search && statusFilter === 'all' && typeTab === 'all' ? (
         <EmptyState
           icon={Briefcase}
           title="プロジェクトがありません"
@@ -176,9 +231,13 @@ export default function ProjectsPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={projects || []}
+          data={filteredProjects}
           loading={isLoading}
-          emptyMessage="条件に一致するプロジェクトが見つかりません"
+          emptyMessage={
+            typeTab !== 'all'
+              ? `${typeTab}のプロジェクトがありません`
+              : '条件に一致するプロジェクトが見つかりません'
+          }
           keyExtractor={(row) => row.id}
           selectable
           selectedIds={selectedIds}
@@ -189,7 +248,7 @@ export default function ProjectsPage() {
       {/* Bulk Action Bar */}
       <BulkActionBar
         selectedCount={selectedIds.size}
-        totalCount={projects?.length ?? 0}
+        totalCount={filteredProjects.length}
         onClearSelection={() => setSelectedIds(new Set())}
       >
         {BULK_STATUS_OPTIONS.map((opt) => (
