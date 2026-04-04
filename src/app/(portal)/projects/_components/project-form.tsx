@@ -17,18 +17,13 @@ import {
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
-import { Loader2, Hash, AlertCircle } from 'lucide-react'
+import { SlackChannelCombobox } from './slack-channel-combobox'
+import { Loader2, Hash } from 'lucide-react'
 
 interface Client {
   id: string
   client_code: string
   name: string
-}
-
-interface SlackChannel {
-  id: string
-  name: string
-  is_private: boolean
 }
 
 interface ProjectFormProps {
@@ -47,9 +42,6 @@ export function ProjectForm({
   submitLabel = '保存',
 }: ProjectFormProps) {
   const [clients, setClients] = useState<Client[]>([])
-  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([])
-  const [slackLoading, setSlackLoading] = useState(false)
-  const [slackError, setSlackError] = useState<string | null>(null)
 
   const {
     register,
@@ -100,18 +92,6 @@ export function ProjectForm({
       .catch(() => {})
   }, [])
 
-  // Fetch Slack channels
-  useEffect(() => {
-    setSlackLoading(true)
-    fetch('/api/slack/channels')
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.channels) setSlackChannels(res.channels)
-        if (res.error && !res.channels?.length) setSlackError(res.error)
-      })
-      .catch(() => setSlackError('Slackチャンネルの取得に失敗しました'))
-      .finally(() => setSlackLoading(false))
-  }, [])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
@@ -306,46 +286,21 @@ export function ProjectForm({
           Slack通知チャンネル
         </Label>
         <p className="text-xs text-muted-foreground">
-          このPJの出退勤通知・アラートを送信するSlackチャンネルを選択
+          このPJの出退勤通知・アラートを送信するSlackチャンネルを検索・選択
         </p>
-        {slackError && !slackChannels.length ? (
-          <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください</span>
-          </div>
-        ) : (
-          <Controller
-            name="slack_channel_id"
-            control={control}
-            render={({ field }) => (
-              <Select
-                value={field.value || undefined}
-                onValueChange={(val) => {
-                  if (val === '__none__') {
-                    field.onChange('')
-                    setValue('slack_channel_name', '')
-                  } else {
-                    field.onChange(val)
-                    const ch = slackChannels.find((c) => c.id === val)
-                    setValue('slack_channel_name', ch ? `#${ch.name}` : '')
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={slackLoading ? '読込中...' : 'チャンネルを選択'} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">（通知なし）</SelectItem>
-                  {slackChannels.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>
-                      {ch.is_private ? '🔒' : '#'} {ch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        )}
+        <Controller
+          name="slack_channel_id"
+          control={control}
+          render={({ field }) => (
+            <SlackChannelCombobox
+              value={field.value || ''}
+              onValueChange={(channelId, channelName) => {
+                field.onChange(channelId)
+                setValue('slack_channel_name', channelName ? `#${channelName}` : '')
+              }}
+            />
+          )}
+        />
       </div>
 
       {/* Actions */}
