@@ -99,11 +99,17 @@ export default function CanviCalendarPage() {
         `/api/calendar/availability?user_ids=${userIds}&time_min=${encodeURIComponent(timeMin)}&time_max=${encodeURIComponent(timeMax)}`
       )
 
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        console.error('Availability API error:', res.status, errData)
+        toast.error(errData.error || '予定の取得に失敗しました')
+        setMemberData([])
+        return
+      }
       const data = await res.json()
       setMemberData(data.members || [])
-    } catch {
-      // API未接続時は空データ
+    } catch (err) {
+      console.error('fetchAvailability error:', err)
       setMemberData([])
     } finally {
       setLoading(false)
@@ -193,12 +199,20 @@ export default function CanviCalendarPage() {
               </CardContent>
             </Card>
           ) : (
-            <TeamCalendar
-              members={memberData}
-              selectedMemberIds={selectedIds}
-              onSlotSelect={handleSlotSelect}
-              onDateRangeChange={handleDateRangeChange}
-            />
+            <>
+              {!loading && memberData.length > 0 && memberData.every(m => m.busy.length === 0) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-sm text-amber-800">
+                  選択中のメンバーにはこの期間の予定・シフトがありません。
+                  Googleカレンダー連携がまだの場合は、再ログインしてGoogleカレンダーへのアクセスを許可してください。
+                </div>
+              )}
+              <TeamCalendar
+                members={memberData}
+                selectedMemberIds={selectedIds}
+                onSlotSelect={handleSlotSelect}
+                onDateRangeChange={handleDateRangeChange}
+              />
+            </>
           )}
         </div>
       </div>

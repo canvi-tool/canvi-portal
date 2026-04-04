@@ -29,10 +29,28 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient()
 
     // ユーザー情報取得（email + Googleトークン）
-    const { data: users } = await admin
+    const { data: users, error: usersError } = await admin
       .from('users')
       .select('id, email, display_name, google_access_token, google_refresh_token')
       .in('id', userIds)
+
+    if (usersError) {
+      console.error('Users query error:', usersError)
+      // google_access_tokenカラムが未追加の場合のフォールバック
+      const { data: fallbackUsers } = await admin
+        .from('users')
+        .select('id, email, display_name')
+        .in('id', userIds)
+      if (fallbackUsers) {
+        const membersResult = fallbackUsers.map(u => ({
+          id: u.id,
+          email: u.email,
+          displayName: u.display_name,
+          busy: [],
+        }))
+        return NextResponse.json({ members: membersResult, timeMin, timeMax })
+      }
+    }
 
     if (!users || users.length === 0) {
       return NextResponse.json({ error: 'ユーザーが見つかりません' }, { status: 404 })
