@@ -9,8 +9,8 @@ const createEventSchema = z.object({
   user_ids: z.array(z.string()).min(1, '参加者を1名以上指定してください'),
   summary: z.string().min(1).max(500, 'タイトルは500文字以内にしてください'),
   description: z.string().max(5000, '説明は5000文字以内にしてください').optional(),
-  start_datetime: z.string().datetime({ message: '開始日時の形式が不正です' }),
-  end_datetime: z.string().datetime({ message: '終了日時の形式が不正です' }),
+  start_datetime: z.string().datetime({ offset: true, message: '開始日時の形式が不正です' }),
+  end_datetime: z.string().datetime({ offset: true, message: '終了日時の形式が不正です' }),
   with_meet: z.boolean().optional().default(true),
 }).refine(
   (data) => new Date(data.end_datetime) > new Date(data.start_datetime),
