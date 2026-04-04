@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { StaffStatusBadge, getEffectiveStatus } from './staff-status-badge'
+import { SlackProvisionDialog } from './slack-provision-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
@@ -44,6 +45,7 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
   const router = useRouter()
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [slackProvisionTarget, setSlackProvisionTarget] = useState<Staff | null>(null)
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -113,10 +115,14 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
     {
       key: 'google',
       header: 'Google',
-      accessor: (row) => (row.user_id ? '1' : '0'),
+      accessor: (row) => {
+        const cf = row.custom_fields as Record<string, unknown> | null
+        return cf?.google_linked ? '1' : '0'
+      },
       sortable: false,
       cell: (row) => {
-        const hasGoogle = !!row.user_id
+        const cf = row.custom_fields as Record<string, unknown> | null
+        const hasGoogle = !!(cf?.google_linked)
         return (
           <span
             title={hasGoogle ? 'Google連携済み' : 'Google未連携'}
@@ -144,15 +150,32 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
       cell: (row) => {
         const cf = row.custom_fields as Record<string, unknown> | null
         const hasSlack = !!(cf?.slack_user_id)
+        const slackIcon = (
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+          </svg>
+        )
+
+        if (hasSlack) {
+          return (
+            <span title="Slack連携済み" className="flex justify-center text-emerald-600">
+              {slackIcon}
+            </span>
+          )
+        }
+
+        // 未連携 → クリックで連携ダイアログを開く
         return (
-          <span
-            title={hasSlack ? `Slack連携済み` : 'Slack未連携'}
-            className={`flex justify-center ${hasSlack ? 'text-emerald-600' : 'text-muted-foreground/30'}`}
+          <button
+            title="クリックしてSlack連携"
+            className="flex justify-center w-full text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setSlackProvisionTarget(row)
+            }}
           >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
-            </svg>
-          </span>
+            {slackIcon}
+          </button>
         )
       },
       className: 'w-[70px]',
@@ -190,6 +213,13 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
         selectable={selectable}
         selectedIds={selectedIds}
         onSelectionChange={onSelectionChange}
+      />
+
+      <SlackProvisionDialog
+        staff={slackProvisionTarget}
+        open={!!slackProvisionTarget}
+        onOpenChange={(open) => !open && setSlackProvisionTarget(null)}
+        onSuccess={() => router.refresh()}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

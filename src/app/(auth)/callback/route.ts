@@ -81,6 +81,27 @@ export async function GET(request: Request) {
         // 初回ユーザー（他にユーザーがいなければ）をオーナーに自動設定
         await assignRoleIfFirstUser(supabase, user.id)
 
+        // Google OAuthでログインした場合、staffレコードにgoogle_linkedフラグをセット
+        const googleIdentityForLink = user.identities?.find(
+          (i) => i.provider === 'google'
+        )
+        if (googleIdentityForLink) {
+          const { data: staffForLink } = await supabase
+            .from('staff')
+            .select('id, custom_fields')
+            .eq('user_id', user.id)
+            .single()
+          if (staffForLink) {
+            const cfLink = (staffForLink.custom_fields as Record<string, unknown>) || {}
+            if (!cfLink.google_linked) {
+              await supabase
+                .from('staff')
+                .update({ custom_fields: { ...cfLink, google_linked: true } })
+                .eq('id', staffForLink.id)
+            }
+          }
+        }
+
         // Google連携: メールアドレス一致チェック + フラグクリア
         if (user.user_metadata?.needs_google_link) {
           const googleIdentity = user.identities?.find(
@@ -107,6 +128,20 @@ export async function GET(request: Request) {
           await admin.auth.admin.updateUserById(user.id, {
             user_metadata: { needs_google_link: false },
           })
+
+          // staffレコードにGoogle連携完了フラグをセット
+          const { data: staffRecord } = await admin
+            .from('staff')
+            .select('id, custom_fields')
+            .eq('user_id', user.id)
+            .single()
+          if (staffRecord) {
+            const cf = (staffRecord.custom_fields as Record<string, unknown>) || {}
+            await admin
+              .from('staff')
+              .update({ custom_fields: { ...cf, google_linked: true } })
+              .eq('id', staffRecord.id)
+          }
         }
 
         // 招待ユーザー（パスワード未設定）→ パスワード設定画面へ

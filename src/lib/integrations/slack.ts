@@ -145,6 +145,11 @@ function getBotToken(): string | null {
   return process.env.SLACK_BOT_TOKEN || null
 }
 
+// User OAuth Token（ユーザー招待・プロフィール更新に必要）
+function getUserToken(): string | null {
+  return process.env.SLACK_USER_TOKEN || null
+}
+
 // デフォルトのWebhook URL（フォールバック）
 function getWebhookUrl(): string | null {
   return process.env.SLACK_WEBHOOK_URL || null
@@ -551,6 +556,101 @@ export async function inviteStaffToSlackChannel(
   return {
     ...invite,
     slackUserId,
+  }
+}
+
+// =============== ユーザー招待・プロフィール更新 ===============
+
+/**
+ * Slackワークスペースにユーザーを招待（users.admin.invite）
+ * User OAuth Token（xoxp-）が必要
+ * チャンネルIDを指定するとそのチャンネルにも自動招待
+ */
+export async function inviteUserToSlackWorkspace(
+  email: string,
+  channelIds?: string[]
+): Promise<{ success: boolean; error?: string }> {
+  const token = getUserToken()
+  if (!token) {
+    return { success: false, error: 'SLACK_USER_TOKEN が設定されていません。Slack管理画面からユーザーを招待してください。' }
+  }
+
+  try {
+    const params = new URLSearchParams({
+      email,
+      set_active: 'true',
+    })
+    if (channelIds && channelIds.length > 0) {
+      params.set('channels', channelIds.join(','))
+    }
+
+    const res = await fetch('https://slack.com/api/users.admin.invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: params.toString(),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      const errorMessages: Record<string, string> = {
+        'already_invited': 'このユーザーは既に招待済みです',
+        'already_in_team': 'このユーザーは既にワークスペースに参加しています',
+        'sent_recently': '招待メールが最近送信済みです。しばらく待ってから再試行してください',
+        'user_disabled': 'このユーザーは無効化されています',
+        'not_allowed_token_type': 'User OAuth Token（xoxp-）が必要です',
+        'missing_scope': 'admin スコープが必要です',
+      }
+      return { success: false, error: errorMessages[data.error] || `Slack API error: ${data.error}` }
+    }
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/**
+ * Slackユーザーのプロフィール（表示名）を更新
+ * User OAuth Token で他ユーザーのプロフィールを更新
+ * Bot Token のみの場合はBot自身のプロフィールしか変更できない
+ */
+export async function updateSlackUserProfile(
+  slackUserId: string,
+  displayName: string
+): Promise<{ success: boolean; error?: string }> {
+  // User Token優先、なければBot Token
+  const token = getUserToken() || getBotToken()
+  if (!token) {
+    return { success: false, error: 'Slack Token が設定されていません' }
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/users.profile.set', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        user: slackUserId,
+        profile: {
+          display_name: displayName,
+          real_name: displayName,
+        },
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      return { success: false, error: `プロフィール更新失敗: ${data.error}` }
+    }
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
   }
 }
 
