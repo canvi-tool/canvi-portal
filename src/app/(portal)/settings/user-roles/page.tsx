@@ -171,7 +171,7 @@ export default function UserRolesPage() {
           }
         }
       }
-      setUsers(Array.from(userMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja')))
+      setUsers(Array.from(userMap.values()).sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'ja')))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
