@@ -33,6 +33,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     .from('project_assignments')
     .select('*, project:projects(*)')
     .eq('staff_id', id)
+    .is('deleted_at', null)
     .order('start_date', { ascending: false })
 
   // Fetch work reports

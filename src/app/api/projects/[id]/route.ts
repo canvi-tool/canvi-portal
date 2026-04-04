@@ -38,6 +38,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       .from('project_assignments')
       .select('*', { count: 'exact', head: true })
       .eq('project_id', id)
+      .is('deleted_at', null)
 
     return NextResponse.json({ ...data, assignment_count: count || 0 })
   } catch (error) {

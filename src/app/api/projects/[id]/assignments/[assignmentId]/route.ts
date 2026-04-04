@@ -19,6 +19,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         compensation_rules (*)
       `)
       .eq('id', assignmentId)
+      .is('deleted_at', null)
       .single()
 
     if (error) {

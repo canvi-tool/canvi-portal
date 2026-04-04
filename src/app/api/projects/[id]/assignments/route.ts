@@ -20,6 +20,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         compensation_rules (*)
       `)
       .eq('project_id', projectId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .select('id')
       .eq('project_id', projectId)
       .eq('staff_id', parsed.data.staff_id)
+      .is('deleted_at', null)
       .in('status', ['proposed', 'confirmed', 'in_progress'])
       .maybeSingle()
 
@@ -98,10 +100,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (project?.slack_channel_id && staffEmail) {
-      // Slackチャンネルにスタッフを招待
+      // Slackチャンネルにスタッフを招待（staffId渡しでSlack User IDを永続化）
       const inviteResult = await inviteStaffToSlackChannel(
         staffEmail,
-        project.slack_channel_id
+        project.slack_channel_id,
+        parsed.data.staff_id
       )
       if (!inviteResult.success && !inviteResult.alreadyInChannel) {
         console.warn(

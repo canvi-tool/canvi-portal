@@ -45,6 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .from('project_assignments')
       .select('*, project:projects(*)')
       .eq('staff_id', id)
+      .is('deleted_at', null)
       .order('start_date', { ascending: false })
 
     // Fetch portal account info by matching email

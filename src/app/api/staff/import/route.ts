@@ -218,6 +218,7 @@ async function importAssignments(supabase: any, rows: AssignmentCsvRow[], result
       .select('id')
       .eq('project_id', projectId)
       .eq('staff_id', staffId)
+      .is('deleted_at', null)
       .limit(1)
 
     if (existing && existing.length > 0) {
@@ -246,7 +247,7 @@ async function importCompensation(supabase: any, rows: CompensationCsvRow[], res
   // Pre-fetch staff, projects, assignments
   const { data: allStaff } = await supabase.from('staff').select('id, staff_code')
   const { data: allProjects } = await supabase.from('projects').select('id, name')
-  const { data: allAssignments } = await supabase.from('project_assignments').select('id, project_id, staff_id')
+  const { data: allAssignments } = await supabase.from('project_assignments').select('id, project_id, staff_id').is('deleted_at', null)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const staffByCode = new Map<string, string>()

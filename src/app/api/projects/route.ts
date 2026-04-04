@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
         .from('project_assignments')
         .select('project_id')
         .in('project_id', projectIds)
+        .is('deleted_at', null)
         .in('status', ['confirmed', 'in_progress'])
 
       if (assignments) {

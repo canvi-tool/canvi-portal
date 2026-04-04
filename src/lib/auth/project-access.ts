@@ -35,6 +35,7 @@ export async function getProjectAccess(): Promise<{
     .from('project_assignments')
     .select('project_id')
     .eq('staff_id', user.staffId)
+    .is('deleted_at', null)
 
   const allowedProjectIds = (myAssignments || []).map((a) => a.project_id)
   return { user, allowedProjectIds, staffId: user.staffId }

@@ -482,24 +482,75 @@ export async function inviteUserToSlackChannel(
 }
 
 /**
+ * スタッフIDからキャッシュ済みSlack User IDを取得、なければメールで検索してDBに永続化
+ * custom_fields.slack_user_id に保存する
+ */
+export async function resolveSlackUserId(
+  staffId: string,
+  email: string
+): Promise<{ slackUserId?: string; error?: string; cached: boolean }> {
+  const supabase = await createServerSupabaseClient()
+
+  // 1. DBからキャッシュ済みSlack User IDを取得
+  const { data: staff } = await supabase
+    .from('staff')
+    .select('custom_fields')
+    .eq('id', staffId)
+    .single()
+
+  const cf = (staff?.custom_fields as Record<string, unknown>) || {}
+  if (cf.slack_user_id && typeof cf.slack_user_id === 'string') {
+    return { slackUserId: cf.slack_user_id, cached: true }
+  }
+
+  // 2. キャッシュなし → Slack APIで検索
+  const lookup = await lookupSlackUserByEmail(email)
+  if (!lookup.slackUserId) {
+    return { error: lookup.error || 'Slackユーザーが見つかりません', cached: false }
+  }
+
+  // 3. DBに永続化（custom_fields に追記）
+  const updatedCf = { ...cf, slack_user_id: lookup.slackUserId }
+  await supabase
+    .from('staff')
+    .update({ custom_fields: updatedCf })
+    .eq('id', staffId)
+
+  return { slackUserId: lookup.slackUserId, cached: false }
+}
+
+/**
  * メールアドレスからSlackユーザーを検索し、チャンネルに招待する
- * 一連の処理をまとめたヘルパー
+ * staffIdが渡された場合はSlack User IDをDBに永続化する
  */
 export async function inviteStaffToSlackChannel(
   email: string,
-  channelId: string
+  channelId: string,
+  staffId?: string
 ): Promise<{ success: boolean; error?: string; alreadyInChannel?: boolean; slackUserId?: string }> {
-  // 1. メールアドレスからSlack User IDを検索
-  const lookup = await lookupSlackUserByEmail(email)
-  if (!lookup.slackUserId) {
-    return { success: false, error: lookup.error || 'Slackユーザーが見つかりません' }
+  let slackUserId: string | undefined
+
+  if (staffId) {
+    // staffIdがある場合はキャッシュ付きの解決を使う
+    const resolved = await resolveSlackUserId(staffId, email)
+    slackUserId = resolved.slackUserId
+    if (!slackUserId) {
+      return { success: false, error: resolved.error || 'Slackユーザーが見つかりません' }
+    }
+  } else {
+    // staffIdなしの場合は従来通りメールで検索
+    const lookup = await lookupSlackUserByEmail(email)
+    slackUserId = lookup.slackUserId
+    if (!slackUserId) {
+      return { success: false, error: lookup.error || 'Slackユーザーが見つかりません' }
+    }
   }
 
-  // 2. チャンネルに招待
-  const invite = await inviteUserToSlackChannel(channelId, lookup.slackUserId)
+  // チャンネルに招待
+  const invite = await inviteUserToSlackChannel(channelId, slackUserId)
   return {
     ...invite,
-    slackUserId: lookup.slackUserId,
+    slackUserId,
   }
 }
 
