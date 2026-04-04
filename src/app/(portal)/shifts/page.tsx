@@ -24,7 +24,6 @@ import { ShiftFullCalendar, type CalendarShift } from './_components/shift-fullc
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
 import { toast } from 'sonner'
-import { useAuth } from '@/components/providers/auth-provider'
 
 // --- Types ---
 
@@ -71,9 +70,18 @@ export default function ShiftsPage() {
   } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-  const { demoRole, demoAccount } = useAuth()
-  const isManager = demoRole === 'owner' || demoRole === 'admin'
-  const currentStaffId = demoAccount?.id || ''
+  const [isManager, setIsManager] = useState(false)
+  const [currentStaffId, setCurrentStaffId] = useState('')
+
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then(r => r.json())
+      .then(data => {
+        if (data.isManager != null) setIsManager(data.isManager)
+        if (data.staffId) setCurrentStaffId(data.staffId)
+      })
+      .catch(() => {})
+  }, [])
 
   // シフトデータ取得
   const fetchShifts = useCallback(async () => {

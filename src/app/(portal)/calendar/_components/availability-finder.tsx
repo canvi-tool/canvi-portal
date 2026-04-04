@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,12 @@ export function AvailabilityCreateDialog({
   const [withMeet, setWithMeet] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ meetUrl: string } | null>(null)
+
+  useEffect(() => {
+    setDate(initialDate)
+    setStartTime(initialStartTime)
+    setEndTime(initialEndTime)
+  }, [initialDate, initialStartTime, initialEndTime])
 
   const handleCreate = async () => {
     if (!summary || !date || !startTime || !endTime) {
