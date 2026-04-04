@@ -239,6 +239,7 @@ export default function ProjectsPage() {
               : '条件に一致するプロジェクトが見つかりません'
           }
           keyExtractor={(row) => row.id}
+          defaultSortKey="project_code"
           selectable
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}

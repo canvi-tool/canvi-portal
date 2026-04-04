@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const status = searchParams.get('status')
 
-    let query = supabase.from('projects').select('*').order('created_at', { ascending: false })
+    let query = supabase.from('projects').select('*').order('project_code', { ascending: true })
 
     // オーナー以外はアサイン済みプロジェクトのみにフィルタ
     if (allowedProjectIds) {

@@ -12,7 +12,17 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react'
+
+const PAGE_SIZE_OPTIONS = [20, 30, 50, 100] as const
+const DEFAULT_PAGE_SIZE = 30
 
 export interface DataTableColumn<T> {
   key: string
@@ -33,6 +43,10 @@ interface DataTableProps<T> {
   selectable?: boolean
   selectedIds?: Set<string>
   onSelectionChange?: (ids: Set<string>) => void
+  /** 初期ソートキー */
+  defaultSortKey?: string
+  /** 初期ソート方向（デフォルト: 'asc'） */
+  defaultSortDir?: 'asc' | 'desc'
 }
 
 type SortDirection = 'asc' | 'desc' | null
@@ -42,15 +56,18 @@ export function DataTable<T>({
   data,
   loading = false,
   emptyMessage = 'データがありません',
-  pageSize = 10,
+  pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
   keyExtractor,
   selectable = false,
   selectedIds,
   onSelectionChange,
+  defaultSortKey,
+  defaultSortDir = 'asc',
 }: DataTableProps<T>) {
-  const [sortKey, setSortKey] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null)
+  const [sortDir, setSortDir] = useState<SortDirection>(defaultSortKey ? defaultSortDir : null)
   const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(initialPageSize)
 
   const getRowId = useCallback(
     (row: T, idx: number) => keyExtractor?.(row) ?? String(idx),
@@ -231,11 +248,34 @@ export function DataTable<T>({
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <p className="text-sm text-muted-foreground">
             全{sortedData.length.toLocaleString('ja-JP')}件
           </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-muted-foreground">表示:</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(val) => {
+                setPageSize(Number(val))
+                setPage(0)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}件
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -259,8 +299,8 @@ export function DataTable<T>({
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

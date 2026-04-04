@@ -150,7 +150,7 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
         data={data}
         loading={loading}
         emptyMessage="スタッフが登録されていません"
-        pageSize={20}
+        defaultSortKey="staff_code"
         keyExtractor={(row) => row.id}
         selectable={selectable}
         selectedIds={selectedIds}

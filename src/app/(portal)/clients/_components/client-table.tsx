@@ -81,7 +81,7 @@ export function ClientTable({ data, loading, selectable, selectedIds, onSelectio
       data={data}
       loading={loading}
       emptyMessage="クライアントが登録されていません"
-      pageSize={20}
+      defaultSortKey="client_code"
       keyExtractor={(row) => row.id}
       selectable={selectable}
       selectedIds={selectedIds}
