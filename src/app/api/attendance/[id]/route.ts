@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { attendanceModifySchema } from '@/lib/validations/attendance'
 import {
-  sendProjectNotification,
+  sendProjectNotificationIfEnabled,
   buildClockOutNotification,
   buildBreakStartNotification,
   buildBreakEndNotification,
@@ -77,22 +77,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（退勤） - プロジェクト紐付けチャンネルに送信
+        // Slack通知（退勤） - プロジェクトの通知設定を確認してから送信
         let projectSlackChannelId: string | null = null
+        let projectName: string | undefined
         if (record.project_id) {
           const { data: proj } = await supabase
             .from('projects')
-            .select('slack_channel_id')
+            .select('slack_channel_id, name')
             .eq('id', record.project_id)
             .single()
           projectSlackChannelId = proj?.slack_channel_id || null
+          projectName = proj?.name || undefined
         }
         const staffName = user.displayName || user.email || 'メンバー'
         const hours = Math.floor(workMinutes / 60)
         const mins = workMinutes % 60
-        sendProjectNotification(
-          buildClockOutNotification(staffName, `${hours}h ${mins}m`),
-          projectSlackChannelId
+        sendProjectNotificationIfEnabled(
+          buildClockOutNotification(staffName, `${hours}h ${mins}m`, undefined, projectName),
+          record.project_id,
+          projectSlackChannelId,
+          'attendance_clock_out'
         ).catch(() => {})
 
         return NextResponse.json(data)
@@ -117,17 +121,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（休憩開始）
-        if (record.project_id) {
-          const { data: proj } = await supabase
-            .from('projects')
-            .select('slack_channel_id')
-            .eq('id', record.project_id)
-            .single()
+        // Slack通知（休憩開始） - 通知設定チェック
+        {
+          let breakChannelId: string | null = null
+          if (record.project_id) {
+            const { data: proj } = await supabase
+              .from('projects')
+              .select('slack_channel_id')
+              .eq('id', record.project_id)
+              .single()
+            breakChannelId = proj?.slack_channel_id || null
+          }
           const breakStaffName = user.displayName || user.email || 'メンバー'
-          sendProjectNotification(
+          sendProjectNotificationIfEnabled(
             buildBreakStartNotification(breakStaffName),
-            proj?.slack_channel_id || null
+            record.project_id,
+            breakChannelId,
+            'attendance_clock_in' // 出勤通知設定に準ずる
           ).catch(() => {})
         }
 
@@ -160,17 +170,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（休憩終了）
-        if (record.project_id) {
-          const { data: proj } = await supabase
-            .from('projects')
-            .select('slack_channel_id')
-            .eq('id', record.project_id)
-            .single()
+        // Slack通知（休憩終了） - 通知設定チェック
+        {
+          let breakEndChannelId: string | null = null
+          if (record.project_id) {
+            const { data: proj } = await supabase
+              .from('projects')
+              .select('slack_channel_id')
+              .eq('id', record.project_id)
+              .single()
+            breakEndChannelId = proj?.slack_channel_id || null
+          }
           const breakEndStaffName = user.displayName || user.email || 'メンバー'
-          sendProjectNotification(
+          sendProjectNotificationIfEnabled(
             buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
-            proj?.slack_channel_id || null
+            record.project_id,
+            breakEndChannelId,
+            'attendance_clock_out' // 退勤通知設定に準ずる
           ).catch(() => {})
         }
 

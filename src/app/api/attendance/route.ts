@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
-import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
+import { sendProjectNotificationIfEnabled, buildClockInNotification } from '@/lib/integrations/slack'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -96,20 +96,29 @@ export async function POST(request: NextRequest) {
     const today = new Date().toISOString().split('T')[0]
     const now = new Date().toISOString()
 
-    // 今日既に出勤打刻済みか確認（同じPJの場合）
-    const { data: existing } = await supabase
+    // 今日既に出勤打刻済みか確認（同じプロジェクトの場合のみ重複エラー）
+    // 複数プロジェクトにアサインされているスタッフは、プロジェクトごとに打刻可能
+    let duplicateQuery = supabase
       .from('attendance_records')
-      .select('id, status')
+      .select('id, status, project_id')
       .eq('user_id', user.id)
       .eq('date', today)
       .is('deleted_at', null)
       .in('status', ['clocked_in', 'on_break'])
-      .limit(1)
-      .single()
+
+    if (parsed.data.project_id) {
+      // プロジェクト指定ありの場合：同じプロジェクトで未退勤のものがあるかチェック
+      duplicateQuery = duplicateQuery.eq('project_id', parsed.data.project_id)
+    } else {
+      // プロジェクト未指定の場合：プロジェクト未指定の未退勤レコードがあるかチェック
+      duplicateQuery = duplicateQuery.is('project_id', null)
+    }
+
+    const { data: existing } = await duplicateQuery.limit(1).single()
 
     if (existing) {
       return NextResponse.json(
-        { error: '既に出勤打刻済みです。退勤してから再度打刻してください。' },
+        { error: 'このプロジェクトでは既に出勤打刻済みです。退勤してから再度打刻してください。' },
         { status: 409 }
       )
     }
@@ -143,22 +152,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Slack通知（非同期・失敗してもエラーにしない）
-    // プロジェクトに紐付くSlackチャンネルに送信
+    // プロジェクトの通知設定を確認してから送信
     let projectSlackChannelId: string | null = null
     let projectName: string | undefined
-    if (parsed.data.project_id) {
+    const projectId = parsed.data.project_id || null
+    if (projectId) {
       const { data: proj } = await supabase
         .from('projects')
         .select('slack_channel_id, name')
-        .eq('id', parsed.data.project_id)
+        .eq('id', projectId)
         .single()
       projectSlackChannelId = proj?.slack_channel_id || null
       projectName = proj?.name
     }
     const staffName = user.displayName || user.email || 'メンバー'
-    sendProjectNotification(
+    sendProjectNotificationIfEnabled(
       buildClockInNotification(staffName, projectName),
-      projectSlackChannelId
+      projectId,
+      projectSlackChannelId,
+      'attendance_clock_in'
     ).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })

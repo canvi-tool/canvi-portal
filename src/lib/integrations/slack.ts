@@ -5,6 +5,91 @@
  * - Webhook: フォールバック / 汎用通知
  */
 
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+// 通知設定のトグルキー名
+export type NotificationToggleKey =
+  | 'attendance_clock_in'
+  | 'attendance_clock_out'
+  | 'attendance_missing'
+  | 'shift_submitted'
+  | 'shift_approved'
+  | 'shift_rejected'
+  | 'report_submitted'
+  | 'report_overdue'
+  | 'overtime_warning'
+  | 'leave_requested'
+  | 'member_assigned'
+  | 'member_removed'
+  | 'general_alert'
+
+// デフォルト通知設定（settings未作成の場合）
+const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
+  attendance_clock_in: false,
+  attendance_clock_out: false,
+  attendance_missing: true,
+  shift_submitted: false,
+  shift_approved: false,
+  shift_rejected: true,
+  report_submitted: false,
+  report_overdue: true,
+  overtime_warning: true,
+  leave_requested: true,
+  member_assigned: true,
+  member_removed: true,
+  general_alert: true,
+}
+
+/**
+ * プロジェクトの通知設定を取得して、指定イベントが有効かチェック
+ * 設定がない場合はデフォルト値を使用
+ */
+export async function isNotificationEnabled(
+  projectId: string | null | undefined,
+  eventType: NotificationToggleKey
+): Promise<boolean> {
+  if (!projectId) {
+    // プロジェクト未指定の場合はデフォルト設定を使用
+    return DEFAULT_NOTIFICATION_TOGGLES[eventType] ?? false
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from('project_notification_settings')
+      .select('*')
+      .eq('project_id', projectId)
+      .single()
+
+    if (error || !data) {
+      // 設定がない場合はデフォルト
+      return DEFAULT_NOTIFICATION_TOGGLES[eventType] ?? false
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as Record<string, any>)[eventType] === true
+  } catch {
+    return DEFAULT_NOTIFICATION_TOGGLES[eventType] ?? false
+  }
+}
+
+/**
+ * 通知設定をチェックしてからプロジェクト通知を送信
+ * 設定がOFFの場合はスキップ
+ */
+export async function sendProjectNotificationIfEnabled(
+  message: SlackMessage,
+  projectId: string | null | undefined,
+  projectSlackChannelId: string | null | undefined,
+  eventType: NotificationToggleKey
+): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
+  const enabled = await isNotificationEnabled(projectId, eventType)
+  if (!enabled) {
+    return { success: true, skipped: true }
+  }
+  return sendProjectNotification(message, projectSlackChannelId)
+}
+
 export interface SlackMessage {
   text: string
   blocks?: SlackBlock[]
@@ -339,7 +424,7 @@ export function buildClockInNotification(staffName: string, projectName?: string
 /**
  * 退勤通知
  */
-export function buildClockOutNotification(staffName: string, workHours: string, time?: string): SlackMessage {
+export function buildClockOutNotification(staffName: string, workHours: string, time?: string, projectName?: string): SlackMessage {
   const timeStr = time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
     text: `${staffName}さんが退勤しました (${timeStr}, 勤務${workHours})`,
@@ -353,6 +438,7 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
         fields: [
           { type: 'mrkdwn', text: `*時刻:* ${timeStr}` },
           { type: 'mrkdwn', text: `*勤務時間:* ${workHours}` },
+          ...(projectName ? [{ type: 'mrkdwn' as const, text: `*PJ:* ${projectName}` }] : []),
         ],
       },
     ],
