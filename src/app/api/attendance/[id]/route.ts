@@ -96,7 +96,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           buildClockOutNotification(staffName, `${hours}h ${mins}m`, undefined, projectName),
           record.project_id,
           projectSlackChannelId,
-          'attendance_clock_out'
+          'attendance_clock_out',
+          record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
         ).catch(() => {})
 
         return NextResponse.json(data)
@@ -137,7 +138,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             buildBreakStartNotification(breakStaffName),
             record.project_id,
             breakChannelId,
-            'attendance_clock_in' // 出勤通知設定に準ずる
+            'attendance_clock_in', // 出勤通知設定に準ずる
+            record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
           ).catch(() => {})
         }
 
@@ -186,7 +188,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
             record.project_id,
             breakEndChannelId,
-            'attendance_clock_out' // 退勤通知設定に準ずる
+            'attendance_clock_out', // 退勤通知設定に準ずる
+            record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
           ).catch(() => {})
         }
 

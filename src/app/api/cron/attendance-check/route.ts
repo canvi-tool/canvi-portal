@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     // PJ別にグループ化してそれぞれのチャンネルに送信
     const { data: todayShifts } = await admin
       .from('shifts')
-      .select('staff_id, project_id, staff:staff_id(display_name, user_id), project:project_id(id, name, slack_channel_id)')
+      .select('staff_id, project_id, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
       .eq('shift_date', today)
       .is('deleted_at', null)
       .in('status', ['APPROVED', 'SUBMITTED'])
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
       for (const shift of todayShifts) {
         results.missing_clock.checked++
-        const staff = shift.staff as unknown as { display_name: string; user_id: string } | null
+        const staff = shift.staff as unknown as { last_name: string; first_name: string; user_id: string } | null
         const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
 
         if (staff?.user_id && !clockedUserIds.has(staff.user_id)) {
@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
             slackChannelId: project?.slack_channel_id || null,
             names: [],
           }
-          existing.names.push(staff.display_name)
+          const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
+          existing.names.push(staffName)
           missingByProject.set(projectId, existing)
         }
       }
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     // 2. 残業警告: 勤務時間10時間超 → PJ別チャンネルに送信
     const { data: longWorkRecords } = await admin
       .from('attendance_records')
-      .select('user_id, work_minutes, project_id, staff:staff_id(display_name), project:project_id(slack_channel_id)')
+      .select('user_id, work_minutes, project_id, staff:staff_id(last_name, first_name), project:project_id(slack_channel_id)')
       .eq('date', today)
       .is('deleted_at', null)
       .gt('work_minutes', 600)
@@ -107,9 +108,9 @@ export async function GET(request: NextRequest) {
     if (longWorkRecords) {
       for (const rec of longWorkRecords) {
         results.overtime.checked++
-        const staff = rec.staff as unknown as { display_name: string } | null
+        const staff = rec.staff as unknown as { last_name: string; first_name: string } | null
         const project = rec.project as unknown as { slack_channel_id: string | null } | null
-        const name = staff?.display_name || 'Unknown'
+        const name = staff ? `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明' : '不明'
         const hours = Math.round((rec.work_minutes || 0) / 60 * 10) / 10
         results.overtime.alerted++
         results.overtime.names.push(name)

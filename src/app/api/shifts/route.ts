@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('shifts')
-      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)', { count: 'exact' })
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, shift_approval_mode)', { count: 'exact' })
       .is('deleted_at', null)
       .order('shift_date', { ascending: false })
       .order('start_time', { ascending: true })

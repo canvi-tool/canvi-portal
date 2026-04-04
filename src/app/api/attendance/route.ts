@@ -166,12 +166,24 @@ export async function POST(request: NextRequest) {
       projectName = proj?.name
     }
     const staffName = user.displayName || user.email || 'メンバー'
+    // 出勤通知を送信し、スレッドtsを保存（後続の打刻をスレッドにまとめるため）
     sendProjectNotificationIfEnabled(
       buildClockInNotification(staffName, projectName),
       projectId,
       projectSlackChannelId,
       'attendance_clock_in'
-    ).catch(() => {})
+    ).then(async (result) => {
+      if (result.ts && data?.id) {
+        try {
+          await supabase
+            .from('attendance_records')
+            .update({ slack_thread_ts: result.ts })
+            .eq('id', data.id)
+        } catch {
+          // スレッドts保存失敗は無視
+        }
+      }
+    }).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })
   } catch (error) {

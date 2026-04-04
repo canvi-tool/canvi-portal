@@ -81,13 +81,14 @@ export async function sendProjectNotificationIfEnabled(
   message: SlackMessage,
   projectId: string | null | undefined,
   projectSlackChannelId: string | null | undefined,
-  eventType: NotificationToggleKey
-): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
+  eventType: NotificationToggleKey,
+  options?: { thread_ts?: string }
+): Promise<{ success: boolean; error?: string; skipped?: boolean; ts?: string }> {
   const enabled = await isNotificationEnabled(projectId, eventType)
   if (!enabled) {
     return { success: true, skipped: true }
   }
-  return sendProjectNotification(message, projectSlackChannelId)
+  return sendProjectNotification(message, projectSlackChannelId, options)
 }
 
 export interface SlackMessage {
@@ -171,8 +172,9 @@ function getDefaultChannelId(): string | null {
  */
 export async function sendSlackBotMessage(
   channelId: string,
-  message: SlackMessage
-): Promise<{ success: boolean; error?: string }> {
+  message: SlackMessage,
+  options?: { thread_ts?: string; reply_broadcast?: boolean }
+): Promise<{ success: boolean; error?: string; ts?: string }> {
   const token = getBotToken()
   if (!token) {
     // フォールバック: Webhook方式で送信
@@ -193,6 +195,8 @@ export async function sendSlackBotMessage(
         blocks: message.blocks,
         username: message.username || 'Canvi Portal',
         icon_emoji: message.icon_emoji || ':office:',
+        ...(options?.thread_ts ? { thread_ts: options.thread_ts } : {}),
+        ...(options?.reply_broadcast ? { reply_broadcast: true } : {}),
       }),
     })
 
@@ -202,7 +206,7 @@ export async function sendSlackBotMessage(
       return { success: false, error: `Slack API error: ${data.error}` }
     }
 
-    return { success: true }
+    return { success: true, ts: data.ts }
   } catch (err) {
     console.error('Slack Bot send error:', err)
     return { success: false, error: (err as Error).message }
@@ -215,12 +219,13 @@ export async function sendSlackBotMessage(
  */
 export async function sendProjectNotification(
   message: SlackMessage,
-  projectSlackChannelId?: string | null
-): Promise<{ success: boolean; error?: string }> {
+  projectSlackChannelId?: string | null,
+  options?: { thread_ts?: string }
+): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
 
   if (channelId && getBotToken()) {
-    return sendSlackBotMessage(channelId, message)
+    return sendSlackBotMessage(channelId, message, options)
   }
 
   // フォールバック: Webhook方式

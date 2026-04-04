@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft,
@@ -21,7 +21,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftWeeklyTimeline } from './_components/shift-weekly-timeline'
@@ -32,9 +32,8 @@ import { cn } from '@/lib/utils'
 // --- Types ---
 
 type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
-type ApprovalMode = 'AUTO' | 'APPROVAL'
 
-interface DemoShift {
+interface Shift {
   id: string
   staffId: string
   staffName: string
@@ -47,88 +46,19 @@ interface DemoShift {
   notes?: string
   submittedAt?: string
   approvedAt?: string
-  approvalMode: ApprovalMode
+  approvalMode: 'AUTO' | 'APPROVAL'
   googleCalendarSynced?: boolean
 }
 
-interface DemoProject {
+interface ProjectOption {
   id: string
   name: string
-  approvalMode: ApprovalMode
 }
 
-// --- Demo Data ---
-
-const DEMO_PROJECTS: DemoProject[] = [
-  { id: 'pj1', name: 'AIアポブースト', approvalMode: 'AUTO' },
-  { id: 'pj2', name: 'WHITE営業代行', approvalMode: 'APPROVAL' },
-  { id: 'pj3', name: 'ミズテック受電', approvalMode: 'APPROVAL' },
-  { id: 'pj4', name: 'リクモ架電PJ', approvalMode: 'AUTO' },
-]
-
-const DEMO_STAFF = [
-  { id: 's1', name: '佐藤健太' },
-  { id: 's2', name: '田中美咲' },
-  { id: 's3', name: '鈴木一郎' },
-  { id: 's4', name: '山田花子' },
-  { id: 's5', name: '高橋雄太' },
-]
-
-const today = new Date()
-const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-function dayOffset(offset: number): string {
-  const d = new Date(today)
-  d.setDate(d.getDate() + offset)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+interface StaffOption {
+  id: string
+  name: string
 }
-
-const DEMO_SHIFTS: DemoShift[] = [
-  // Today - busy day with multiple staff/projects
-  { id: '1', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: todayStr, startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '1b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: todayStr, startTime: '13:00', endTime: '17:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '2', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: todayStr, startTime: '09:00', endTime: '13:00', status: 'SUBMITTED', submittedAt: '2026-03-27T20:00:00', approvalMode: 'APPROVAL' },
-  { id: '2b', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: todayStr, startTime: '14:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '3', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj3', projectName: 'ミズテック受電', date: todayStr, startTime: '09:00', endTime: '17:00', status: 'APPROVED', approvedAt: '2026-03-27T18:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '4', staffId: 's4', staffName: '山田花子', projectId: 'pj1', projectName: 'AIアポブースト', date: todayStr, startTime: '13:00', endTime: '22:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '5', staffId: 's5', staffName: '高橋雄太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: todayStr, startTime: '09:00', endTime: '12:00', status: 'DRAFT', approvalMode: 'AUTO' },
-  { id: '5b', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: todayStr, startTime: '13:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  // Yesterday
-  { id: '6', staffId: 's1', staffName: '佐藤健太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-1), startTime: '08:30', endTime: '12:30', status: 'APPROVED', approvedAt: '2026-03-26T10:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '6b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-1), startTime: '13:30', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '7', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-1), startTime: '10:00', endTime: '19:00', status: 'REJECTED', approvalMode: 'APPROVAL' },
-  { id: '8', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-1), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '9', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-1), startTime: '13:00', endTime: '22:00', status: 'NEEDS_REVISION', approvalMode: 'APPROVAL' },
-  { id: '9b', staffId: 's4', staffName: '山田花子', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-1), startTime: '09:00', endTime: '15:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  // 2 days ago
-  { id: '10', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-2), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '11', staffId: 's4', staffName: '山田花子', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-2), startTime: '10:00', endTime: '19:00', status: 'APPROVED', approvedAt: '2026-03-25T09:00:00', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '12', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-2), startTime: '09:00', endTime: '13:00', status: 'SUBMITTED', submittedAt: '2026-03-25T21:00:00', approvalMode: 'APPROVAL' },
-  { id: '12b', staffId: 's2', staffName: '田中美咲', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-2), startTime: '14:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '12c', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-2), startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '12d', staffId: 's5', staffName: '高橋雄太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-2), startTime: '10:00', endTime: '16:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  // 3 days ago
-  { id: '13', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(-3), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '14', staffId: 's5', staffName: '高橋雄太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(-3), startTime: '10:00', endTime: '16:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '14b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(-3), startTime: '08:30', endTime: '17:30', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '14c', staffId: 's2', staffName: '田中美咲', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(-3), startTime: '09:00', endTime: '13:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  // Tomorrow
-  { id: '15', staffId: 's1', staffName: '佐藤健太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(1), startTime: '08:30', endTime: '12:30', status: 'SUBMITTED', submittedAt: '2026-03-28T08:00:00', approvalMode: 'APPROVAL' },
-  { id: '15b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(1), startTime: '13:30', endTime: '18:00', status: 'SUBMITTED', approvalMode: 'APPROVAL' },
-  { id: '16', staffId: 's2', staffName: '田中美咲', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(1), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '16b', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(1), startTime: '09:00', endTime: '14:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  { id: '16c', staffId: 's4', staffName: '山田花子', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(1), startTime: '10:00', endTime: '19:00', status: 'DRAFT', approvalMode: 'AUTO' },
-  { id: '16d', staffId: 's5', staffName: '高橋雄太', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(1), startTime: '13:00', endTime: '20:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  // Day after tomorrow
-  { id: '17', staffId: 's4', staffName: '山田花子', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(2), startTime: '10:00', endTime: '19:00', status: 'DRAFT', approvalMode: 'APPROVAL' },
-  { id: '18', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(2), startTime: '09:00', endTime: '17:00', status: 'SUBMITTED', submittedAt: '2026-03-28T10:00:00', approvalMode: 'APPROVAL' },
-  { id: '18b', staffId: 's1', staffName: '佐藤健太', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(2), startTime: '08:30', endTime: '12:00', status: 'APPROVED', approvalMode: 'AUTO', googleCalendarSynced: true },
-  { id: '18c', staffId: 's2', staffName: '田中美咲', projectId: 'pj3', projectName: 'ミズテック受電', date: dayOffset(2), startTime: '09:00', endTime: '18:00', status: 'APPROVED', approvalMode: 'APPROVAL', googleCalendarSynced: true },
-  // 3 days ahead
-  { id: '19', staffId: 's1', staffName: '佐藤健太', projectId: 'pj4', projectName: 'リクモ架電PJ', date: dayOffset(3), startTime: '09:00', endTime: '18:00', status: 'DRAFT', approvalMode: 'AUTO' },
-  { id: '19b', staffId: 's3', staffName: '鈴木一郎', projectId: 'pj1', projectName: 'AIアポブースト', date: dayOffset(3), startTime: '10:00', endTime: '15:00', status: 'DRAFT', approvalMode: 'AUTO' },
-  { id: '19c', staffId: 's5', staffName: '高橋雄太', projectId: 'pj2', projectName: 'WHITE営業代行', date: dayOffset(3), startTime: '08:30', endTime: '17:30', status: 'SUBMITTED', approvalMode: 'APPROVAL' },
-]
 
 // --- Status helpers ---
 
@@ -173,6 +103,11 @@ function getWeekDates(baseDate: Date): string[] {
 
 export default function ShiftsPage() {
   const router = useRouter()
+  const today = useMemo(() => new Date(), [])
+  const todayStr = useMemo(() => {
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  }, [today])
+
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
   const [viewMode, setViewMode] = useState<string>('weekly')
@@ -180,38 +115,181 @@ export default function ShiftsPage() {
   const [filterProject, setFilterProject] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [selectedDate, setSelectedDate] = useState<Date>(today)
-  const [, setSelectedDayDetail] = useState<string | null>(null)
+
+  // Data from API
+  const [shifts, setShifts] = useState<Shift[]>([])
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [staffList, setStaffList] = useState<StaffOption[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Edit dialog state
-  const [editingShift, setEditingShift] = useState<DemoShift | null>(null)
+  const [editingShift, setEditingShift] = useState<Shift | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
+  // 日付範囲を計算（表示モードに応じて広めに取得）
+  const dateRange = useMemo(() => {
+    // 月の前後1週間を含む範囲
+    const startDate = new Date(year, month - 2, 1)
+    const endDate = new Date(year, month + 1, 0)
+    return {
+      start: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`,
+      end: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`,
+    }
+  }, [year, month])
+
+  // シフトデータ取得
+  const fetchShifts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+      })
+      if (filterProject !== 'all') params.set('project_id', filterProject)
+      if (filterStaff !== 'all') params.set('staff_id', filterStaff)
+      if (filterStatus !== 'all') params.set('status', filterStatus)
+
+      const res = await fetch(`/api/shifts?${params}`)
+      if (!res.ok) throw new Error('シフトの取得に失敗しました')
+
+      const data = await res.json()
+      const list = data.data || (Array.isArray(data) ? data : [])
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mapped: Shift[] = list.map((s: any) => {
+        const staff = s.staff || {}
+        const project = s.project || {}
+        return {
+          id: s.id,
+          staffId: s.staff_id,
+          staffName: `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明',
+          projectId: s.project_id || '',
+          projectName: project.name || '未割当',
+          date: s.shift_date,
+          startTime: (s.start_time || '').slice(0, 5),
+          endTime: (s.end_time || '').slice(0, 5),
+          status: s.status as ShiftStatus,
+          notes: s.notes,
+          submittedAt: s.submitted_at,
+          approvedAt: s.approved_at,
+          approvalMode: project.shift_approval_mode || 'AUTO',
+          googleCalendarSynced: s.google_calendar_synced || false,
+        }
+      })
+
+      setShifts(mapped)
+    } catch {
+      toast.error('シフトの取得に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }, [dateRange, filterProject, filterStaff, filterStatus])
+
+  // プロジェクトとスタッフ一覧を取得
+  useEffect(() => {
+    fetch('/api/projects?limit=100')
+      .then(r => r.json())
+      .then(res => {
+        const list = res.data || (Array.isArray(res) ? res : [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setProjects(list.map((p: any) => ({ id: p.id, name: p.name })))
+      })
+      .catch(() => {})
+
+    fetch('/api/staff?status=active&limit=100')
+      .then(r => r.json())
+      .then(res => {
+        const list = res.data || (Array.isArray(res) ? res : [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setStaffList(list.map((s: any) => ({
+          id: s.id,
+          name: `${s.last_name || ''} ${s.first_name || ''}`.trim(),
+        })))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchShifts()
+  }, [fetchShifts])
+
   const handleShiftClick = (shift: { id: string; staffId: string; staffName: string; projectId: string; projectName: string; date: string; startTime: string; endTime: string; status: ShiftStatus; notes?: string }) => {
-    // Find the full DemoShift from our data
-    const fullShift = DEMO_SHIFTS.find(s => s.id === shift.id)
+    const fullShift = shifts.find(s => s.id === shift.id)
     if (fullShift) {
       setEditingShift(fullShift)
       setEditDialogOpen(true)
     }
   }
 
-  const handleShiftSave = (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
-    toast.success(`${updated.staffName}のシフトを更新しました`)
+  const handleShiftSave = async (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
+    try {
+      const res = await fetch(`/api/shifts/${updated.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_time: updated.startTime,
+          end_time: updated.endTime,
+        }),
+      })
+      if (res.ok) {
+        toast.success(`${updated.staffName}のシフトを更新しました`)
+        fetchShifts()
+      } else {
+        toast.error('シフトの更新に失敗しました')
+      }
+    } catch {
+      toast.error('シフトの更新に失敗しました')
+    }
   }
 
-  const handleShiftDelete = (shiftId: string) => {
-    toast.success('シフトを削除しました')
-    console.log('Delete shift:', shiftId)
+  const handleShiftDelete = async (shiftId: string) => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('シフトを削除しました')
+        fetchShifts()
+      } else {
+        toast.error('シフトの削除に失敗しました')
+      }
+    } catch {
+      toast.error('シフトの削除に失敗しました')
+    }
   }
 
-  const handleShiftApprove = (shiftId: string) => {
-    toast.success('シフトを承認しました')
-    console.log('Approve shift:', shiftId)
+  const handleShiftApprove = async (shiftId: string) => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'APPROVE' }),
+      })
+      if (res.ok) {
+        toast.success('シフトを承認しました')
+        fetchShifts()
+      } else {
+        toast.error('シフトの承認に失敗しました')
+      }
+    } catch {
+      toast.error('シフトの承認に失敗しました')
+    }
   }
 
-  const handleShiftReject = (shiftId: string) => {
-    toast.success('シフトを却下しました')
-    console.log('Reject shift:', shiftId)
+  const handleShiftReject = async (shiftId: string) => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'REJECT' }),
+      })
+      if (res.ok) {
+        toast.success('シフトを却下しました')
+        fetchShifts()
+      } else {
+        toast.error('シフトの却下に失敗しました')
+      }
+    } catch {
+      toast.error('シフトの却下に失敗しました')
+    }
   }
 
   const handlePrevMonth = () => {
@@ -241,25 +319,15 @@ export default function ShiftsPage() {
     setSelectedDate(d)
   }
 
-  // Filtered shifts
-  const filteredShifts = useMemo(() => {
-    return DEMO_SHIFTS.filter(shift => {
-      if (filterStaff !== 'all' && shift.staffId !== filterStaff) return false
-      if (filterProject !== 'all' && shift.projectId !== filterProject) return false
-      if (filterStatus !== 'all' && shift.status !== filterStatus) return false
-      return true
-    })
-  }, [filterStaff, filterProject, filterStatus])
-
   // Stats
-  const totalShifts = DEMO_SHIFTS.length
-  const pendingCount = DEMO_SHIFTS.filter(s => s.status === 'SUBMITTED').length
-  const approvedCount = DEMO_SHIFTS.filter(s => s.status === 'APPROVED').length
+  const totalShifts = shifts.length
+  const pendingCount = shifts.filter(s => s.status === 'SUBMITTED').length
+  const approvedCount = shifts.filter(s => s.status === 'APPROVED').length
 
   // Month shifts grouped by date
   const monthShiftsByDate = useMemo(() => {
-    const map: Record<string, DemoShift[]> = {}
-    for (const shift of filteredShifts) {
+    const map: Record<string, Shift[]> = {}
+    for (const shift of shifts) {
       const [sy, sm] = shift.date.split('-').map(Number)
       if (sy === year && sm === month) {
         if (!map[shift.date]) map[shift.date] = []
@@ -267,7 +335,7 @@ export default function ShiftsPage() {
       }
     }
     return map
-  }, [filteredShifts, year, month])
+  }, [shifts, year, month])
 
   // Week dates
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate])
@@ -277,18 +345,23 @@ export default function ShiftsPage() {
     return `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
   }, [selectedDate])
   const dayShifts = useMemo(() => {
-    return filteredShifts.filter(s => s.date === selectedDayStr).sort((a, b) => a.startTime.localeCompare(b.startTime))
-  }, [filteredShifts, selectedDayStr])
+    return shifts.filter(s => s.date === selectedDayStr).sort((a, b) => a.startTime.localeCompare(b.startTime))
+  }, [shifts, selectedDayStr])
 
   // Calendar grid
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfWeek(year, month)
 
+  // Filter labels
+  const projectLabels: Record<string, string> = { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
+  const staffLabels: Record<string, string> = { all: '全スタッフ', ...Object.fromEntries(staffList.map(s => [s.id, s.name])) }
+  const statusLabels: Record<string, string> = { all: '全ステータス', ...Object.fromEntries(Object.entries(STATUS_CONFIG).map(([k, v]) => [k, v.label])) }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="シフト管理"
-        description="プラットフォームのシフトデータを管理します。承認済みシフトのみGoogleカレンダーに同期されます。"
+        description="シフトデータを管理します"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -303,14 +376,6 @@ export default function ShiftsPage() {
                   {pendingCount}
                 </Badge>
               )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/shifts/sync')}
-            >
-              <CalendarDays className="h-4 w-4 mr-1" />
-              同期状況
             </Button>
             <Button
               size="sm"
@@ -358,13 +423,11 @@ export default function ShiftsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filterProject} onValueChange={setFilterProject}>
           <SelectTrigger className="h-9 w-auto min-w-[120px] text-sm">
-            <SelectValue>
-              {filterProject === 'all' ? '全PJ' : DEMO_PROJECTS.find(p => p.id === filterProject)?.name}
-            </SelectValue>
+            <SelectValueWithLabel value={filterProject} labels={projectLabels} placeholder="全PJ" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全プロジェクト</SelectItem>
-            {DEMO_PROJECTS.map(p => (
+            {projects.map(p => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
           </SelectContent>
@@ -372,9 +435,7 @@ export default function ShiftsPage() {
 
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="h-9 w-auto min-w-[100px] text-sm">
-            <SelectValue>
-              {filterStatus === 'all' ? '全状態' : STATUS_CONFIG[filterStatus as ShiftStatus]?.label}
-            </SelectValue>
+            <SelectValueWithLabel value={filterStatus} labels={statusLabels} placeholder="全状態" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ステータス</SelectItem>
@@ -386,23 +447,24 @@ export default function ShiftsPage() {
 
         <Select value={filterStaff} onValueChange={setFilterStaff}>
           <SelectTrigger className="h-9 w-auto min-w-[100px] text-sm">
-            <SelectValue>
-              {filterStaff === 'all' ? '全員' : DEMO_STAFF.find(s => s.id === filterStaff)?.name}
-            </SelectValue>
+            <SelectValueWithLabel value={filterStaff} labels={staffLabels} placeholder="全員" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全スタッフ</SelectItem>
-            {DEMO_STAFF.map(s => (
+            {staffList.map(s => (
               <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        {loading && (
+          <span className="text-xs text-muted-foreground">読み込み中...</span>
+        )}
       </div>
 
       {/* Calendar with Navigation */}
       <Tabs value={viewMode} onValueChange={setViewMode}>
         <div className="flex items-center justify-between mb-3">
-          {/* Navigation */}
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -439,7 +501,6 @@ export default function ShiftsPage() {
             </Button>
           </div>
 
-          {/* View tabs */}
           <TabsList className="h-8">
             <TabsTrigger value="monthly" className="text-xs px-3 h-6">月</TabsTrigger>
             <TabsTrigger value="weekly" className="text-xs px-3 h-6">週</TabsTrigger>
@@ -474,7 +535,7 @@ export default function ShiftsPage() {
                   const day = i + 1
                   const dateStr = formatDateStr(year, month, day)
                   const dayOfWeek = (firstDay + i) % 7
-                  const shifts = monthShiftsByDate[dateStr] || []
+                  const dayShifts = monthShiftsByDate[dateStr] || []
                   const isToday = dateStr === todayStr
 
                   return (
@@ -485,7 +546,6 @@ export default function ShiftsPage() {
                         isToday && 'bg-blue-50/50'
                       )}
                       onClick={() => {
-                        setSelectedDayDetail(dateStr)
                         setSelectedDate(new Date(dateStr + 'T00:00:00'))
                         setViewMode('daily')
                       }}
@@ -502,21 +562,21 @@ export default function ShiftsPage() {
                         ) : day}
                       </div>
                       <div className="space-y-0.5">
-                        {shifts.slice(0, 3).map(shift => (
+                        {dayShifts.slice(0, 3).map(shift => (
                           <div
                             key={shift.id}
                             className={cn(
                               'text-[10px] leading-tight px-1 py-0.5 rounded border truncate',
-                              STATUS_CONFIG[shift.status].bgColor,
-                              STATUS_CONFIG[shift.status].color
+                              STATUS_CONFIG[shift.status]?.bgColor,
+                              STATUS_CONFIG[shift.status]?.color
                             )}
                           >
                             {shift.startTime.slice(0, 5)} {shift.staffName}
                           </div>
                         ))}
-                        {shifts.length > 3 && (
+                        {dayShifts.length > 3 && (
                           <div className="text-[10px] text-muted-foreground px-1">
-                            +{shifts.length - 3}件
+                            +{dayShifts.length - 3}件
                           </div>
                         )}
                       </div>
@@ -527,7 +587,6 @@ export default function ShiftsPage() {
             </CardContent>
           </Card>
 
-          {/* Status Legend */}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
             {Object.entries(STATUS_CONFIG).map(([key, val]) => (
               <div key={key} className="flex items-center gap-1.5">
@@ -538,16 +597,16 @@ export default function ShiftsPage() {
           </div>
         </TabsContent>
 
-        {/* Weekly View - Google Calendar Style Timeline */}
+        {/* Weekly View */}
         <TabsContent value="weekly">
           <ShiftWeeklyTimeline
             weekDates={weekDates}
-            shifts={filteredShifts}
+            shifts={shifts}
             onShiftClick={handleShiftClick}
           />
         </TabsContent>
 
-        {/* Daily View - Single day timeline */}
+        {/* Daily View */}
         <TabsContent value="daily">
           <ShiftWeeklyTimeline
             weekDates={[selectedDayStr]}

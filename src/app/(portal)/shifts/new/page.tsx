@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   ChevronRight,
   X,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -27,9 +28,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
+import { toast } from 'sonner'
 
 // --- Types ---
 
@@ -38,17 +40,9 @@ type ApprovalMode = 'AUTO' | 'APPROVAL'
 interface Project {
   id: string
   name: string
-  approvalMode: ApprovalMode
+  project_code: string
+  shift_approval_mode: ApprovalMode
 }
-
-// --- Demo Data ---
-
-const ASSIGNED_PROJECTS: Project[] = [
-  { id: 'pj1', name: 'AIアポブースト', approvalMode: 'AUTO' },
-  { id: 'pj2', name: 'WHITE営業代行', approvalMode: 'APPROVAL' },
-  { id: 'pj3', name: 'ミズテック受電', approvalMode: 'APPROVAL' },
-  { id: 'pj4', name: 'リクモ架電PJ', approvalMode: 'AUTO' },
-]
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -83,7 +77,6 @@ function MultiDateCalendar({
 
     const days: { dateStr: string; day: number; inMonth: boolean }[] = []
 
-    // Previous month padding
     const prevMonthDays = new Date(viewYear, viewMonth, 0).getDate()
     for (let i = startDow - 1; i >= 0; i--) {
       const d = prevMonthDays - i
@@ -92,12 +85,10 @@ function MultiDateCalendar({
       days.push({ dateStr: toDateStr(y, m, d), day: d, inMonth: false })
     }
 
-    // Current month
     for (let d = 1; d <= daysInMonth; d++) {
       days.push({ dateStr: toDateStr(viewYear, viewMonth, d), day: d, inMonth: true })
     }
 
-    // Next month padding
     const remaining = 42 - days.length
     for (let d = 1; d <= remaining; d++) {
       const m = viewMonth === 11 ? 0 : viewMonth + 1
@@ -118,7 +109,6 @@ function MultiDateCalendar({
     else setViewMonth(viewMonth + 1)
   }
 
-  // Select all weekdays in current month
   const selectWeekdays = () => {
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
     for (let d = 1; d <= daysInMonth; d++) {
@@ -132,7 +122,6 @@ function MultiDateCalendar({
 
   return (
     <div className="space-y-3">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="icon" onClick={goPrev} className="h-8 w-8">
           <ChevronLeft className="h-4 w-4" />
@@ -145,14 +134,12 @@ function MultiDateCalendar({
         </Button>
       </div>
 
-      {/* Quick actions */}
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={selectWeekdays}>
           平日を全選択
         </Button>
       </div>
 
-      {/* Weekday headers */}
       <div className="grid grid-cols-7 text-center">
         {WEEKDAY_LABELS.map((label, i) => (
           <div
@@ -164,7 +151,6 @@ function MultiDateCalendar({
         ))}
       </div>
 
-      {/* Days grid */}
       <div className="grid grid-cols-7 gap-1">
         {calendarDays.map(({ dateStr, day, inMonth }, idx) => {
           const isSelected = selectedDates.has(dateStr)
@@ -200,17 +186,49 @@ function MultiDateCalendar({
 export default function ShiftNewPage() {
   const router = useRouter()
 
+  const [projects, setProjects] = useState<Project[]>([])
+  const [staffId, setStaffId] = useState<string>('')
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set())
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
   const [projectId, setProjectId] = useState('')
   const [notes, setNotes] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [resultStatus, setResultStatus] = useState<'APPROVED' | 'DRAFT' | null>(null)
+  const [resultCount, setResultCount] = useState(0)
 
-  const selectedProject = ASSIGNED_PROJECTS.find(p => p.id === projectId)
-  const isAutoApproval = selectedProject?.approvalMode === 'AUTO'
+  // ログインユーザーのスタッフIDとアサイン済みプロジェクトを取得
+  useEffect(() => {
+    // 自分のスタッフ情報を取得
+    fetch('/api/staff/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.id) setStaffId(data.id)
+      })
+      .catch(() => {})
+
+    // プロジェクト一覧を取得（アクティブなもの）
+    fetch('/api/projects?status=active&status=in_progress&limit=100')
+      .then(r => r.json())
+      .then(res => {
+        const list = res.data || (Array.isArray(res) ? res : [])
+        setProjects(list.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: p.name as string,
+          project_code: p.project_code as string || '',
+          shift_approval_mode: (p.shift_approval_mode as ApprovalMode) || 'AUTO',
+        })))
+      })
+      .catch(() => {})
+  }, [])
+
+  const selectedProject = projects.find(p => p.id === projectId)
+  const isAutoApproval = selectedProject?.shift_approval_mode === 'AUTO'
+  const projectLabels = Object.fromEntries(
+    projects.map(p => [p.id, `${p.name}${p.shift_approval_mode === 'AUTO' ? ' (自動承認)' : ' (承認制)'}`])
+  )
 
   const sortedDates = useMemo(
     () => [...selectedDates].sort(),
@@ -252,20 +270,61 @@ export default function ShiftNewPage() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSaveDraft = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
-    setResultStatus('DRAFT')
-    setSubmitted(true)
+    setSubmitting(true)
+
+    let successCount = 0
+    const failedDates: string[] = []
+
+    for (const date of sortedDates) {
+      try {
+        const res = await fetch('/api/shifts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            staff_id: staffId,
+            project_id: projectId,
+            shift_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            notes: notes || undefined,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          successCount++
+          // 最後に作成されたシフトのステータスを結果に反映
+          if (data.status === 'APPROVED') {
+            setResultStatus('APPROVED')
+          } else {
+            setResultStatus('DRAFT')
+          }
+        } else {
+          failedDates.push(date)
+        }
+      } catch {
+        failedDates.push(date)
+      }
+    }
+
+    setSubmitting(false)
+    setResultCount(successCount)
+
+    if (failedDates.length > 0) {
+      toast.error(`${failedDates.length}件のシフト登録に失敗しました`)
+    }
+
+    if (successCount > 0) {
+      if (!resultStatus) {
+        setResultStatus(isAutoApproval ? 'APPROVED' : 'DRAFT')
+      }
+      setSubmitted(true)
+    }
   }
 
-  const handleSubmit = () => {
-    if (!validate()) return
-    if (isAutoApproval) {
-      setResultStatus('APPROVED')
-    } else {
-      setResultStatus('DRAFT')
-    }
-    setSubmitted(true)
+  const handleSaveDraft = () => {
+    handleSubmit()
   }
 
   if (submitted && resultStatus) {
@@ -289,13 +348,10 @@ export default function ShiftNewPage() {
                   <CheckCircle2 className="h-8 w-8 text-green-600" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
-                  {sortedDates.length}件のシフトが登録されました
+                  {resultCount}件のシフトが登録されました
                 </h3>
                 <p className="text-sm text-muted-foreground mb-1">
                   プロジェクト「{selectedProject?.name}」は自動承認モードのため、即座に承認されました。
-                </p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Googleカレンダーへの同期が開始されます。
                 </p>
                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
                   {sortedDates.map(d => (
@@ -311,7 +367,7 @@ export default function ShiftNewPage() {
                   <FileText className="h-8 w-8 text-gray-600" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
-                  {sortedDates.length}件のシフトが下書き保存されました
+                  {resultCount}件のシフトが下書き保存されました
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   プロジェクト「{selectedProject?.name}」は承認制のため、PMの承認が必要です。
@@ -323,10 +379,6 @@ export default function ShiftNewPage() {
                     </Badge>
                   ))}
                 </div>
-                <Button size="sm" onClick={() => setResultStatus('APPROVED')}>
-                  <Send className="h-4 w-4 mr-1" />
-                  まとめて申請する
-                </Button>
               </>
             )}
             <div className="mt-6 flex justify-center gap-3">
@@ -339,6 +391,7 @@ export default function ShiftNewPage() {
                 setSelectedDates(new Set())
                 setProjectId('')
                 setNotes('')
+                setResultCount(0)
               }}>
                 続けて登録
               </Button>
@@ -365,7 +418,6 @@ export default function ShiftNewPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Left: Settings */}
         <div className="space-y-6">
-          {/* Project */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
@@ -383,13 +435,13 @@ export default function ShiftNewPage() {
                 </Label>
                 <Select value={projectId} onValueChange={v => { setProjectId(v); setErrors(prev => ({ ...prev, projectId: '' })) }}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="プロジェクトを選択" />
+                    <SelectValueWithLabel value={projectId || null} labels={projectLabels} placeholder="プロジェクトを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ASSIGNED_PROJECTS.map(p => (
+                    {projects.map(p => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
-                        {p.approvalMode === 'AUTO' ? ' (自動承認)' : ' (承認制)'}
+                        {p.shift_approval_mode === 'AUTO' ? ' (自動承認)' : ' (承認制)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -502,24 +554,21 @@ export default function ShiftNewPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-3 pt-4 mt-4 border-t">
-                {selectedProject?.approvalMode === 'APPROVAL' && (
-                  <Button variant="outline" onClick={handleSaveDraft}>
+                {selectedProject?.shift_approval_mode === 'APPROVAL' && (
+                  <Button variant="outline" onClick={handleSaveDraft} disabled={submitting}>
                     <Save className="h-4 w-4 mr-1" />
                     下書き保存
                   </Button>
                 )}
-                <Button onClick={handleSubmit} disabled={selectedDates.size === 0}>
-                  {isAutoApproval ? (
-                    <>
-                      <CalendarDays className="h-4 w-4 mr-1" />
-                      {selectedDates.size > 0 ? `${selectedDates.size}件を登録する` : '登録する'}
-                    </>
+                <Button onClick={handleSubmit} disabled={selectedDates.size === 0 || submitting}>
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : isAutoApproval ? (
+                    <CalendarDays className="h-4 w-4 mr-1" />
                   ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-1" />
-                      {selectedDates.size > 0 ? `${selectedDates.size}件を申請する` : '申請する'}
-                    </>
+                    <Send className="h-4 w-4 mr-1" />
                   )}
+                  {selectedDates.size > 0 ? `${selectedDates.size}件を${isAutoApproval ? '登録' : '申請'}する` : '登録する'}
                 </Button>
               </div>
             </CardContent>

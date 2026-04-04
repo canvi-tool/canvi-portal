@@ -1715,6 +1715,7 @@ export interface Database {
           note: string | null
           modified_by: string | null
           modification_reason: string | null
+          slack_thread_ts: string | null
           created_at: string
           updated_at: string
           deleted_at: string | null
@@ -1737,6 +1738,7 @@ export interface Database {
           note?: string | null
           modified_by?: string | null
           modification_reason?: string | null
+          slack_thread_ts?: string | null
           created_at?: string
           updated_at?: string
           deleted_at?: string | null
@@ -1759,6 +1761,7 @@ export interface Database {
           note?: string | null
           modified_by?: string | null
           modification_reason?: string | null
+          slack_thread_ts?: string | null
           created_at?: string
           updated_at?: string
           deleted_at?: string | null
