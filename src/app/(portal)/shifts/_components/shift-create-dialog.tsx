@@ -135,7 +135,11 @@ export function ShiftCreateDialog({
               <Label>スタッフ</Label>
               <Select value={staffId} onValueChange={setStaffId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="スタッフを選択" />
+                  <SelectValueWithLabel
+                    value={staffId}
+                    labels={Object.fromEntries(staffList.map(s => [s.id, s.name]))}
+                    placeholder="スタッフを選択"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {staffList.map(s => (
