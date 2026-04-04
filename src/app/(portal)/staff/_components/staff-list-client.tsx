@@ -11,7 +11,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Search, Send, Loader2 } from 'lucide-react'
+import { Search, Send, Loader2, Mail } from 'lucide-react'
 import { StaffTable } from './staff-table'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
 import {
@@ -50,6 +50,7 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
 
   const bulkUpdate = useBulkUpdateStaffStatus()
   const [sendingInfoUpdate, setSendingInfoUpdate] = useState(false)
+  const [sendingWelcomeEmail, setSendingWelcomeEmail] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkCheckResults, setBulkCheckResults] = useState<Array<{ name: string; missingFields: string[] }>>([])
 
@@ -167,6 +168,38 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
     }
   }
 
+  const handleBulkWelcomeEmail = async () => {
+    const ids = Array.from(selectedIds)
+    const userIds = ids
+      .map((id) => initialData.find((s) => s.id === id)?.user_id)
+      .filter((uid): uid is string => !!uid)
+
+    if (userIds.length === 0) {
+      toast.error('ポータルアカウントが紐づいたスタッフが選択されていません')
+      return
+    }
+
+    setSendingWelcomeEmail(true)
+    try {
+      const res = await fetch('/api/users/send-welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: userIds }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'メール送信に失敗しました')
+        return
+      }
+      toast.success(`${data.success_count}名にログイン案内メールを送信しました${data.fail_count ? `（${data.fail_count}名失敗）` : ''}`)
+      setSelectedIds(new Set())
+    } catch {
+      toast.error('メール送信に失敗しました')
+    } finally {
+      setSendingWelcomeEmail(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -230,6 +263,19 @@ export function StaffListClient({ initialData }: StaffListClientProps) {
         totalCount={filteredData.length}
         onClearSelection={() => setSelectedIds(new Set())}
       >
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={sendingWelcomeEmail}
+          onClick={handleBulkWelcomeEmail}
+        >
+          {sendingWelcomeEmail ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Mail className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          ログイン案内メール
+        </Button>
         <Button
           variant="secondary"
           size="sm"
