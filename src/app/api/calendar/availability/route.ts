@@ -69,22 +69,30 @@ export async function GET(request: NextRequest) {
       .in('status', ['APPROVED', 'SUBMITTED'])
 
     // Googleカレンダーからbusy時間を取得
-    // リクエスト元ユーザーのトークンでfreebusy API呼び出し
-    const token = await getValidTokenForUser(user.id)
+    // 各メンバーの自分のトークンで自分のカレンダーを取得
     let googleBusy: Record<string, Array<{ start: string; end: string }>> = {}
 
-    if (token) {
+    const busyPromises = users.map(async (u) => {
+      const token = await getValidTokenForUser(u.id)
+      if (!token) return { email: u.email, busy: [] as Array<{ start: string; end: string }> }
+
       try {
         const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-        const emails = users.map(u => u.email)
-        googleBusy = await client.getFreeBusy({
-          emails,
+        const result = await client.getFreeBusy({
+          emails: [u.email],
           timeMin,
           timeMax,
         })
+        return { email: u.email, busy: result[u.email] || [] }
       } catch (e) {
-        console.warn('FreeBusy API failed, continuing without Google Calendar data:', e)
+        console.warn(`FreeBusy API failed for ${u.email}:`, e)
+        return { email: u.email, busy: [] as Array<{ start: string; end: string }> }
       }
+    })
+
+    const busyResults = await Promise.all(busyPromises)
+    for (const r of busyResults) {
+      googleBusy[r.email] = r.busy
     }
 
     // シフトをユーザーIDごとにグループ化（O(n)でMap作成）

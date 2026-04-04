@@ -116,7 +116,7 @@ function SetupPasswordInner() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/callback`,
-        scopes: 'https://www.googleapis.com/auth/calendar.events',
+        scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
