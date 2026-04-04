@@ -12,6 +12,7 @@ interface BusyBlock {
   start: string
   end: string
   source: 'shift' | 'google'
+  summary?: string
 }
 
 interface MemberData {
@@ -49,6 +50,7 @@ function toEvents(members: MemberData[], selectedIds: Set<string>) {
     borderColor: string
     textColor: string
     display: string
+    extendedProps: { memberName: string; summary?: string; source: string }
   }> = []
 
   const selectedMembers = members.filter(m => selectedIds.has(m.id))
@@ -57,15 +59,17 @@ function toEvents(members: MemberData[], selectedIds: Set<string>) {
     const color = COLORS[idx % COLORS.length]
 
     member.busy.forEach((block, blockIdx) => {
+      const summary = block.summary || (block.source === 'shift' ? 'シフト' : '')
       events.push({
         id: `${member.id}-${blockIdx}`,
-        title: `${member.displayName}${block.source === 'google' ? '' : ' (シフト)'}`,
+        title: summary ? `${summary}` : member.displayName,
         start: block.start,
         end: block.end,
         backgroundColor: block.source === 'google' ? '#94a3b8' : color,
         borderColor: block.source === 'google' ? '#94a3b8' : color,
         textColor: '#fff',
         display: 'block',
+        extendedProps: { memberName: member.displayName, summary, source: block.source },
       })
     })
   })
@@ -131,12 +135,12 @@ function getAvailableSlots(
 
 function renderEventContent(eventInfo: EventContentArg) {
   if (eventInfo.event.display === 'background') return null
+  const { memberName, summary } = eventInfo.event.extendedProps
   return (
-    <div className="text-[10px] p-0.5 overflow-hidden">
-      <div className="font-medium truncate">{eventInfo.event.title}</div>
-      <div className="opacity-75">
-        {eventInfo.timeText}
-      </div>
+    <div className="text-[10px] p-0.5 overflow-hidden leading-tight">
+      <div className="font-semibold truncate">{summary || memberName}</div>
+      {summary && <div className="opacity-80 truncate">{memberName}</div>}
+      <div className="opacity-60">{eventInfo.timeText}</div>
     </div>
   )
 }
