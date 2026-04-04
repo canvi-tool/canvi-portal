@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
-import { fetchSlackChannels } from '@/lib/integrations/slack'
+import { fetchSlackChannels, createSlackChannel } from '@/lib/integrations/slack'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -37,6 +37,41 @@ export async function GET() {
     return NextResponse.json({ channels: result.channels })
   } catch (error) {
     console.error('GET /api/slack/channels error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
+/**
+ * POST /api/slack/channels
+ * Slackチャンネル新規作成（管理者のみ）
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || (!isOwner(user) && !isAdmin(user))) {
+      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { name, is_private } = body
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ error: 'チャンネル名を入力してください' }, { status: 400 })
+    }
+
+    if (name.trim().length > 80) {
+      return NextResponse.json({ error: 'チャンネル名は80文字以内にしてください' }, { status: 400 })
+    }
+
+    const result = await createSlackChannel(name.trim(), !!is_private)
+
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
+
+    return NextResponse.json({ channel: result.channel })
+  } catch (error) {
+    console.error('POST /api/slack/channels error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
   }
 }

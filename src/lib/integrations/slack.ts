@@ -259,6 +259,58 @@ export async function fetchSlackChannels(): Promise<{ channels: SlackChannel[]; 
   }
 }
 
+/**
+ * Slackチャンネルを新規作成（Bot Token方式）
+ */
+export async function createSlackChannel(
+  name: string,
+  isPrivate: boolean = false
+): Promise<{ channel?: SlackChannel; error?: string }> {
+  const token = getBotToken()
+  if (!token) {
+    return { error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/conversations.create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-_\u3000-\u9fff\uff00-\uffef]/g, ''),
+        is_private: isPrivate,
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      // よくあるエラーの日本語化
+      const errorMessages: Record<string, string> = {
+        'name_taken': 'このチャンネル名は既に使用されています',
+        'invalid_name': 'チャンネル名が無効です（英数字・ハイフン・アンダースコアのみ）',
+        'no_channel': 'チャンネルの作成に失敗しました',
+        'restricted_action': 'Botにチャンネル作成の権限がありません',
+        'missing_scope': 'Botにチャンネル作成のスコープ(channels:manage)がありません',
+      }
+      return { error: errorMessages[data.error] || `Slack API error: ${data.error}` }
+    }
+
+    return {
+      channel: {
+        id: data.channel.id,
+        name: data.channel.name,
+        is_private: data.channel.is_private,
+        is_archived: false,
+        num_members: 1,
+      },
+    }
+  } catch (err) {
+    return { error: (err as Error).message }
+  }
+}
+
 // =============== 通知テンプレート ===============
 
 /**

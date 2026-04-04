@@ -65,6 +65,8 @@ import {
   CalendarDays,
   Bell,
   Hash,
+  Link2,
+  Link2Off,
 } from 'lucide-react'
 
 interface PageProps {
@@ -246,7 +248,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
       {/* Project Info Card */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">ステータス</p>
               <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
@@ -275,6 +277,32 @@ export default function ProjectDetailPage({ params }: PageProps) {
                 メンバー数
               </p>
               <p className="text-sm font-medium">{project.assignment_count ?? 0}名</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                {project.slack_channel_id ? (
+                  <Link2 className="h-3 w-3 text-green-600" />
+                ) : (
+                  <Link2Off className="h-3 w-3" />
+                )}
+                Slack連携
+              </p>
+              {project.slack_channel_id ? (
+                <button
+                  onClick={() => setActiveTab('notifications')}
+                  className="flex items-center gap-1 text-sm font-medium text-green-600 hover:underline cursor-pointer"
+                >
+                  <Hash className="h-3 w-3" />
+                  {project.slack_channel_name?.replace(/^#/, '') || 'connected'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push(`/projects/${id}/edit`)}
+                  className="text-sm text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+                >
+                  未連携 → 設定する
+                </button>
+              )}
             </div>
           </div>
           {project.description && (
