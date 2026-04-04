@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
-// 通知設定のフィールド一覧
-const NOTIFICATION_FIELDS = [
+// トグル（boolean）フィールド
+const BOOLEAN_FIELDS = [
   'attendance_clock_in',
   'attendance_clock_out',
   'attendance_missing',
@@ -11,8 +11,6 @@ const NOTIFICATION_FIELDS = [
   'shift_rejected',
   'report_submitted',
   'report_overdue',
-  'contract_unsigned',
-  'payment_anomaly',
   'overtime_warning',
   'leave_requested',
   'member_assigned',
@@ -20,8 +18,23 @@ const NOTIFICATION_FIELDS = [
   'general_alert',
 ] as const
 
-// デフォルト設定（テーブルのDEFAULT値と一致）
-const DEFAULT_SETTINGS: Record<string, boolean> = {
+// 数値パラメータフィールド（min, max バリデーション付き）
+const NUMERIC_FIELDS: Record<string, { min: number; max: number }> = {
+  attendance_missing_delay_minutes: { min: 5, max: 120 },
+  attendance_missing_repeat_interval_minutes: { min: 10, max: 120 },
+  attendance_missing_max_repeats: { min: 0, max: 10 },
+  shift_submission_deadline_day: { min: 1, max: 28 },
+  shift_submission_alert_start_days_before: { min: 1, max: 14 },
+  shift_submission_alert_repeat_interval_days: { min: 1, max: 7 },
+  report_overdue_delay_hours: { min: 1, max: 24 },
+  report_overdue_repeat_interval_hours: { min: 1, max: 24 },
+  report_overdue_max_repeats: { min: 0, max: 10 },
+  overtime_warning_threshold_hours: { min: 4, max: 16 },
+}
+
+// デフォルト設定
+const DEFAULT_SETTINGS: Record<string, boolean | number> = {
+  // トグル
   attendance_clock_in: false,
   attendance_clock_out: false,
   attendance_missing: true,
@@ -30,13 +43,22 @@ const DEFAULT_SETTINGS: Record<string, boolean> = {
   shift_rejected: true,
   report_submitted: false,
   report_overdue: true,
-  contract_unsigned: true,
-  payment_anomaly: true,
   overtime_warning: true,
   leave_requested: true,
   member_assigned: true,
   member_removed: true,
   general_alert: true,
+  // タイミングパラメータ
+  attendance_missing_delay_minutes: 15,
+  attendance_missing_repeat_interval_minutes: 30,
+  attendance_missing_max_repeats: 3,
+  shift_submission_deadline_day: 25,
+  shift_submission_alert_start_days_before: 5,
+  shift_submission_alert_repeat_interval_days: 1,
+  report_overdue_delay_hours: 2,
+  report_overdue_repeat_interval_hours: 4,
+  report_overdue_max_repeats: 2,
+  overtime_warning_threshold_hours: 8.0,
 }
 
 export async function GET(
@@ -54,11 +76,9 @@ export async function GET(
       .single()
 
     if (error && error.code !== 'PGRST116') {
-      // PGRST116 = not found (single row expected but 0 returned)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // 設定が存在しない場合はデフォルト値を返す
     if (!data) {
       return NextResponse.json({
         project_id: projectId,
@@ -83,11 +103,22 @@ export async function PUT(
     const projectId = params.id
     const body = await request.json()
 
-    // フィールドのバリデーション: boolean値のみ受け付ける
-    const settingsUpdate: Record<string, boolean> = {}
-    for (const field of NOTIFICATION_FIELDS) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const settingsUpdate: Record<string, any> = {}
+
+    // Boolean フィールドのバリデーション
+    for (const field of BOOLEAN_FIELDS) {
       if (field in body && typeof body[field] === 'boolean') {
         settingsUpdate[field] = body[field]
+      }
+    }
+
+    // 数値フィールドのバリデーション（範囲チェック付き）
+    for (const [field, range] of Object.entries(NUMERIC_FIELDS)) {
+      if (field in body && typeof body[field] === 'number') {
+        const val = body[field]
+        // 範囲内にクランプ
+        settingsUpdate[field] = Math.min(Math.max(val, range.min), range.max)
       }
     }
 
@@ -100,7 +131,6 @@ export async function PUT(
 
     let result
     if (existing) {
-      // 既存レコードを更新
       const { data, error } = await supabase
         .from('project_notification_settings')
         .update(settingsUpdate)
@@ -113,7 +143,6 @@ export async function PUT(
       }
       result = data
     } else {
-      // 新規作成
       const { data, error } = await supabase
         .from('project_notification_settings')
         .insert({

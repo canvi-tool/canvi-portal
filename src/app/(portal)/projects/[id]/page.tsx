@@ -48,6 +48,8 @@ import {
   useUpdateNotificationSettings,
   NOTIFICATION_CATEGORIES,
   type ProjectNotificationSettings,
+  type ToggleSettingKey,
+  type NumericSettingKey,
 } from '@/hooks/use-notification-settings'
 import {
   Pencil,
@@ -151,7 +153,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   }
 
   const handleToggleNotification = async (
-    key: keyof ProjectNotificationSettings,
+    key: ToggleSettingKey,
     value: boolean
   ) => {
     try {
@@ -163,8 +165,21 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   }
 
+  const handleNumericChange = async (
+    key: NumericSettingKey,
+    value: number
+  ) => {
+    try {
+      await updateNotification.mutateAsync({ [key]: value })
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '通知設定の更新に失敗しました'
+      )
+    }
+  }
+
   const handleToggleAllInCategory = async (
-    items: { key: keyof ProjectNotificationSettings }[],
+    items: { key: ToggleSettingKey }[],
     enable: boolean
   ) => {
     const updates: Partial<ProjectNotificationSettings> = {}
@@ -542,29 +557,68 @@ export default function ProjectDetailPage({ params }: PageProps) {
                         {category.items.map((item) => {
                           const isEnabled = notificationSettings?.[item.key] === true
                           return (
-                            <div
-                              key={item.key}
-                              className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-                            >
-                              <div className="space-y-0.5 pr-4">
-                                <Label
-                                  htmlFor={`notify-${item.key}`}
-                                  className="text-sm font-medium cursor-pointer"
-                                >
-                                  {item.label}
-                                </Label>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.description}
-                                </p>
+                            <div key={item.key} className="py-3 first:pt-0 last:pb-0">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5 pr-4">
+                                  <Label
+                                    htmlFor={`notify-${item.key}`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {item.label}
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.description}
+                                  </p>
+                                </div>
+                                <Switch
+                                  id={`notify-${item.key}`}
+                                  checked={isEnabled}
+                                  disabled={updateNotification.isPending}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleNotification(item.key, checked)
+                                  }
+                                />
                               </div>
-                              <Switch
-                                id={`notify-${item.key}`}
-                                checked={isEnabled}
-                                disabled={updateNotification.isPending}
-                                onCheckedChange={(checked) =>
-                                  handleToggleNotification(item.key, checked)
-                                }
-                              />
+
+                              {/* タイミング設定パラメータ */}
+                              {item.timingParams && isEnabled && (
+                                <div className="mt-3 ml-1 pl-3 border-l-2 border-primary/20 space-y-2.5">
+                                  {item.timingParams.map((param) => {
+                                    const currentValue = (notificationSettings?.[param.key] as number) ?? 0
+                                    return (
+                                      <div key={param.key} className="flex items-center gap-3">
+                                        <Label
+                                          htmlFor={`param-${param.key}`}
+                                          className="text-xs text-muted-foreground whitespace-nowrap min-w-[160px]"
+                                        >
+                                          {param.label}
+                                        </Label>
+                                        <div className="flex items-center gap-1.5">
+                                          <Input
+                                            id={`param-${param.key}`}
+                                            type="number"
+                                            value={currentValue}
+                                            min={param.min}
+                                            max={param.max}
+                                            step={param.step ?? 1}
+                                            className="w-20 h-7 text-sm text-center"
+                                            disabled={updateNotification.isPending}
+                                            onChange={(e) => {
+                                              const val = parseFloat(e.target.value)
+                                              if (!isNaN(val)) {
+                                                handleNumericChange(param.key, val)
+                                              }
+                                            }}
+                                          />
+                                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                            {param.unit}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )
                         })}

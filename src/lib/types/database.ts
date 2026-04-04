@@ -1799,13 +1799,21 @@ export interface Database {
           shift_rejected: boolean
           report_submitted: boolean
           report_overdue: boolean
-          contract_unsigned: boolean
-          payment_anomaly: boolean
           overtime_warning: boolean
           leave_requested: boolean
           member_assigned: boolean
           member_removed: boolean
           general_alert: boolean
+          attendance_missing_delay_minutes: number
+          attendance_missing_repeat_interval_minutes: number
+          attendance_missing_max_repeats: number
+          shift_submission_deadline_day: number
+          shift_submission_alert_start_days_before: number
+          shift_submission_alert_repeat_interval_days: number
+          report_overdue_delay_hours: number
+          report_overdue_repeat_interval_hours: number
+          report_overdue_max_repeats: number
+          overtime_warning_threshold_hours: number
           created_at: string
           updated_at: string
         }
@@ -1820,13 +1828,21 @@ export interface Database {
           shift_rejected?: boolean
           report_submitted?: boolean
           report_overdue?: boolean
-          contract_unsigned?: boolean
-          payment_anomaly?: boolean
           overtime_warning?: boolean
           leave_requested?: boolean
           member_assigned?: boolean
           member_removed?: boolean
           general_alert?: boolean
+          attendance_missing_delay_minutes?: number
+          attendance_missing_repeat_interval_minutes?: number
+          attendance_missing_max_repeats?: number
+          shift_submission_deadline_day?: number
+          shift_submission_alert_start_days_before?: number
+          shift_submission_alert_repeat_interval_days?: number
+          report_overdue_delay_hours?: number
+          report_overdue_repeat_interval_hours?: number
+          report_overdue_max_repeats?: number
+          overtime_warning_threshold_hours?: number
           created_at?: string
           updated_at?: string
         }
@@ -1841,13 +1857,21 @@ export interface Database {
           shift_rejected?: boolean
           report_submitted?: boolean
           report_overdue?: boolean
-          contract_unsigned?: boolean
-          payment_anomaly?: boolean
           overtime_warning?: boolean
           leave_requested?: boolean
           member_assigned?: boolean
           member_removed?: boolean
           general_alert?: boolean
+          attendance_missing_delay_minutes?: number
+          attendance_missing_repeat_interval_minutes?: number
+          attendance_missing_max_repeats?: number
+          shift_submission_deadline_day?: number
+          shift_submission_alert_start_days_before?: number
+          shift_submission_alert_repeat_interval_days?: number
+          report_overdue_delay_hours?: number
+          report_overdue_repeat_interval_hours?: number
+          report_overdue_max_repeats?: number
+          overtime_warning_threshold_hours?: number
           created_at?: string
           updated_at?: string
         }
