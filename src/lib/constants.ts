@@ -152,20 +152,43 @@ export interface NavItem {
   badge?: number
 }
 
-export const NAV_ITEMS: NavItem[] = [
-  { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
-  { label: 'スタッフ管理', href: '/staff', icon: 'Users' },
-  { label: 'クライアント管理', href: '/clients', icon: 'Building2' },
-  { label: '契約管理', href: '/contracts', icon: 'FileText' },
-  { label: 'プロジェクト', href: '/projects', icon: 'Briefcase' },
-  { label: '書類管理', href: '/documents', icon: 'FileStack' },
-  { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
-  { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
-  { label: '勤怠管理', href: '/attendance', icon: 'Clock' },
-  { label: '勤務報告', href: '/reports/work', icon: 'ClipboardList' },
-  { label: '業務実績', href: '/reports/performance', icon: 'BarChart3' },
-  { label: '支払管理', href: '/payments', icon: 'Wallet' },
-  { label: '退職・離任', href: '/retirement', icon: 'UserMinus' },
-  { label: 'アラート', href: '/alerts', icon: 'Bell' },
-  { label: '設定', href: '/settings', icon: 'Settings' },
+export interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    title: '業務',
+    items: [
+      { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
+      { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
+      { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
+      { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
+      { label: '日次報告', href: '/reports/work', icon: 'ClipboardList' },
+      { label: '月次報告', href: '/reports/performance', icon: 'BarChart3' },
+    ],
+  },
+  {
+    title: '管理',
+    items: [
+      { label: 'スタッフ', href: '/staff', icon: 'Users' },
+      { label: 'クライアント', href: '/clients', icon: 'Building2' },
+      { label: 'プロジェクト', href: '/projects', icon: 'Briefcase' },
+      { label: '契約書', href: '/contracts', icon: 'FileText' },
+      { label: '見積書', href: '/documents', icon: 'FileStack' },
+      { label: '請求書', href: '/invoices', icon: 'Receipt' },
+      { label: '支払書', href: '/payments', icon: 'Wallet' },
+    ],
+  },
+  {
+    title: 'その他',
+    items: [
+      { label: 'AIアラート', href: '/alerts', icon: 'Bell' },
+      { label: '設定', href: '/settings', icon: 'Settings' },
+    ],
+  },
 ]
+
+// フラット化されたNAV_ITEMS（後方互換用）
+export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items)

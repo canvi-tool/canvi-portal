@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { NAV_ITEMS, APP_NAME, type NavItem } from '@/lib/constants'
+import { NAV_SECTIONS, APP_NAME, type NavItem } from '@/lib/constants'
 import { canAccessRoute, type DemoRole } from '@/lib/demo-accounts'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,20 +16,21 @@ import {
   Briefcase,
   FileStack,
   CalendarDays,
+  Calendar,
   ClipboardList,
   BarChart3,
   Wallet,
-  UserMinus,
   Bell,
   Settings,
-  KeyRound,
+  Building2,
+  Receipt,
   Menu,
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Clock,
   type LucideIcon,
 } from 'lucide-react'
-import { Clock } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -38,14 +39,15 @@ const iconMap: Record<string, LucideIcon> = {
   Briefcase,
   FileStack,
   CalendarDays,
+  Calendar,
   Clock,
   ClipboardList,
   BarChart3,
   Wallet,
-  UserMinus,
   Bell,
   Settings,
-  KeyRound,
+  Building2,
+  Receipt,
 }
 
 export interface SidebarProps {
@@ -128,18 +130,34 @@ function SidebarContent({
 
       {/* Navigation */}
       <ScrollArea className="flex-1 px-2.5 py-3">
-        <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS
-            .filter((item) => !user?.role || canAccessRoute(user.role, item.href))
-            .map((item) => (
-            <div key={item.href} onClick={onNavigate}>
-              <NavLink
-                item={item}
-                isActive={pathname === item.href || pathname.startsWith(item.href + '/')}
-                collapsed={collapsed}
-              />
-            </div>
-          ))}
+        <nav className="flex flex-col gap-3">
+          {NAV_SECTIONS.map((section) => {
+            const visibleItems = section.items.filter(
+              (item) => !user?.role || canAccessRoute(user.role, item.href)
+            )
+            if (visibleItems.length === 0) return null
+            return (
+              <div key={section.title}>
+                {!collapsed && (
+                  <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    {section.title}
+                  </p>
+                )}
+                {collapsed && <Separator className="bg-slate-700 mb-1" />}
+                <div className="flex flex-col gap-0.5">
+                  {visibleItems.map((item) => (
+                    <div key={item.href} onClick={onNavigate}>
+                      <NavLink
+                        item={item}
+                        isActive={pathname === item.href || pathname.startsWith(item.href + '/')}
+                        collapsed={collapsed}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </nav>
       </ScrollArea>
 
