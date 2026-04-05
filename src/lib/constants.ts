@@ -176,7 +176,6 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '業務',
     items: [
       { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
-      { label: 'チュートリアル', href: '/tutorial', icon: 'GraduationCap' },
       { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
       { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
       { label: '有給管理', href: '/leave', icon: 'Palmtree' },

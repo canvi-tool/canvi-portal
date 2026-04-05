@@ -29,14 +29,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  GraduationCap,
   Palmtree,
   type LucideIcon,
 } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
-  GraduationCap,
   Users,
   FileText,
   Briefcase,

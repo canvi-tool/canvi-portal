@@ -26,7 +26,7 @@ export async function updateSession(request: NextRequest) {
 
     // ポータルページ: ロール未選択ならログインへ
     const portalPaths = [
-      '/dashboard', '/tutorial', '/staff', '/clients', '/contracts', '/projects',
+      '/dashboard', '/staff', '/clients', '/contracts', '/projects',
       '/documents', '/invoices', '/shifts', '/leave', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
       '/ai', '/alerts', '/settings',
     ]
@@ -77,7 +77,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const portalPaths = [
-    '/dashboard', '/tutorial', '/staff', '/contracts', '/projects',
+    '/dashboard', '/staff', '/contracts', '/projects',
     '/documents', '/invoices', '/shifts', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
     '/ai', '/alerts', '/settings',
   ]

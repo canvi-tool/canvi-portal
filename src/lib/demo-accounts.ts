@@ -90,7 +90,6 @@ export function canAccessRoute(role: DemoRole, path: string): boolean {
   if (role === 'staff') {
     const staffAllowed = [
       '/dashboard',
-      '/tutorial',
       '/attendance',
       '/shifts',
       '/calendar',
