@@ -271,9 +271,13 @@ export function ProjectForm({
             <SelectValueWithLabel value={statusValue} labels={PROJECT_STATUS_LABELS} placeholder="ステータスを選択" />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {[
+              { value: 'proposing', label: '提案中' },
+              { value: 'active', label: '契約中' },
+              { value: 'ended', label: '契約終了' },
+            ].map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
