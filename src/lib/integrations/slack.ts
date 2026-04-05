@@ -260,45 +260,61 @@ export async function getProjectMentionText(
     }
   }
 
-  // PJ管理者以上のSlack User IDを取得
+  // PJにアサインされた管理者以上のSlack User IDを取得
   if (projectId) {
-    // 全admin/ownerのSlack User IDを取得
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: allAdminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id, role:role_id(name)')
+    // project_assignmentsから該当PJのアサイン済みスタッフを取得
+    const { data: assignments } = await supabase
+      .from('project_assignments')
+      .select('staff_id, staff:staff_id(id, user_id, email, custom_fields)')
+      .eq('project_id', projectId)
+      .in('status', ['confirmed', 'in_progress'])
 
-    const allAdminUserIds = (allAdminRoles || [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((ur: any) => {
-        const roleName = ur.role?.name
-        return roleName === 'admin' || roleName === 'owner'
-      })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((ur: any) => ur.user_id as string)
+    if (assignments && assignments.length > 0) {
+      // アサインメンバーのuser_idを収集
+      const userIds = assignments
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((a: any) => a.staff?.user_id)
+        .filter(Boolean) as string[]
 
-    if (allAdminUserIds.length > 0) {
-      const { data: adminStaffs } = await supabase
-        .from('staff')
-        .select('id, user_id, email, custom_fields')
-        .in('user_id', allAdminUserIds)
-        .is('deleted_at', null)
+      if (userIds.length > 0) {
+        // admin/ownerロールを持つユーザーをフィルタ
+        const { data: adminRoles } = await supabase
+          .from('user_roles')
+          .select('user_id, role:role_id(name)')
+          .in('user_id', userIds)
 
-      for (const staff of adminStaffs || []) {
-        const cf = (staff.custom_fields as Record<string, unknown>) || {}
-        let slackId = cf.slack_user_id as string | undefined
-        if (!slackId && staff.email) {
-          const lookup = await lookupSlackUserByEmail(staff.email)
-          if (lookup.slackUserId) {
-            slackId = lookup.slackUserId
-            const updatedCf = { ...cf, slack_user_id: slackId }
-            await supabase
-              .from('staff')
-              .update({ custom_fields: updatedCf })
-              .eq('id', staff.id)
+        const adminUserIds = new Set(
+          (adminRoles || [])
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .filter((ur: any) => {
+              const roleName = ur.role?.name
+              return roleName === 'admin' || roleName === 'owner'
+            })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((ur: any) => ur.user_id as string)
+        )
+
+        // PJアサイン済み管理者のSlack User IDを収集
+        for (const assignment of assignments) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const staff = (assignment as any).staff
+          if (!staff || !adminUserIds.has(staff.user_id)) continue
+
+          const cf = (staff.custom_fields as Record<string, unknown>) || {}
+          let slackId = cf.slack_user_id as string | undefined
+          if (!slackId && staff.email) {
+            const lookup = await lookupSlackUserByEmail(staff.email)
+            if (lookup.slackUserId) {
+              slackId = lookup.slackUserId
+              const updatedCf = { ...cf, slack_user_id: slackId }
+              await supabase
+                .from('staff')
+                .update({ custom_fields: updatedCf })
+                .eq('id', staff.id)
+            }
           }
+          if (slackId) slackUserIds.add(slackId)
         }
-        if (slackId) slackUserIds.add(slackId)
       }
     }
   }
