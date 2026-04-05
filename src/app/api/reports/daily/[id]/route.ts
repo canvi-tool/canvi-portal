@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { dailyReportSchema } from '@/lib/validations/daily-report'
-import { workReportApprovalSchema } from '@/lib/validations/report'
+import { dailyReportSchema, workReportApprovalSchema } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isAdmin } from '@/lib/auth/rbac'
 

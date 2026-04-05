@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+// ---- 承認スキーマ ----
+export const workReportApprovalSchema = z.object({
+  status: z.enum(['approved', 'rejected'], { message: 'ステータスを選択してください' }),
+  comment: z.string().max(2000, 'コメントは2000文字以内で入力してください').optional().or(z.literal('')),
+})
+
+export type WorkReportApprovalValues = z.infer<typeof workReportApprovalSchema>
+
 // ---- 日報タイプ ----
 export const DAILY_REPORT_TYPES = ['training', 'outbound', 'inbound'] as const
 export type DailyReportType = (typeof DAILY_REPORT_TYPES)[number]

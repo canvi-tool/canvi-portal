@@ -2,8 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Tables } from '@/lib/types/database'
-import type { DailyReportFormValues, DailyReportType } from '@/lib/validations/daily-report'
-import type { WorkReportApprovalValues } from '@/lib/validations/report'
+import type { DailyReportFormValues, DailyReportType, WorkReportApprovalValues } from '@/lib/validations/daily-report'
 
 // Type
 export type DailyReport = Tables<'work_reports'> & {
