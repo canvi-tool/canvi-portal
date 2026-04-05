@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { useAuth } from '@/components/providers/auth-provider'
 import { CLIENT_STATUS_LABELS } from '@/lib/constants'
 import { Pencil, MoreVertical, Trash2 } from 'lucide-react'
 import type { Tables } from '@/lib/types/database'
@@ -39,6 +40,8 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 
 export function ClientDetailClient({ client }: ClientDetailClientProps) {
   const router = useRouter()
+  const { demoAccount } = useAuth()
+  const isOwner = demoAccount?.role === 'owner'
 
   async function handleDelete() {
     if (!confirm('このクライアントを削除しますか？')) return
@@ -62,26 +65,30 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge status={client.status} labels={CLIENT_STATUS_LABELS} />
-            <Button variant="outline" render={<Link href={`/clients/${client.id}/edit`} />}>
-              <Pencil className="h-4 w-4 mr-2" />
-              編集
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="outline" size="icon" />}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  className="text-destructive focus:text-destructive"
+            {isOwner && (
+              <Button variant="outline" render={<Link href={`/clients/${client.id}/edit`} />}>
+                <Pencil className="h-4 w-4 mr-2" />
+                編集
+              </Button>
+            )}
+            {isOwner && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="outline" size="icon" />}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  削除
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <MoreVertical className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    削除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         }
       />

@@ -33,6 +33,7 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
+import { useAuth } from '@/components/providers/auth-provider'
 import { AssignmentTable } from '../_components/assignment-table'
 import { SlackChannelCombobox } from '../_components/slack-channel-combobox'
 import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
@@ -85,6 +86,9 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const { data: assignments, isLoading: assignmentsLoading } = useAssignments(id)
   const deleteAssignment = useDeleteAssignment(id)
   const deleteProject = useDeleteProject()
+
+  const { demoAccount } = useAuth()
+  const isOwner = demoAccount?.role === 'owner'
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [addMemberOpen, setAddMemberOpen] = useState(false)
@@ -272,10 +276,12 @@ export default function ProjectDetailPage({ params }: PageProps) {
               <Pencil className="h-4 w-4 mr-1" />
               編集
             </Button>
-            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              削除
-            </Button>
+            {isOwner && (
+              <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                削除
+              </Button>
+            )}
           </div>
         }
       />
@@ -723,15 +729,17 @@ export default function ProjectDetailPage({ params }: PageProps) {
       </Tabs>
 
       {/* Delete Confirmation */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title="プロジェクトの削除"
-        description={`「${project.name}」を削除しますか？関連するアサインと報酬ルールも削除されます。この操作は取り消せません。`}
-        confirmLabel="削除する"
-        destructive
-        onConfirm={handleDeleteProject}
-      />
+      {isOwner && (
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="プロジェクトの削除"
+          description={`「${project.name}」を削除しますか？関連するアサインと報酬ルールも削除されます。この操作は取り消せません。`}
+          confirmLabel="削除する"
+          destructive
+          onConfirm={handleDeleteProject}
+        />
+      )}
 
       {/* Add Member Dialog */}
       <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>

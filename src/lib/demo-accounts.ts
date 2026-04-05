@@ -87,24 +87,22 @@ export function setDemoRoleCookie(role: DemoRole): void {
 // ロールに応じたナビゲーション表示制御
 export function canAccessRoute(role: DemoRole, path: string): boolean {
   // スタッフ（メンバー）は限定されたルートのみ
-  // 所属PJ・自分のシフト/報告/実績/アラートのみ（データフィルタはAPI側で実施）
   if (role === 'staff') {
     const staffAllowed = [
       '/dashboard',
       '/attendance',
       '/shifts',
       '/calendar',
-      '/projects',
       '/reports/work',
       '/reports/performance',
       '/alerts',
     ]
     return staffAllowed.some((p) => path === p || path.startsWith(p + '/'))
   }
-  // 管理者は設定以外すべて
+  // 管理者は設定・スタッフ管理・書類系を除くすべて
   if (role === 'admin') {
-    if (path.startsWith('/settings')) return false
-    return true
+    const adminBlocked = ['/settings', '/staff', '/contracts', '/documents', '/invoices', '/payments']
+    return !adminBlocked.some((p) => path === p || path.startsWith(p + '/'))
   }
   // オーナーは全アクセス
   return true
