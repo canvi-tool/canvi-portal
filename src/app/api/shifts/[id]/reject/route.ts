@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
 import { canManageProjectShifts } from '@/lib/auth/project-access'
 import { sendProjectNotificationIfEnabled, sendSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
+import { deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -66,6 +67,13 @@ export async function POST(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Googleカレンダーからイベント削除（差戻し時）
+    try {
+      await deleteShiftFromCalendar(id)
+    } catch (e) {
+      console.error('Calendar delete on reject failed:', e)
     }
 
     // 承認履歴に記録

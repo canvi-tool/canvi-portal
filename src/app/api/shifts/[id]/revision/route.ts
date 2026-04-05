@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
 import { canManageProjectShifts } from '@/lib/auth/project-access'
+import { deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -64,6 +65,13 @@ export async function POST(
 
     if (error || !data) {
       return NextResponse.json({ error: 'ステータスが変更されたため更新できませんでした' }, { status: 409 })
+    }
+
+    // Googleカレンダーからイベント削除（修正依頼時）
+    try {
+      await deleteShiftFromCalendar(id)
+    } catch (e) {
+      console.error('Calendar delete on revision failed:', e)
     }
 
     // 承認履歴に記録 (時刻変更の提案がある場合は MODIFY として記録)

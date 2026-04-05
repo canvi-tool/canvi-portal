@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
 import { getCurrentUser } from '@/lib/auth/rbac'
 import { sendProjectNotificationIfEnabled, sendSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
+import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -79,6 +80,13 @@ export async function POST(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Googleカレンダー同期（申請時点でGCalにイベント作成/更新）
+    try {
+      await syncShiftToCalendar(id)
+    } catch (e) {
+      console.error('Calendar sync on submit failed:', e)
     }
 
     // 承認履歴に記録

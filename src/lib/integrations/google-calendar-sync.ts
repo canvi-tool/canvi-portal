@@ -105,6 +105,13 @@ export async function deleteShiftFromCalendar(shiftId: string): Promise<void> {
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
     await client.deleteEvent('primary', shift.google_calendar_event_id)
+
+    // GCalイベントIDをクリア（再提出時に新規イベント作成されるように）
+    await admin.from('shifts').update({
+      google_calendar_event_id: null,
+      google_meet_url: null,
+      google_calendar_synced: false,
+    }).eq('id', shiftId)
   } catch (error) {
     console.error('deleteShiftFromCalendar error:', shiftId, error)
   }
