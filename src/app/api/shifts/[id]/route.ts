@@ -89,10 +89,10 @@ export async function PUT(
 
     const supabase = await createServerSupabaseClient()
 
-    // ステータスチェック
+    // ステータスチェック（カレンダー同期判定のため google_calendar_event_id も取得）
     const { data: existing } = await supabase
       .from('shifts')
-      .select('status')
+      .select('status, google_calendar_event_id')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -155,10 +155,13 @@ export async function PUT(
     }
 
     // APPROVED状態のシフトが変更された場合、Googleカレンダーも同期
+    // google_calendar_event_id がある場合は更新、ない場合は新規作成（syncShiftToCalendar内で判定）
     if (data?.status === 'APPROVED' && data?.id) {
-      syncShiftToCalendar(data.id).catch((e) =>
-        console.error('Calendar sync failed:', e)
-      )
+      try {
+        await syncShiftToCalendar(data.id)
+      } catch (e) {
+        console.error('Calendar sync failed on update:', e)
+      }
     }
 
     return NextResponse.json(data)
@@ -183,10 +186,12 @@ export async function DELETE(
 
     const supabase = await createServerSupabaseClient()
 
-    // Googleカレンダーからイベント削除（fire-and-forget）
-    deleteShiftFromCalendar(id).catch((e) =>
+    // Googleカレンダーからイベント削除（論理削除前に実行）
+    try {
+      await deleteShiftFromCalendar(id)
+    } catch (e) {
       console.error('Calendar delete failed:', e)
-    )
+    }
 
     // 論理削除
     const { error } = await supabase

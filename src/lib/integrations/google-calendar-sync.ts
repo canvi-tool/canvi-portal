@@ -51,6 +51,11 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         startDateTime,
         endDateTime,
       })
+
+      // 同期フラグを最新に保つ
+      await admin.from('shifts').update({
+        google_calendar_synced: true,
+      }).eq('id', shiftId)
     } else {
       // 新規イベント作成 + Meet URL
       const { eventId, meetUrl } = await client.createEvent({

@@ -75,11 +75,13 @@ export async function POST(
       performed_by: currentUser.id,
     })
 
-    // 承認時にGoogleカレンダー同期（fire-and-forget）
+    // 承認時にGoogleカレンダー同期
     if (data?.id) {
-      syncShiftToCalendar(data.id).catch((e) =>
+      try {
+        await syncShiftToCalendar(data.id)
+      } catch (e) {
         console.error('Calendar sync on approve failed:', e)
-      )
+      }
     }
 
     return NextResponse.json({

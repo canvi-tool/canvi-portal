@@ -326,6 +326,48 @@ export class GoogleCalendarClient {
     })
   }
 
+  /**
+   * カレンダーの変更を監視するウォッチチャンネルを登録する
+   * Google Calendar Push Notifications 用
+   */
+  async watchCalendar(
+    calendarId: string,
+    webhookUrl: string,
+    channelId: string
+  ): Promise<{
+    resourceId: string
+    expiration: string
+  }> {
+    const response = await this.calendar.events.watch({
+      calendarId,
+      requestBody: {
+        id: channelId,
+        type: 'web_hook',
+        address: webhookUrl,
+        params: {
+          ttl: '604800', // 7日間（秒）
+        },
+      },
+    })
+
+    return {
+      resourceId: response.data.resourceId || '',
+      expiration: response.data.expiration || '',
+    }
+  }
+
+  /**
+   * ウォッチチャンネルを停止する
+   */
+  async stopWatchChannel(channelId: string, resourceId: string): Promise<void> {
+    await this.calendar.channels.stop({
+      requestBody: {
+        id: channelId,
+        resourceId,
+      },
+    })
+  }
+
   async getFreeBusy(params: {
     emails: string[]
     timeMin: string

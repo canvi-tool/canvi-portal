@@ -132,11 +132,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // AUTO承認時はGoogleカレンダー同期（fire-and-forget）
+    // AUTO承認時はGoogleカレンダー同期
     if (isAutoApproval && data?.id) {
-      syncShiftToCalendar(data.id).catch((e) =>
-        console.error('Calendar sync failed:', e)
-      )
+      try {
+        await syncShiftToCalendar(data.id)
+      } catch (e) {
+        console.error('Calendar sync failed on create:', e)
+      }
     }
 
     return NextResponse.json(data, { status: 201 })
