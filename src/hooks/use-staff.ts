@@ -10,7 +10,6 @@ type Staff = Tables<'staff'>
 export interface ProvisioningResult {
   google_workspace?: { success: boolean; email?: string; error?: string }
   slack?: { success: boolean; email?: string; error?: string }
-  zoom?: { success: boolean; email?: string; error?: string }
   portal?: { success: boolean; email?: string; error?: string }
 }
 
@@ -73,8 +72,6 @@ async function createStaff({ formData, provisioning }: CreateStaffInput): Promis
         create_google_account: provisioning.create_google_account,
         google_email_prefix: provisioning.google_email_prefix,
         google_org_unit: provisioning.google_org_unit,
-        create_zoom_account: provisioning.create_zoom_account,
-        zoom_license_type: provisioning.zoom_license_type,
       } : {}),
     }),
   })

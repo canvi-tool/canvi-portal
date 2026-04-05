@@ -37,8 +37,6 @@ export interface ProvisioningData {
   create_google_account: boolean
   google_email_prefix: string
   google_org_unit: string
-  create_zoom_account: boolean
-  zoom_license_type: number
 }
 
 export interface PortalAccountData {
@@ -93,10 +91,6 @@ const ORG_UNITS = [
   { value: '/スタッフ', label: 'スタッフ' },
 ]
 
-const ZOOM_LICENSE_TYPES = [
-  { value: 1, label: 'Basic（無料）' },
-  { value: 2, label: 'Licensed（有料）' },
-]
 
 export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning = true }: StaffFormProps) {
   const isEditing = !!defaultValues?.staff_code
@@ -159,8 +153,6 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   const [createGoogle, setCreateGoogle] = useState(false)
   const [googleEmailPrefix, setGoogleEmailPrefix] = useState('')
   const [googleOrgUnit, setGoogleOrgUnit] = useState('/スタッフ')
-  const [createZoom, setCreateZoom] = useState(false)
-  const [zoomLicenseType, setZoomLicenseType] = useState(1)
   const [googleEmailManuallyEdited, setGoogleEmailManuallyEdited] = useState(false)
 
   // Watch last_name_kana for auto-filling google email prefix
@@ -178,23 +170,17 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   }, [lastNameKana, createGoogle, googleEmailManuallyEdited])
 
   const handleFormSubmit = (data: StaffFormValues) => {
-    const provisioningData = showProvisioning && (createGoogle || createZoom)
+    const provisioningData = showProvisioning && createGoogle
       ? {
           create_google_account: createGoogle,
           google_email_prefix: googleEmailPrefix,
           google_org_unit: googleOrgUnit,
-          create_zoom_account: createZoom,
-          zoom_license_type: zoomLicenseType,
         }
       : undefined
 
     onSubmit(data, provisioningData)
   }
 
-  const googleEmail = googleEmailPrefix ? `${googleEmailPrefix}@canvi.co.jp` : ''
-
-  // Determine which email Zoom will use
-  const zoomEmail = createGoogle && googleEmail ? googleEmail : watch('email') || ''
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
@@ -472,54 +458,6 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               )}
             </div>
 
-            {/* Zoom */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="create-zoom" className="text-sm font-medium">
-                  Zoomアカウントを作成
-                </Label>
-                <Switch
-                  id="create-zoom"
-                  checked={createZoom}
-                  onCheckedChange={setCreateZoom}
-                />
-              </div>
-
-              {createZoom && (
-                <div className="grid gap-4 sm:grid-cols-2 pl-1 border-l-2 border-muted ml-1">
-                  <FormField label="ライセンス種別" required>
-                    <Select
-                      value={String(zoomLicenseType)}
-                      onValueChange={(val) => setZoomLicenseType(Number(val))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="選択してください" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ZOOM_LICENSE_TYPES.map((lt) => (
-                          <SelectItem key={lt.value} value={String(lt.value)}>
-                            {lt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-
-                  <FormField label="使用メールアドレス">
-                    <Input
-                      value={zoomEmail}
-                      disabled
-                      className="bg-muted"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {createGoogle
-                        ? 'Google Workspaceのメールアドレスを使用します'
-                        : 'スタッフのメールアドレスを使用します'}
-                    </p>
-                  </FormField>
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}

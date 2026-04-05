@@ -31,14 +31,6 @@ export default function NewStaffPage() {
           }
         }
 
-        if (provisioningResult.zoom) {
-          if (provisioningResult.zoom.success) {
-            messages.push(`Zoom: ${provisioningResult.zoom.email}`)
-          } else {
-            warnings.push(`Zoom: ${provisioningResult.zoom.error}`)
-          }
-        }
-
         if (provisioningResult.slack) {
           if (provisioningResult.slack.success) {
             messages.push(`Slack招待: ${provisioningResult.slack.email}`)

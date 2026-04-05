@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, requireAdmin, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
-import { createUser as createZoomUser } from '@/lib/integrations/zoom'
 import { inviteUserToSlackWorkspace } from '@/lib/integrations/slack'
 import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
@@ -175,7 +174,6 @@ export async function POST(request: NextRequest) {
     const provisioning: Record<string, { success: boolean; email?: string; error?: string }> = {}
 
     const createGoogleAccount = body.create_google_account === true
-    const createZoomAccount = body.create_zoom_account === true
 
     // 共通の初期パスワード生成: Canvi + 電話番号下4桁 + ca
     const phoneDigits = formData.phone ? String(formData.phone).replace(/\D/g, '').slice(-4) : '0000'
@@ -219,32 +217,6 @@ export async function POST(request: NextRequest) {
         provisioning.slack = {
           success: false,
           error: err instanceof Error ? err.message : 'Slack招待に失敗しました',
-        }
-      }
-    }
-
-    // Zoom provisioning
-    if (createZoomAccount) {
-      try {
-        // Use Google Workspace email if created, otherwise use staff email
-        const zoomEmail = provisioning.google_workspace?.success && provisioning.google_workspace.email
-          ? provisioning.google_workspace.email
-          : formData.email
-        const zoomUser = await createZoomUser({
-          email: zoomEmail,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          type: body.zoom_license_type || 1,
-        })
-        provisioning.zoom = {
-          success: true,
-          email: zoomUser.email,
-        }
-      } catch (err) {
-        console.error('Zoom provisioning error:', err)
-        provisioning.zoom = {
-          success: false,
-          error: err instanceof Error ? err.message : 'Zoomアカウントの作成に失敗しました',
         }
       }
     }
