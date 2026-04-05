@@ -721,6 +721,79 @@ export async function inviteStaffToSlackChannel(
   }
 }
 
+/**
+ * Slackチャンネルからユーザーをリムーブ（conversations.kick）
+ */
+export async function removeUserFromSlackChannel(
+  channelId: string,
+  slackUserId: string
+): Promise<{ success: boolean; error?: string; notInChannel?: boolean }> {
+  const token = getBotToken()
+  if (!token) {
+    return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/conversations.kick', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        user: slackUserId,
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      if (data.error === 'not_in_channel') {
+        return { success: true, notInChannel: true }
+      }
+      const errorMessages: Record<string, string> = {
+        'channel_not_found': 'チャンネルが見つかりません',
+        'user_not_found': 'ユーザーが見つかりません',
+        'cant_kick_self': '自分自身をリムーブすることはできません',
+        'not_in_channel': 'ユーザーはチャンネルに参加していません',
+        'restricted_action': 'この操作を実行する権限がありません',
+      }
+      return { success: false, error: errorMessages[data.error] || `Slack API error: ${data.error}` }
+    }
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/**
+ * スタッフをSlackチャンネルからリムーブする（Slack User IDをキャッシュから解決）
+ */
+export async function removeStaffFromSlackChannel(
+  email: string,
+  channelId: string,
+  staffId?: string
+): Promise<{ success: boolean; error?: string; notInChannel?: boolean }> {
+  let slackUserId: string | undefined
+
+  if (staffId) {
+    const resolved = await resolveSlackUserId(staffId, email)
+    slackUserId = resolved.slackUserId
+    if (!slackUserId) {
+      return { success: false, error: resolved.error || 'Slackユーザーが見つかりません' }
+    }
+  } else {
+    const lookup = await lookupSlackUserByEmail(email)
+    slackUserId = lookup.slackUserId
+    if (!slackUserId) {
+      return { success: false, error: lookup.error || 'Slackユーザーが見つかりません' }
+    }
+  }
+
+  return removeUserFromSlackChannel(channelId, slackUserId)
+}
+
 // =============== ユーザー招待・プロフィール更新 ===============
 
 /**
@@ -1116,6 +1189,24 @@ export function buildMemberAssignedNotification(staffName: string, projectName: 
         text: {
           type: 'mrkdwn',
           text: `:wave: *${staffName}* さんが *${projectName}* にアサインされました${role ? ` (${role})` : ''}`,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * メンバーアサイン解除通知
+ */
+export function buildMemberRemovedNotification(staffName: string, projectName: string): SlackMessage {
+  return {
+    text: `${staffName}さんが${projectName}からアサイン解除されました`,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `:door: *${staffName}* さんが *${projectName}* からアサイン解除されました`,
         },
       },
     ],

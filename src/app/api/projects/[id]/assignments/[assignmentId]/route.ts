@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { assignmentFormSchema } from '@/lib/validations/assignment'
+import { removeStaffFromSlackChannel, sendProjectNotificationIfEnabled, buildMemberRemovedNotification } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string; assignmentId: string }>
@@ -83,8 +84,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
-    const { assignmentId } = await params
+    const { id: projectId, assignmentId } = await params
     const supabase = await createServerSupabaseClient()
+
+    // アサイン情報を取得（通知・リムーブ用）
+    const { data: assignment } = await supabase
+      .from('project_assignments')
+      .select('staff_id, staff(last_name, first_name, email)')
+      .eq('id', assignmentId)
+      .single()
 
     const { error } = await supabase
       .from('project_assignments')
@@ -93,6 +101,48 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Slack通知 + チャンネルリムーブ（バックグラウンド）
+    if (assignment?.staff) {
+      const staffData = assignment.staff as { last_name?: string; first_name?: string; email?: string }
+      const staffName = `${staffData.last_name || ''} ${staffData.first_name || ''}`.trim() || '不明'
+      const staffEmail = staffData.email
+
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, slack_channel_id')
+        .eq('id', projectId)
+        .single()
+
+      if (project?.slack_channel_id) {
+        // アサイン解除通知（メンション無し）
+        const notification = buildMemberRemovedNotification(
+          staffName,
+          project.name || 'プロジェクト'
+        )
+        await sendProjectNotificationIfEnabled(
+          notification,
+          projectId,
+          project.slack_channel_id,
+          'member_removed'
+        )
+
+        // Slackチャンネルからリムーブ
+        if (staffEmail) {
+          const removeResult = await removeStaffFromSlackChannel(
+            staffEmail,
+            project.slack_channel_id,
+            assignment.staff_id
+          )
+          if (!removeResult.success && !removeResult.notInChannel) {
+            console.warn(
+              `Slack channel remove failed for ${staffEmail}:`,
+              removeResult.error
+            )
+          }
+        }
+      }
     }
 
     return NextResponse.json({ success: true })
