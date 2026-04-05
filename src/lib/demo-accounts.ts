@@ -95,7 +95,6 @@ export function canAccessRoute(role: DemoRole, path: string): boolean {
       '/calendar',
       '/reports/work',
       '/reports/performance',
-      '/leave',
       '/alerts',
     ]
     return staffAllowed.some((p) => path === p || path.startsWith(p + '/'))

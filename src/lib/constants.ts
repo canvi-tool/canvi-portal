@@ -178,7 +178,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
       { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
       { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
-      { label: '有給管理', href: '/leave', icon: 'Palmtree' },
       { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
       { label: '日次報告', href: '/reports/work', icon: 'ClipboardList' },
       { label: '月次報告', href: '/reports/performance', icon: 'BarChart3' },
@@ -194,6 +193,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: '見積書', href: '/documents', icon: 'FileStack' },
       { label: '請求書', href: '/invoices', icon: 'Receipt' },
       { label: '支払書', href: '/payments', icon: 'Wallet' },
+      { label: '有給管理', href: '/leave', icon: 'Palmtree' },
     ],
   },
   {
