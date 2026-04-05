@@ -2078,6 +2078,137 @@ export interface Database {
           },
         ]
       }
+      leave_grants: {
+        Row: {
+          id: string
+          staff_id: string
+          grant_date: string
+          expiry_date: string
+          grant_type: 'annual' | 'special' | 'compensatory'
+          total_days: number
+          used_days: number
+          remaining_days: number
+          note: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          grant_date: string
+          expiry_date: string
+          grant_type?: 'annual' | 'special' | 'compensatory'
+          total_days: number
+          used_days?: number
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          grant_date?: string
+          expiry_date?: string
+          grant_type?: 'annual' | 'special' | 'compensatory'
+          total_days?: number
+          used_days?: number
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'leave_grants_staff_id_fkey'
+            columns: ['staff_id']
+            isOneToOne: false
+            referencedRelation: 'staff'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'leave_grants_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      leave_requests: {
+        Row: {
+          id: string
+          staff_id: string
+          leave_grant_id: string | null
+          start_date: string
+          end_date: string
+          leave_type: 'full_day' | 'half_day_am' | 'half_day_pm' | 'hourly'
+          hours: number | null
+          days: number
+          reason: string | null
+          status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+          approved_by: string | null
+          approved_at: string | null
+          approval_comment: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          leave_grant_id?: string | null
+          start_date: string
+          end_date: string
+          leave_type: 'full_day' | 'half_day_am' | 'half_day_pm' | 'hourly'
+          hours?: number | null
+          days: number
+          reason?: string | null
+          status?: 'pending' | 'approved' | 'rejected' | 'cancelled'
+          approved_by?: string | null
+          approved_at?: string | null
+          approval_comment?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          leave_grant_id?: string | null
+          start_date?: string
+          end_date?: string
+          leave_type?: 'full_day' | 'half_day_am' | 'half_day_pm' | 'hourly'
+          hours?: number | null
+          days?: number
+          reason?: string | null
+          status?: 'pending' | 'approved' | 'rejected' | 'cancelled'
+          approved_by?: string | null
+          approved_at?: string | null
+          approval_comment?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'leave_requests_staff_id_fkey'
+            columns: ['staff_id']
+            isOneToOne: false
+            referencedRelation: 'staff'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'leave_requests_leave_grant_id_fkey'
+            columns: ['leave_grant_id']
+            isOneToOne: false
+            referencedRelation: 'leave_grants'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'leave_requests_approved_by_fkey'
+            columns: ['approved_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2143,6 +2274,9 @@ export interface Database {
         | 'expired'
         | 'terminated'
       invoice_status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+      leave_grant_type: 'annual' | 'special' | 'compensatory'
+      leave_type: 'full_day' | 'half_day_am' | 'half_day_pm' | 'hourly'
+      leave_request_status: 'pending' | 'approved' | 'rejected' | 'cancelled'
     }
     CompositeTypes: {
       [_ in never]: never

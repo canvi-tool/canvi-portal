@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Clock,
   GraduationCap,
+  Palmtree,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -50,6 +51,7 @@ const iconMap: Record<string, LucideIcon> = {
   Settings,
   Building2,
   Receipt,
+  Palmtree,
 }
 
 export interface SidebarProps {

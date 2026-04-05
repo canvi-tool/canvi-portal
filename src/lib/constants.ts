@@ -124,6 +124,20 @@ export const INVOICE_STATUS_LABELS: Record<string, string> = {
   cancelled: 'キャンセル',
 }
 
+export const LEAVE_TYPE_LABELS: Record<string, string> = {
+  full_day: '全日',
+  half_day_am: '午前半休',
+  half_day_pm: '午後半休',
+  hourly: '時間休',
+}
+
+export const LEAVE_STATUS_LABELS: Record<string, string> = {
+  pending: '申請中',
+  approved: '承認済み',
+  rejected: '却下',
+  cancelled: '取消',
+}
+
 export const SHIFT_STATUS_LABELS: Record<string, string> = {
   DRAFT: '下書き',
   SUBMITTED: '申請済',
@@ -165,6 +179,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'チュートリアル', href: '/tutorial', icon: 'GraduationCap' },
       { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
       { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
+      { label: '有給管理', href: '/leave', icon: 'Palmtree' },
       { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
       { label: '日次報告', href: '/reports/work', icon: 'ClipboardList' },
       { label: '月次報告', href: '/reports/performance', icon: 'BarChart3' },

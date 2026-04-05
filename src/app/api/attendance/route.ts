@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('date_from')
     const dateTo = searchParams.get('date_to')
     const projectId = searchParams.get('project_id')
+    const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
     const perPage = parseInt(searchParams.get('per_page') || '50')
 
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
     if (dateFrom) query = query.gte('date', dateFrom)
     if (dateTo) query = query.lte('date', dateTo)
     if (projectId) query = query.eq('project_id', projectId)
+    if (status) query = query.eq('status', status as 'clocked_in' | 'on_break' | 'clocked_out' | 'modified' | 'approved')
 
     // ページネーション
     const from = (page - 1) * perPage

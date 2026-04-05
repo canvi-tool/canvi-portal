@@ -1237,6 +1237,150 @@ export function buildBulkMemberAssignedNotification(staffNames: string[], projec
 /**
  * 汎用アラート通知
  */
+/**
+ * Slack DMを送信（conversations.open + chat.postMessage）
+ * スタッフのSlack User IDを使ってDMチャンネルを開き、メッセージを送信
+ */
+export async function sendSlackDM(
+  slackUserId: string,
+  message: SlackMessage
+): Promise<{ success: boolean; error?: string; ts?: string }> {
+  const token = getBotToken()
+  if (!token) {
+    console.warn('SLACK_BOT_TOKEN is not configured, cannot send DM')
+    return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    // DMチャンネルを開く
+    const openRes = await fetch('https://slack.com/api/conversations.open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ users: slackUserId }),
+    })
+    const openData = await openRes.json()
+    if (!openData.ok) {
+      console.error('Slack conversations.open error:', openData.error)
+      return { success: false, error: `DM open failed: ${openData.error}` }
+    }
+
+    const dmChannelId = openData.channel?.id
+    if (!dmChannelId) {
+      return { success: false, error: 'DM channel ID not returned' }
+    }
+
+    // DMチャンネルにメッセージ送信
+    return sendSlackBotMessage(dmChannelId, message)
+  } catch (err) {
+    console.error('Slack DM send error:', err)
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/**
+ * スタッフのSlack User IDを取得（custom_fieldsから or メールで検索）
+ */
+export async function resolveStaffSlackUserId(
+  staffId: string
+): Promise<string | null> {
+  const supabase = createAdminClient()
+  const { data: staff } = await supabase
+    .from('staff')
+    .select('id, email, custom_fields')
+    .eq('id', staffId)
+    .single()
+
+  if (!staff) return null
+
+  const cf = (staff.custom_fields as Record<string, unknown>) || {}
+  let slackId = cf.slack_user_id as string | undefined
+
+  if (!slackId && staff.email) {
+    const lookup = await lookupSlackUserByEmail(staff.email)
+    if (lookup.slackUserId) {
+      slackId = lookup.slackUserId
+      // キャッシュ保存
+      const updatedCf = { ...cf, slack_user_id: slackId }
+      await supabase
+        .from('staff')
+        .update({ custom_fields: updatedCf })
+        .eq('id', staff.id)
+    }
+  }
+
+  return slackId || null
+}
+
+/**
+ * 退勤漏れDM通知
+ */
+export function buildClockOutMissingDMNotification(staffName: string, date: string, projectName?: string): SlackMessage {
+  const projectText = projectName ? ` (${projectName})` : ''
+  return {
+    text: `【退勤未打刻】${staffName}さん、${date}${projectText}の退勤打刻がされていません`,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `:bell: *退勤未打刻のお知らせ*\n${staffName}さん、${date}${projectText}の退勤打刻がまだされていません。\n打刻漏れの場合はポータルから修正をお願いします。`,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * シフトvs打刻の乖離通知
+ */
+export function buildShiftAttendanceDiffNotification(
+  entries: { staffName: string; shiftTime: string; actualTime: string; diffMinutes: number }[],
+  date: string,
+  projectName?: string
+): SlackMessage {
+  const projectText = projectName ? ` — ${projectName}` : ''
+  const lines = entries.map(e =>
+    `• *${e.staffName}*: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`
+  ).join('\n')
+  return {
+    text: `【シフト乖離】${date}${projectText} - ${entries.length}件の乖離を検知`,
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: `⏱ シフトvs打刻の乖離 (${date}${projectText})`, emoji: true },
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `以下のメンバーのシフト時刻と実績に30分以上の乖離があります:\n${lines}`,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * 日報未提出DMリマインダー
+ */
+export function buildReportReminderDMNotification(staffName: string, date: string): SlackMessage {
+  return {
+    text: `【日報リマインド】${staffName}さん、${date}の日報がまだ提出されていません`,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `:memo: *日報リマインド*\n${staffName}さん、本日(${date})の勤務日報がまだ提出されていません。\nお手すきの際にポータルから提出をお願いします。`,
+        },
+      },
+    ],
+  }
+}
+
 export function buildGeneralAlertNotification(title: string, message: string, severity: 'info' | 'warning' | 'critical'): SlackMessage {
   const emoji = severity === 'critical' ? ':rotating_light:' : severity === 'warning' ? ':warning:' : ':information_source:'
   return {
