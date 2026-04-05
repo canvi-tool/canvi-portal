@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Clock, User, Briefcase, Calendar, Pencil, Trash2, CheckCircle2, XCircle, Send, Video, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,9 +13,22 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValueWithLabel,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+
+interface ProjectOption {
+  id: string
+  name: string
+}
 
 interface ShiftItem {
   id: string
@@ -29,6 +42,7 @@ interface ShiftItem {
   status: ShiftStatus
   notes?: string
   googleMeetUrl?: string | null
+  googleCalendarSynced?: boolean
 }
 
 interface ShiftEditDialogProps {
@@ -39,6 +53,9 @@ interface ShiftEditDialogProps {
   onDelete?: (shiftId: string) => void
   onApprove?: (shiftId: string) => void
   onReject?: (shiftId: string) => void
+  onSyncCalendar?: (shiftId: string) => void
+  isManager?: boolean
+  projects?: ProjectOption[]
 }
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle2 }> = {
@@ -64,25 +81,79 @@ export function ShiftEditDialog({
   onDelete,
   onApprove,
   onReject,
+  onSyncCalendar,
+  isManager = false,
+  projects = [],
 }: ShiftEditDialogProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editProjectId, setEditProjectId] = useState('')
+  const [meetLoading, setMeetLoading] = useState(false)
+  const [currentMeetUrl, setCurrentMeetUrl] = useState<string | null>(null)
+
+  // ダイアログが開くたびにリセット
+  useEffect(() => {
+    if (open) setCurrentMeetUrl(null)
+  }, [open])
+
+  // Meet URL状態をshift propから同期
+  const meetUrl = currentMeetUrl !== null ? currentMeetUrl : shift?.googleMeetUrl || null
 
   if (!shift) return null
 
+  const handleMeetCreate = async () => {
+    setMeetLoading(true)
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}/meet`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Meet URLの発行に失敗しました')
+      }
+      const data = await res.json()
+      setCurrentMeetUrl(data.meetUrl)
+      toast.success('Google Meet URLを発行しました')
+      onSyncCalendar?.(shift.id)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Meet URLの発行に失敗しました')
+    } finally {
+      setMeetLoading(false)
+    }
+  }
+
+  const handleMeetDelete = async () => {
+    setMeetLoading(true)
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}/meet`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Meet URLの削除に失敗しました')
+      }
+      setCurrentMeetUrl('')
+      toast.success('Google Meet URLを削除しました')
+      onSyncCalendar?.(shift.id)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Meet URLの削除に失敗しました')
+    } finally {
+      setMeetLoading(false)
+    }
+  }
+
   const statusConfig = STATUS_CONFIG[shift.status]
   const StatusIcon = statusConfig.icon
-  const canEdit = shift.status === 'DRAFT' || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
+  const canEdit = isManager || shift.status === 'DRAFT' || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
   const canApprove = shift.status === 'SUBMITTED'
 
   const handleStartEdit = () => {
     setEditStartTime(shift.startTime)
     setEditEndTime(shift.endTime)
     setEditNotes(shift.notes || '')
+    setEditProjectId(shift.projectId)
     setIsEditing(true)
   }
+
+  const selectedProject = projects.find(p => p.id === editProjectId)
 
   const handleSave = () => {
     if (onSave) {
@@ -91,6 +162,8 @@ export function ShiftEditDialog({
         startTime: editStartTime,
         endTime: editEndTime,
         notes: editNotes,
+        projectId: editProjectId,
+        projectName: selectedProject?.name || shift.projectName,
       })
     }
     setIsEditing(false)
@@ -125,6 +198,32 @@ export function ShiftEditDialog({
               {statusConfig.label}
             </span>
           </div>
+
+          {/* Project - editable */}
+          {isEditing && projects.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Label className="text-sm">プロジェクト</Label>
+              </div>
+              <div className="pl-7">
+                <Select value={editProjectId} onValueChange={setEditProjectId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValueWithLabel
+                      value={editProjectId}
+                      labels={Object.fromEntries(projects.map(p => [p.id, p.name]))}
+                      placeholder="プロジェクトを選択"
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
 
           {/* Staff info */}
           <div className="flex items-center gap-3 text-sm">
@@ -198,12 +297,12 @@ export function ShiftEditDialog({
             </div>
           ) : null}
 
-          {/* Google Meet URL */}
-          {shift.googleMeetUrl && (
+          {/* Google Meet URL / 発行・削除 */}
+          {meetUrl ? (
             <div className="flex items-center gap-3 text-sm">
               <Video className="h-4 w-4 text-blue-500 shrink-0" />
               <a
-                href={shift.googleMeetUrl}
+                href={meetUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline truncate"
@@ -212,13 +311,35 @@ export function ShiftEditDialog({
               </a>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(shift.googleMeetUrl!)
+                  navigator.clipboard.writeText(meetUrl)
+                  toast.success('URLをコピーしました')
                 }}
                 className="p-1 rounded hover:bg-muted"
                 title="URLをコピー"
               >
                 <Copy className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
+              <button
+                onClick={handleMeetDelete}
+                disabled={meetLoading}
+                className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                title="Meet URLを削除"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-sm">
+              <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleMeetCreate}
+                disabled={meetLoading}
+              >
+                {meetLoading ? '発行中...' : 'Google Meet URLを発行'}
+              </Button>
             </div>
           )}
         </div>

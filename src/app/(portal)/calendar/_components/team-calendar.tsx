@@ -5,7 +5,7 @@ import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
-import type { DatesSetArg, DateSelectArg, EventContentArg } from '@fullcalendar/core'
+import type { DatesSetArg, DateSelectArg, EventContentArg, EventClickArg } from '@fullcalendar/core'
 import '../../../(portal)/shifts/_components/fullcalendar-overrides.css'
 
 interface BusyBlock {
@@ -13,6 +13,9 @@ interface BusyBlock {
   end: string
   source: 'shift' | 'google'
   summary?: string
+  eventId?: string
+  description?: string
+  location?: string
 }
 
 interface MemberData {
@@ -22,11 +25,25 @@ interface MemberData {
   busy: BusyBlock[]
 }
 
+export interface CalendarEventClickData {
+  eventId: string
+  summary: string
+  description?: string
+  location?: string
+  date: string
+  startTime: string
+  endTime: string
+  source: 'google' | 'shift'
+  memberName: string
+  memberId: string
+}
+
 interface TeamCalendarProps {
   members: MemberData[]
   selectedMemberIds: Set<string>
   onSlotSelect: (date: string, startTime: string, endTime: string) => void
   onDateRangeChange: (start: string, end: string) => void
+  onEventClick?: (data: CalendarEventClickData) => void
 }
 
 function formatDate(d: Date): string {
@@ -50,7 +67,15 @@ function toEvents(members: MemberData[], selectedIds: Set<string>) {
     borderColor: string
     textColor: string
     display: string
-    extendedProps: { memberName: string; summary?: string; source: string }
+    extendedProps: {
+      memberName: string
+      memberId: string
+      summary?: string
+      source: string
+      googleEventId?: string
+      description?: string
+      location?: string
+    }
   }> = []
 
   const selectedMembers = members.filter(m => selectedIds.has(m.id))
@@ -69,7 +94,15 @@ function toEvents(members: MemberData[], selectedIds: Set<string>) {
         borderColor: block.source === 'google' ? '#94a3b8' : color,
         textColor: '#fff',
         display: 'block',
-        extendedProps: { memberName: member.displayName, summary, source: block.source },
+        extendedProps: {
+          memberName: member.displayName,
+          memberId: member.id,
+          summary,
+          source: block.source,
+          googleEventId: block.eventId,
+          description: block.description,
+          location: block.location,
+        },
       })
     })
   })
@@ -150,6 +183,7 @@ export function TeamCalendar({
   selectedMemberIds,
   onSlotSelect,
   onDateRangeChange,
+  onEventClick,
 }: TeamCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
   const [viewType, setViewType] = useState<string>('timeGridWeek')
@@ -176,6 +210,30 @@ export function TeamCalendar({
     const endTime = formatTime(info.end)
     onSlotSelect(date, startTime, endTime)
   }, [onSlotSelect])
+
+  const handleEventClick = useCallback((info: EventClickArg) => {
+    if (!onEventClick) return
+    if (info.event.display === 'background') return
+
+    const ep = info.event.extendedProps
+    const start = info.event.start
+    const end = info.event.end
+
+    if (!start || !end) return
+
+    onEventClick({
+      eventId: ep.googleEventId || '',
+      summary: ep.summary || info.event.title || '',
+      description: ep.description,
+      location: ep.location,
+      date: formatDate(start),
+      startTime: formatTime(start),
+      endTime: formatTime(end),
+      source: ep.source as 'google' | 'shift',
+      memberName: ep.memberName,
+      memberId: ep.memberId,
+    })
+  }, [onEventClick])
 
   const goToday = useCallback(() => calendarRef.current?.getApi().today(), [])
   const goPrev = useCallback(() => calendarRef.current?.getApi().prev(), [])
@@ -267,7 +325,7 @@ export function TeamCalendar({
           slotMinTime="07:00:00"
           slotMaxTime="23:00:00"
           slotDuration="00:30:00"
-          slotLabelInterval="01:00"
+          slotLabelInterval="00:30:00"
           allDaySlot={false}
           nowIndicator={true}
           selectable={true}
@@ -275,6 +333,7 @@ export function TeamCalendar({
           events={events}
           eventContent={renderEventContent}
           select={handleSelect}
+          eventClick={handleEventClick}
           datesSet={handleDatesSet}
           eventTimeFormat={{
             hour: '2-digit',

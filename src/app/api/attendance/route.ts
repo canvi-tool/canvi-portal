@@ -167,23 +167,23 @@ export async function POST(request: NextRequest) {
     }
     const staffName = user.displayName || user.email || 'メンバー'
     // 出勤通知を送信し、スレッドtsを保存（後続の打刻をスレッドにまとめるため）
-    sendProjectNotificationIfEnabled(
-      buildClockInNotification(staffName, projectName),
-      projectId,
-      projectSlackChannelId,
-      'attendance_clock_in'
-    ).then(async (result) => {
+    // 同期的に実行して、thread_tsを確実にDBに保存する
+    try {
+      const result = await sendProjectNotificationIfEnabled(
+        buildClockInNotification(staffName, projectName),
+        projectId,
+        projectSlackChannelId,
+        'attendance_clock_in'
+      )
       if (result.ts && data?.id) {
-        try {
-          await supabase
-            .from('attendance_records')
-            .update({ slack_thread_ts: result.ts })
-            .eq('id', data.id)
-        } catch {
-          // スレッドts保存失敗は無視
-        }
+        await supabase
+          .from('attendance_records')
+          .update({ slack_thread_ts: result.ts })
+          .eq('id', data.id)
       }
-    }).catch(() => {})
+    } catch {
+      // Slack通知失敗は出勤処理に影響させない
+    }
 
     return NextResponse.json(data, { status: 201 })
   } catch (error) {

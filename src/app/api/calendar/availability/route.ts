@@ -70,11 +70,11 @@ export async function GET(request: NextRequest) {
 
     // Googleカレンダーからbusy時間を取得
     // 各メンバーの自分のトークンで自分のカレンダーを取得
-    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string }>> = {}
+    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string }>> = {}
 
     const busyPromises = users.map(async (u) => {
       const token = await getValidTokenForUser(u.id)
-      if (!token) return { email: u.email, busy: [] as Array<{ start: string; end: string }> }
+      if (!token) return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string }> }
 
       try {
         const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         return { email: u.email, busy }
       } catch (e) {
         console.warn(`Calendar API failed for ${u.email}:`, e)
-        return { email: u.email, busy: [] as Array<{ start: string; end: string }> }
+        return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string }> }
       }
     })
 
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ユーザーごとのbusy時間を統合
-    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string }>> = {}
+    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string; eventId?: string; description?: string; location?: string }>> = {}
 
     for (const u of users) {
       const userId = u.id
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       // Googleカレンダーのbusy時間
       const gcalBusy = googleBusy[u.email] || []
       for (const b of gcalBusy) {
-        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary })
+        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary, eventId: b.eventId, description: b.description, location: b.location })
       }
 
       // シフトをbusy時間として追加（Mapルックアップ O(1)）

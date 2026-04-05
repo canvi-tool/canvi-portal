@@ -365,7 +365,7 @@ export class GoogleCalendarClient {
     timeMin: string
     timeMax: string
     timeZone?: string
-  }): Promise<Array<{ start: string; end: string; summary?: string }>> {
+  }): Promise<Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string }>> {
     const { timeMin, timeMax } = params
 
     const response = await this.calendar.events.list({
@@ -384,6 +384,9 @@ export class GoogleCalendarClient {
         start: e.start?.dateTime || e.start?.date || '',
         end: e.end?.dateTime || e.end?.date || '',
         summary: e.summary || undefined,
+        eventId: e.id || undefined,
+        description: e.description || undefined,
+        location: e.location || undefined,
       }))
   }
 

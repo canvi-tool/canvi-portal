@@ -51,7 +51,7 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
     return {
       id: s.id,
       title: isLeave
-        ? `${s.staffName} - ${s.shiftType === 'PAID_LEAVE' ? '有給' : s.shiftType === 'HALF_DAY_LEAVE' ? '半休' : s.shiftType === 'ABSENCE' ? '欠勤' : '特休'}`
+        ? `${s.staffName} - 欠勤`
         : `${s.staffName} - ${s.projectName}`,
       start: `${s.date}T${s.startTime}:00`,
       end: `${s.date}T${s.endTime}:00`,
@@ -315,7 +315,7 @@ export function ShiftFullCalendar({
           slotMinTime="07:00:00"
           slotMaxTime="23:00:00"
           slotDuration="00:30:00"
-          slotLabelInterval="01:00"
+          slotLabelInterval="00:30:00"
           allDaySlot={true}
           allDayText="終日"
           nowIndicator={true}

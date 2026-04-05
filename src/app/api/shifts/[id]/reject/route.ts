@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-
 interface RouteParams {
   params: Promise<{ id: string }>
 }
@@ -19,14 +17,6 @@ export async function POST(
 
     const parsed = shiftApprovalSchema.safeParse({ action: 'REJECT', ...body })
     const comment = parsed.success ? parsed.data.comment : undefined
-
-    if (DEMO_MODE) {
-      return NextResponse.json({
-        id,
-        status: 'REJECTED',
-        message: 'シフトを却下しました',
-      })
-    }
 
     const supabase = await createServerSupabaseClient()
 

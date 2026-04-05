@@ -92,7 +92,7 @@ export function DynamicReportForm({
       }
     })
     setCountFields(fields)
-  }, [compensationRules])
+  }, [countRateRules])
 
   const handleFormSubmit = form.handleSubmit((data) => {
     onSubmit(data)

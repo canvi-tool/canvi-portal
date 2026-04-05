@@ -407,8 +407,8 @@ export default function AttendancePage() {
     date_to: dateTo,
   })
 
-  const todayRecords = todayData?.records || []
-  const records = recordsData?.data || []
+  const todayRecords = useMemo(() => todayData?.records || [], [todayData])
+  const records = useMemo(() => recordsData?.data || [], [recordsData])
 
   // 現在時刻リアルタイム表示
   const [currentTime, setCurrentTime] = useState('')

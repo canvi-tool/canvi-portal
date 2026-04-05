@@ -2,7 +2,7 @@
 
 /* 基本フォント・ボーダー */
 .fc {
-  --fc-border-color: hsl(var(--border));
+  --fc-border-color: hsl(var(--border) / 0.4);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: hsl(var(--muted));
   --fc-today-bg-color: hsl(var(--primary) / 0.04);
@@ -26,21 +26,40 @@
   font-weight: 600;
   color: hsl(var(--muted-foreground));
   background: hsl(var(--muted) / 0.3);
+  border-color: hsl(var(--border) / 0.3);
 }
 
 .fc .fc-col-header-cell.fc-day-today {
   color: hsl(var(--primary));
 }
 
-/* 時間軸 */
+/* 時間軸ラベル — ラベルをスロット上端（=実際の時刻線）に揃える */
 .fc .fc-timegrid-slot-label {
-  font-size: 0.7rem;
-  color: hsl(var(--muted-foreground));
+  font-size: 0.65rem;
+  color: hsl(var(--muted-foreground) / 0.7);
   padding-right: 8px;
+  vertical-align: top;
+  border-color: transparent !important;
 }
 
+/* スロット: 30分刻み */
 .fc .fc-timegrid-slot {
-  height: 2.5rem;
+  height: 1.5rem;
+}
+
+/* 正時（00分）のラインは薄い実線 */
+.fc .fc-timegrid-slot-lane[data-time$=":00:00"] {
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+/* 30分のラインは薄いグレー点線 */
+.fc .fc-timegrid-slot-lane[data-time$=":30:00"] {
+  border-top: 1px dotted #e8e8e8 !important;
+}
+
+/* scrollgrid内の外枠ボーダー */
+.fc .fc-scrollgrid {
+  border-color: hsl(var(--border) / 0.3);
 }
 
 /* イベント */
@@ -51,7 +70,7 @@
   cursor: pointer;
   transition: box-shadow 0.15s, transform 0.1s;
   font-size: 0.7rem;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .fc .fc-timegrid-event:hover {
@@ -76,11 +95,18 @@
   opacity: 0.85;
 }
 
-/* リサイズハンドル */
+/* リサイズハンドル — 確実にクリック可能にする */
 .fc .fc-timegrid-event .fc-event-resizer {
-  height: 8px;
-  bottom: 0;
+  height: 10px;
+  bottom: -2px;
   cursor: s-resize;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.fc .fc-timegrid-event:hover .fc-event-resizer {
+  opacity: 1;
 }
 
 .fc .fc-timegrid-event .fc-event-resizer::after {
@@ -88,9 +114,9 @@
   display: block;
   width: 20px;
   height: 3px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   border-radius: 2px;
-  margin: 3px auto 0;
+  margin: 4px auto 0;
 }
 
 /* 今日のハイライト */
@@ -120,6 +146,11 @@
 .fc .fc-scroller {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* ドラッグ選択中のミラー表示 */
+.fc .fc-highlight {
+  background: hsl(var(--primary) / 0.08) !important;
 }
 
 /* ステータスドット */

@@ -16,7 +16,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { SHIFT_TYPE_LABELS, type ShiftType, SHIFT_TYPES } from '@/lib/validations/shift'
@@ -99,7 +98,6 @@ export function ShiftCreateDialog({
           end_time: endTime,
           shift_type: shiftType,
           notes: notes || undefined,
-          created_by: staffId,
         }),
       })
 

@@ -1903,6 +1903,110 @@ export interface Database {
           },
         ]
       }
+      scheduling_links: {
+        Row: {
+          id: string
+          slug: string
+          title: string
+          created_by: string
+          member_ids: string[]
+          mode: string
+          date_range_start: string
+          date_range_end: string
+          time_range_start: string
+          time_range_end: string
+          duration_minutes: number
+          status: string
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          slug: string
+          title?: string
+          created_by: string
+          member_ids: string[]
+          mode?: string
+          date_range_start: string
+          date_range_end: string
+          time_range_start?: string
+          time_range_end?: string
+          duration_minutes?: number
+          status?: string
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          slug?: string
+          title?: string
+          created_by?: string
+          member_ids?: string[]
+          mode?: string
+          date_range_start?: string
+          date_range_end?: string
+          time_range_start?: string
+          time_range_end?: string
+          duration_minutes?: number
+          status?: string
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      scheduling_bookings: {
+        Row: {
+          id: string
+          link_id: string
+          guest_name: string
+          guest_email: string | null
+          guest_company: string | null
+          selected_start: string
+          selected_end: string
+          message: string | null
+          status: string
+          google_calendar_event_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          link_id: string
+          guest_name: string
+          guest_email?: string | null
+          guest_company?: string | null
+          selected_start: string
+          selected_end: string
+          message?: string | null
+          status?: string
+          google_calendar_event_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          link_id?: string
+          guest_name?: string
+          guest_email?: string | null
+          guest_company?: string | null
+          selected_start?: string
+          selected_end?: string
+          message?: string | null
+          status?: string
+          google_calendar_event_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scheduling_bookings_link_id_fkey'
+            columns: ['link_id']
+            isOneToOne: false
+            referencedRelation: 'scheduling_links'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

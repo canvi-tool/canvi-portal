@@ -17,7 +17,7 @@ import {
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
 import { SlackChannelCombobox } from './slack-channel-combobox'
-import { Loader2, Hash } from 'lucide-react'
+import { Loader2, Hash, ShieldCheck } from 'lucide-react'
 
 interface Client {
   id: string
@@ -67,6 +67,7 @@ export function ProjectForm({
       google_calendar_id: '',
       slack_channel_id: '',
       slack_channel_name: '',
+      shift_approval_mode: 'AUTO',
       ...defaultValues,
     },
   })
@@ -296,6 +297,39 @@ export function ProjectForm({
             aria-invalid={!!errors.end_date}
           />
         </div>
+      </div>
+
+      {/* シフト承認モード */}
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5">
+          <ShieldCheck className="h-4 w-4" />
+          シフト承認モード
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          AUTO: スタッフが登録すると即承認。APPROVAL: 管理者の承認が必要。
+        </p>
+        <Controller
+          name="shift_approval_mode"
+          control={control}
+          render={({ field }) => (
+            <Select
+              value={field.value || 'AUTO'}
+              onValueChange={(val) => field.onChange(val)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValueWithLabel
+                  value={field.value || 'AUTO'}
+                  labels={{ AUTO: '自動承認（AUTO）', APPROVAL: '承認制（APPROVAL）' }}
+                  placeholder="承認モードを選択"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AUTO">自動承認（AUTO）</SelectItem>
+                <SelectItem value="APPROVAL">承認制（APPROVAL）</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
 
       {/* Google Calendar ID */}

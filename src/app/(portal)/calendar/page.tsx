@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, Link2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { MemberSelector } from './_components/member-selector'
-import { TeamCalendar } from './_components/team-calendar'
+import { TeamCalendar, type CalendarEventClickData } from './_components/team-calendar'
 import { AvailabilityCreateDialog } from './_components/availability-finder'
+import { EventDetailDialog, type CalendarEventData } from './_components/event-detail-dialog'
+import { SchedulingDialog } from './_components/scheduling-dialog'
 import { toast } from 'sonner'
 
 interface MemberItem {
@@ -37,6 +40,13 @@ export default function CanviCalendarPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
 
+  // 日程調整ダイアログ
+  const [schedulingOpen, setSchedulingOpen] = useState(false)
+
+  // イベント詳細ダイアログ
+  const [detailEvent, setDetailEvent] = useState<CalendarEventData | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
   // メンバー名のマップ
   const memberNames = useMemo(() => {
     const map: Record<string, string> = {}
@@ -63,16 +73,21 @@ export default function CanviCalendarPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const projectMap = new Map(projects.map((p: any) => [p.id, p.name]))
 
+        // user_idがないスタッフはGoogleカレンダー連携できないためフィルタ
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const items: MemberItem[] = staffList.map((s: any) => ({
-          id: s.id,
-          userId: s.user_id || s.id,
-          name: `${s.last_name || ''} ${s.first_name || ''}`.trim(),
+        const items: MemberItem[] = staffList
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          projectNames: (s.project_assignments || []).map((a: any) =>
-            projectMap.get(a.project_id) || '不明'
-          ),
-        }))
+          .filter((s: any) => !!s.user_id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((s: any) => ({
+            id: s.id,
+            userId: s.user_id,
+            name: `${s.last_name || ''} ${s.first_name || ''}`.trim(),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            projectNames: (s.project_assignments || []).map((a: any) =>
+              projectMap.get(a.project_id) || '不明'
+            ),
+          }))
 
         setMembers(items)
       } catch {
@@ -152,17 +167,34 @@ export default function CanviCalendarPage() {
     setCreateOpen(true)
   }, [selectedIds])
 
+  const handleEventClick = useCallback((data: CalendarEventClickData) => {
+    setDetailEvent(data as CalendarEventData)
+    setDetailOpen(true)
+  }, [])
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Canviカレンダー"
         description="メンバーの予定を横断表示。空き時間をクリックして予定を作成できます。"
         actions={
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            {selectedIds.size > 0
-              ? `${selectedIds.size}人の予定を表示中`
-              : 'メンバーを選択してください'}
+          <div className="flex items-center gap-3">
+            {selectedIds.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSchedulingOpen(true)}
+              >
+                <Link2 className="h-4 w-4 mr-1.5" />
+                日程調整URL発行
+              </Button>
+            )}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              {selectedIds.size > 0
+                ? `${selectedIds.size}人の予定を表示中`
+                : 'メンバーを選択してください'}
+            </div>
           </div>
         }
       />
@@ -211,6 +243,7 @@ export default function CanviCalendarPage() {
                 selectedMemberIds={selectedIds}
                 onSlotSelect={handleSlotSelect}
                 onDateRangeChange={handleDateRangeChange}
+                onEventClick={handleEventClick}
               />
             </>
           )}
@@ -222,9 +255,27 @@ export default function CanviCalendarPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         selectedUserIds={Array.from(selectedIds)}
+        allUserIds={members.map(m => m.userId)}
         initialDate={createInitial.date}
         initialStartTime={createInitial.startTime}
         initialEndTime={createInitial.endTime}
+        memberNames={memberNames}
+        onCreated={fetchAvailability}
+      />
+
+      {/* イベント詳細ダイアログ */}
+      <EventDetailDialog
+        event={detailEvent}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onUpdated={fetchAvailability}
+      />
+
+      {/* 日程調整ダイアログ */}
+      <SchedulingDialog
+        open={schedulingOpen}
+        onOpenChange={setSchedulingOpen}
+        selectedUserIds={Array.from(selectedIds)}
         memberNames={memberNames}
       />
     </div>

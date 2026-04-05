@@ -53,6 +53,9 @@ export const projectFormSchema = z.object({
     .max(200)
     .optional()
     .or(z.literal('')),
+  shift_approval_mode: z
+    .enum(['AUTO', 'APPROVAL'])
+    .optional(),
 })
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>

@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   CalendarDays,
+  CalendarPlus,
+  Plus,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -22,6 +24,7 @@ import {
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift } from './_components/shift-fullcalendar'
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
+import { ShiftBulkDialog } from './_components/shift-bulk-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
 import { toast } from 'sonner'
 
@@ -60,6 +63,7 @@ export default function ShiftsPage() {
   // Create dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
 
   // Edit dialog
   const [editingShift, setEditingShift] = useState<{
@@ -67,11 +71,13 @@ export default function ShiftsPage() {
     projectName: string; date: string; startTime: string; endTime: string;
     status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
     notes?: string;
+    googleMeetUrl?: string | null;
   } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   const [isManager, setIsManager] = useState(false)
   const [currentStaffId, setCurrentStaffId] = useState('')
+  const [userRoles, setUserRoles] = useState<string[]>([])
 
   useEffect(() => {
     fetch('/api/user/current')
@@ -79,6 +85,7 @@ export default function ShiftsPage() {
       .then(data => {
         if (data.isManager != null) setIsManager(data.isManager)
         if (data.staffId) setCurrentStaffId(data.staffId)
+        if (data.roles) setUserRoles(data.roles)
       })
       .catch(() => {})
   }, [])
@@ -181,6 +188,7 @@ export default function ShiftsPage() {
       endTime: shift.endTime,
       status: shift.status,
       notes: shift.notes,
+      googleMeetUrl: shift.googleMeetUrl,
     })
     setEditDialogOpen(true)
   }, [])
@@ -229,7 +237,6 @@ export default function ShiftsPage() {
           end_time: source.endTime,
           shift_type: source.shiftType,
           notes: source.notes,
-          created_by: source.staffId,
         }),
       })
       if (!res.ok) throw new Error()
@@ -259,15 +266,20 @@ export default function ShiftsPage() {
     setCreateDialogOpen(true)
   }, [])
 
-  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string }) => {
+  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string; projectId?: string; notes?: string }) => {
     try {
+      const body: Record<string, unknown> = {
+        start_time: updated.startTime,
+        end_time: updated.endTime,
+        _inlineUpdate: true,
+      }
+      if (updated.projectId) body.project_id = updated.projectId
+      if (updated.notes !== undefined) body.notes = updated.notes
+
       const res = await fetch(`/api/shifts/${updated.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          start_time: updated.startTime,
-          end_time: updated.endTime,
-        }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         toast.success(`${updated.staffName}のシフトを更新しました`)
@@ -317,6 +329,32 @@ export default function ShiftsPage() {
   const pendingCount = shifts.filter(s => s.status === 'SUBMITTED').length
   const approvedCount = shifts.filter(s => s.status === 'APPROVED').length
 
+  // 合計時間計算（スタッフ別）
+  const staffHours = useMemo(() => {
+    const map = new Map<string, { name: string; hours: number; shifts: number }>()
+    let totalHours = 0
+
+    for (const s of shifts) {
+      if (s.shiftType !== 'WORK') continue
+      const [sh, sm] = s.startTime.split(':').map(Number)
+      const [eh, em] = s.endTime.split(':').map(Number)
+      const hours = (eh * 60 + em - sh * 60 - sm) / 60
+      if (hours <= 0) continue
+
+      totalHours += hours
+      const existing = map.get(s.staffId)
+      if (existing) {
+        existing.hours += hours
+        existing.shifts += 1
+      } else {
+        map.set(s.staffId, { name: s.staffName, hours, shifts: 1 })
+      }
+    }
+
+    const byStaff = Array.from(map.values()).sort((a, b) => b.hours - a.hours)
+    return { byStaff, totalHours }
+  }, [shifts])
+
   // Filter labels
   const projectLabels = useMemo<Record<string, string>>(() => (
     { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
@@ -341,6 +379,28 @@ export default function ShiftsPage() {
         actions={
           <div className="flex items-center gap-2">
             <Button
+              size="sm"
+              onClick={() => {
+                const today = new Date()
+                const y = today.getFullYear()
+                const m = String(today.getMonth() + 1).padStart(2, '0')
+                const d = String(today.getDate()).padStart(2, '0')
+                setCreateInitial({ date: `${y}-${m}-${d}`, startTime: '09:00', endTime: '18:00' })
+                setCreateDialogOpen(true)
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              申請
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkDialogOpen(true)}
+            >
+              <CalendarPlus className="h-4 w-4 mr-1" />
+              一括申請
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               onClick={() => router.push('/shifts/pending')}
@@ -357,36 +417,51 @@ export default function ShiftsPage() {
         }
       />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-0">
-            <CalendarDays className="h-5 w-5 text-blue-500 shrink-0" />
-            <div>
-              <p className="text-2xl font-bold">{totalShifts}件</p>
-              <p className="text-xs text-muted-foreground">総シフト数</p>
+      {/* Stats Bar */}
+      <Card>
+        <CardContent className="pt-0">
+          <div className="flex items-center gap-6 flex-wrap">
+            {/* 合計 */}
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-500" />
+              <span className="text-lg font-bold">{staffHours.totalHours.toFixed(1)}h</span>
+              <span className="text-xs text-muted-foreground">合計</span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-0">
-            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
-            <div>
-              <p className="text-2xl font-bold">{pendingCount}件</p>
-              <p className="text-xs text-muted-foreground">承認待ち</p>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{totalShifts}件</span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 pt-0">
-            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-            <div>
-              <p className="text-2xl font-bold">{approvedCount}件</p>
-              <p className="text-xs text-muted-foreground">承認済み</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            {pendingCount > 0 && (
+              <div className="flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-sm text-amber-600">{pendingCount}件待ち</span>
+              </div>
+            )}
+            {approvedCount > 0 && (
+              <div className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <span className="text-sm text-green-600">{approvedCount}件承認</span>
+              </div>
+            )}
+
+            {/* スタッフ別時間 */}
+            {staffHours.byStaff.length > 0 && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-3 flex-wrap">
+                  {staffHours.byStaff.map((s) => (
+                    <div key={s.name} className="flex items-center gap-1 text-xs">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-primary font-bold">{s.hours.toFixed(1)}h</span>
+                      <span className="text-muted-foreground">({s.shifts}件)</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters Row */}
       <div className="flex flex-wrap items-center gap-2">
@@ -456,6 +531,18 @@ export default function ShiftsPage() {
         onCreated={fetchShifts}
       />
 
+      {/* Bulk Dialog */}
+      <ShiftBulkDialog
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        projects={projects}
+        staffList={staffList}
+        currentStaffId={currentStaffId}
+        isManager={isManager}
+        userRoles={userRoles}
+        onCreated={fetchShifts}
+      />
+
       {/* Edit Dialog */}
       <ShiftEditDialog
         shift={editingShift}
@@ -465,6 +552,9 @@ export default function ShiftsPage() {
         onDelete={handleShiftDelete}
         onApprove={handleShiftApprove}
         onReject={handleShiftReject}
+        onSyncCalendar={() => fetchShifts()}
+        isManager={isManager}
+        projects={projects}
       />
     </div>
   )

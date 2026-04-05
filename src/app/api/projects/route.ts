@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { project_code, project_type, project_number, google_calendar_id, client_id, slack_channel_id, slack_channel_name, ...rest } = parsed.data
+    const { project_code, project_type, project_number, google_calendar_id, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, ...rest } = parsed.data
 
     const {
       data: { user },
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
         end_date: rest.end_date || null,
         slack_channel_id: slack_channel_id || null,
         slack_channel_name: slack_channel_name || null,
+        shift_approval_mode: shift_approval_mode || 'AUTO',
         custom_fields: {
           google_calendar_id: google_calendar_id || null,
         },

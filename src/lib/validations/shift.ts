@@ -1,14 +1,11 @@
 import { z } from 'zod'
 
-export const SHIFT_TYPES = ['WORK', 'PAID_LEAVE', 'ABSENCE', 'HALF_DAY_LEAVE', 'SPECIAL_LEAVE'] as const
+export const SHIFT_TYPES = ['WORK', 'ABSENCE'] as const
 export type ShiftType = typeof SHIFT_TYPES[number]
 
 export const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
   WORK: '通常勤務',
-  PAID_LEAVE: '有給休暇',
   ABSENCE: '欠勤',
-  HALF_DAY_LEAVE: '半休',
-  SPECIAL_LEAVE: '特別休暇',
 }
 
 export const shiftFormSchema = z.object({
@@ -36,6 +33,19 @@ export const shiftDragUpdateSchema = z.object({
 })
 
 export type ShiftDragUpdateValues = z.infer<typeof shiftDragUpdateSchema>
+
+export const shiftInlineUpdateSchema = z.object({
+  start_time: z.string().min(1, '開始時刻は必須です'),
+  end_time: z.string().min(1, '終了時刻は必須です'),
+  project_id: z.string().optional(),
+  notes: z.string().optional(),
+  _inlineUpdate: z.literal(true),
+}).refine((data) => data.start_time < data.end_time, {
+  message: '終了時刻は開始時刻より後にしてください',
+  path: ['end_time'],
+})
+
+export type ShiftInlineUpdateValues = z.infer<typeof shiftInlineUpdateSchema>
 
 export const shiftApprovalSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT', 'NEEDS_REVISION', 'MODIFY', 'COMMENT']),

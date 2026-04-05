@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,27 +11,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Video, Copy } from 'lucide-react'
+import { Video, Copy, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface AvailabilityCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   selectedUserIds: string[]
+  allUserIds: string[]
   initialDate: string
   initialStartTime: string
   initialEndTime: string
   memberNames: Record<string, string>
+  onCreated?: () => void
 }
 
 export function AvailabilityCreateDialog({
   open,
   onOpenChange,
   selectedUserIds,
+  allUserIds,
   initialDate,
   initialStartTime,
   initialEndTime,
   memberNames,
+  onCreated,
 }: AvailabilityCreateDialogProps) {
   const [summary, setSummary] = useState('')
   const [description, setDescription] = useState('')
@@ -42,15 +46,50 @@ export function AvailabilityCreateDialog({
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ meetUrl: string } | null>(null)
 
+  // 招待メンバー管理
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set(selectedUserIds))
+  const [inviteExpanded, setInviteExpanded] = useState(false)
+  const [inviteSearch, setInviteSearch] = useState('')
+
   useEffect(() => {
     setDate(initialDate)
     setStartTime(initialStartTime)
     setEndTime(initialEndTime)
   }, [initialDate, initialStartTime, initialEndTime])
 
+  // ダイアログが開くたびにselectedUserIdsで招待リストを初期化
+  useEffect(() => {
+    if (open) {
+      setInvitedIds(new Set(selectedUserIds))
+      setInviteExpanded(false)
+      setInviteSearch('')
+    }
+  }, [open, selectedUserIds])
+
+  const toggleInvite = (id: string) => {
+    setInvitedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // 全メンバーリスト（検索フィルタ付き）
+  const filteredMembers = useMemo(() => {
+    const all = allUserIds.map(id => ({ id, name: memberNames[id] || id }))
+    if (!inviteSearch) return all
+    const q = inviteSearch.toLowerCase()
+    return all.filter(m => m.name.toLowerCase().includes(q))
+  }, [allUserIds, memberNames, inviteSearch])
+
   const handleCreate = async () => {
     if (!summary || !date || !startTime || !endTime) {
       toast.error('タイトル、日付、時刻は必須です')
+      return
+    }
+    if (invitedIds.size === 0) {
+      toast.error('招待メンバーを1人以上選択してください')
       return
     }
 
@@ -60,7 +99,7 @@ export function AvailabilityCreateDialog({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_ids: selectedUserIds,
+          user_ids: Array.from(invitedIds),
           summary,
           description,
           start_datetime: `${date}T${startTime}:00+09:00`,
@@ -77,6 +116,7 @@ export function AvailabilityCreateDialog({
       const data = await res.json()
       toast.success('予定を作成しました')
       setResult({ meetUrl: data.meetUrl || '' })
+      onCreated?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '予定の作成に失敗しました')
     } finally {
@@ -84,7 +124,7 @@ export function AvailabilityCreateDialog({
     }
   }
 
-  const participantNames = selectedUserIds
+  const participantNames = Array.from(invitedIds)
     .map(id => memberNames[id] || id)
     .join('、')
 
@@ -147,8 +187,57 @@ export function AvailabilityCreateDialog({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="text-xs text-muted-foreground">
-              参加者: {participantNames}
+            {/* 招待メンバー選択 */}
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                className="flex items-center justify-between w-full text-sm"
+                onClick={() => setInviteExpanded(!inviteExpanded)}
+              >
+                <span className="font-medium">招待メンバー ({invitedIds.size}人)</span>
+                {inviteExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {!inviteExpanded && (
+                <div className="text-xs text-muted-foreground truncate">
+                  {participantNames || '選択なし'}
+                </div>
+              )}
+
+              {inviteExpanded && (
+                <div className="border rounded-md">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={inviteSearch}
+                        onChange={(e) => setInviteSearch(e.target.value)}
+                        placeholder="名前で検索"
+                        className="h-7 pl-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[180px] overflow-y-auto p-1">
+                    {filteredMembers.map(m => (
+                      <label
+                        key={m.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={invitedIds.has(m.id)}
+                          onChange={() => toggleInvite(m.id)}
+                          className="rounded"
+                        />
+                        <span className="truncate">{m.name}</span>
+                      </label>
+                    ))}
+                    {filteredMembers.length === 0 && (
+                      <div className="text-xs text-muted-foreground text-center py-2">該当なし</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">

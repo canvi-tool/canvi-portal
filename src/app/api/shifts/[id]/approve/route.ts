@@ -4,8 +4,6 @@ import { shiftApprovalSchema } from '@/lib/validations/shift'
 import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
 import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-
 interface RouteParams {
   params: Promise<{ id: string }>
 }
@@ -28,16 +26,6 @@ export async function POST(
 
     const parsed = shiftApprovalSchema.safeParse({ action: 'APPROVE', ...body })
     const comment = parsed.success ? parsed.data.comment : undefined
-
-    if (DEMO_MODE) {
-      return NextResponse.json({
-        id,
-        status: 'APPROVED',
-        approved_at: new Date().toISOString(),
-        approved_by: 'user-001',
-        message: 'シフトを承認しました',
-      })
-    }
 
     const supabase = await createServerSupabaseClient()
 

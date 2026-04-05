@@ -1,47 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { shiftFormSchema, shiftDragUpdateSchema } from '@/lib/validations/shift'
+import { shiftFormSchema, shiftDragUpdateSchema, shiftInlineUpdateSchema } from '@/lib/validations/shift'
 import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
-
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-
-const DEMO_SHIFT = {
-  id: 'shift-001',
-  staff_id: 'staff-001',
-  project_id: 'proj-001',
-  shift_date: '2026-03-28',
-  start_time: '09:00',
-  end_time: '18:00',
-  status: 'APPROVED',
-  notes: null,
-  google_calendar_event_id: 'gcal-ev-001',
-  google_calendar_synced: true,
-  submitted_at: '2026-03-25T10:00:00Z',
-  approved_at: '2026-03-25T11:00:00Z',
-  approved_by: 'user-001',
-  created_by: 'user-002',
-  created_at: '2026-03-24T09:00:00Z',
-  updated_at: '2026-03-25T11:00:00Z',
-  deleted_at: null,
-  staff_name: '田中 太郎',
-  project_name: 'Webサイトリニューアル',
-  approval_history: [
-    {
-      id: 'ah-001',
-      shift_id: 'shift-001',
-      action: 'APPROVE',
-      comment: '問題ありません',
-      previous_start_time: null,
-      previous_end_time: null,
-      new_start_time: null,
-      new_end_time: null,
-      performed_by: 'user-001',
-      performed_at: '2026-03-25T11:00:00Z',
-      performer_name: '山田 管理者',
-    },
-  ],
-}
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -53,10 +14,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-
-    if (DEMO_MODE) {
-      return NextResponse.json({ ...DEMO_SHIFT, id })
-    }
 
     const supabase = await createServerSupabaseClient()
 
@@ -101,19 +58,19 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const isDragUpdate = body._dragUpdate === true
+    const isInlineUpdate = body._inlineUpdate === true
 
-    if (DEMO_MODE) {
-      return NextResponse.json({
-        ...DEMO_SHIFT,
-        id,
-        ...body,
-        updated_at: new Date().toISOString(),
-      })
-    }
-
-    // ドラッグ操作は部分更新スキーマ、通常は全体スキーマ
+    // バリデーション: ドラッグ / インライン編集 / 通常の全体更新
     if (isDragUpdate) {
       const parsed = shiftDragUpdateSchema.safeParse(body)
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: 'バリデーションエラー', details: parsed.error.flatten() },
+          { status: 400 }
+        )
+      }
+    } else if (isInlineUpdate) {
+      const parsed = shiftInlineUpdateSchema.safeParse(body)
       if (!parsed.success) {
         return NextResponse.json(
           { error: 'バリデーションエラー', details: parsed.error.flatten() },
@@ -165,6 +122,12 @@ export async function PUT(
       updateData.shift_date = body.shift_date
       updateData.start_time = body.start_time
       updateData.end_time = body.end_time
+    } else if (isInlineUpdate) {
+      // インライン編集: 時間 + オプショナルなプロジェクト・備考
+      updateData.start_time = body.start_time
+      updateData.end_time = body.end_time
+      if (body.project_id) updateData.project_id = body.project_id
+      if (body.notes !== undefined) updateData.notes = body.notes || null
     } else {
       // 通常更新: 全フィールド
       updateData.staff_id = body.staff_id
@@ -216,10 +179,6 @@ export async function DELETE(
     const currentUser = await getCurrentUser()
     if (!currentUser) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
-    }
-
-    if (DEMO_MODE) {
-      return NextResponse.json({ success: true })
     }
 
     const supabase = await createServerSupabaseClient()
