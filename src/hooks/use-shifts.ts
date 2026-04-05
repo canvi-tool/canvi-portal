@@ -25,7 +25,20 @@ export interface SyncResult {
   errors: string[]
 }
 
+interface ShiftPermissions {
+  canManage: boolean
+  role: string
+}
+
 // ---- Fetchers ----
+
+async function fetchShiftPermissions(projectId?: string): Promise<ShiftPermissions> {
+  const searchParams = new URLSearchParams()
+  if (projectId) searchParams.set('project_id', projectId)
+  const res = await fetch(`/api/auth/shift-permissions?${searchParams.toString()}`)
+  if (!res.ok) throw new Error('権限情報の取得に失敗しました')
+  return res.json()
+}
 
 async function fetchShifts(params?: ShiftQueryParams): Promise<ShiftWithRelations[]> {
   const searchParams = new URLSearchParams()
@@ -167,6 +180,7 @@ export const shiftKeys = {
   detail: (id: string) => [...shiftKeys.details(), id] as const,
   pending: () => [...shiftKeys.all, 'pending'] as const,
   sync: () => [...shiftKeys.all, 'sync'] as const,
+  permissions: (projectId?: string) => [...shiftKeys.all, 'permissions', projectId] as const,
 }
 
 // ---- Hooks ----
@@ -266,6 +280,18 @@ export function useRequestRevision() {
       queryClient.invalidateQueries({ queryKey: shiftKeys.pending() })
     },
   })
+}
+
+export function useShiftPermissions(projectId?: string) {
+  const { data, isLoading } = useQuery({
+    queryKey: shiftKeys.permissions(projectId),
+    queryFn: () => fetchShiftPermissions(projectId),
+  })
+
+  return {
+    canManage: data?.canManage ?? false,
+    isLoading,
+  }
 }
 
 export function useSyncShifts() {

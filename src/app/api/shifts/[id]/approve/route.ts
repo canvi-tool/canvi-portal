@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
 import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
-import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
+import { canManageProjectShifts } from '@/lib/auth/project-access'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -16,23 +16,12 @@ export async function POST(
   try {
     const { id } = await params
 
-    // 認証・権限チェック: マネージャーまたはオーナーのみ承認可能
-    const currentUser = await getCurrentUser()
-    if (!currentUser || !isManagerOrOwner(currentUser)) {
-      return NextResponse.json({ error: '承認権限がありません' }, { status: 403 })
-    }
-
-    const body = await request.json().catch(() => ({}))
-
-    const parsed = shiftApprovalSchema.safeParse({ action: 'APPROVE', ...body })
-    const comment = parsed.success ? parsed.data.comment : undefined
-
     const supabase = await createServerSupabaseClient()
 
-    // 現在のシフトを確認
+    // 現在のシフトを確認（project_idも取得して権限チェックに使用）
     const { data: shift, error: fetchError } = await supabase
       .from('shifts')
-      .select('id, status')
+      .select('id, status, project_id')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -40,6 +29,17 @@ export async function POST(
     if (fetchError || !shift) {
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
     }
+
+    // 認証・権限チェック: オーナーまたはアサイン済み管理者のみ承認可能
+    const { user: currentUser, canManage } = await canManageProjectShifts(shift.project_id)
+    if (!currentUser || !canManage) {
+      return NextResponse.json({ error: 'このプロジェクトのシフトを承認する権限がありません' }, { status: 403 })
+    }
+
+    const body = await request.json().catch(() => ({}))
+
+    const parsed = shiftApprovalSchema.safeParse({ action: 'APPROVE', ...body })
+    const comment = parsed.success ? parsed.data.comment : undefined
 
     if (shift.status !== 'SUBMITTED') {
       return NextResponse.json(

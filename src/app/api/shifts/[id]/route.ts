@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema, shiftDragUpdateSchema, shiftInlineUpdateSchema } from '@/lib/validations/shift'
 import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
-import { getCurrentUser, isManagerOrOwner } from '@/lib/auth/rbac'
+import { getCurrentUser } from '@/lib/auth/rbac'
+import { canManageProjectShifts } from '@/lib/auth/project-access'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -101,12 +102,19 @@ export async function PUT(
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
     }
 
-    // APPROVED済みシフトは管理者/オーナーのみ編集可能
+    // APPROVED済みシフトはプロジェクトにアサインされた管理者/オーナーのみ編集可能
     if (existing.status === 'APPROVED') {
-      const currentUser = await getCurrentUser()
-      if (!currentUser || !isManagerOrOwner(currentUser)) {
+      // project_idを取得
+      const { data: shiftForAuth } = await supabase
+        .from('shifts')
+        .select('project_id')
+        .eq('id', id)
+        .single()
+
+      const { canManage } = await canManageProjectShifts(shiftForAuth?.project_id || '')
+      if (!canManage) {
         return NextResponse.json(
-          { error: '承認済みのシフトは管理者のみ編集できます。' },
+          { error: 'このプロジェクトの承認済みシフトを編集する権限がありません。' },
           { status: 403 }
         )
       }

@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, isOwner, type UserWithRole } from './rbac'
+import { getCurrentUser, isOwner, hasRole, type UserWithRole } from './rbac'
 
 /**
  * オーナー以外のユーザーがアクセス可能なプロジェクトIDリストを取得する。
@@ -60,4 +60,46 @@ export async function canAccessProject(projectId: string): Promise<{
   }
 
   return { user, hasAccess: allowedProjectIds.includes(projectId), staffId }
+}
+
+/**
+ * 特定プロジェクトのシフトを管理（承認・編集・削除）できるか確認する。
+ * - オーナー: 全プロジェクト管理可能
+ * - 管理者(admin): アサインされているプロジェクトのみ管理可能
+ * - スタッフ: 管理権限なし
+ */
+export async function canManageProjectShifts(projectId: string): Promise<{
+  user: UserWithRole | null
+  canManage: boolean
+}> {
+  const user = await getCurrentUser()
+  if (!user) {
+    return { user: null, canManage: false }
+  }
+
+  // オーナーは全プロジェクト管理可能
+  if (isOwner(user)) {
+    return { user, canManage: true }
+  }
+
+  // 管理者のみ管理権限あり（スタッフは不可）
+  if (!hasRole(user, 'admin')) {
+    return { user, canManage: false }
+  }
+
+  // 管理者: アサインされているプロジェクトのみ
+  if (!user.staffId) {
+    return { user, canManage: false }
+  }
+
+  const supabase = await createServerSupabaseClient()
+  const { data } = await supabase
+    .from('project_assignments')
+    .select('id')
+    .eq('staff_id', user.staffId)
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+    .limit(1)
+
+  return { user, canManage: (data && data.length > 0) || false }
 }

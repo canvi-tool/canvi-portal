@@ -43,6 +43,7 @@ import {
   useApproveShift,
   useRejectShift,
   useRequestRevision,
+  useShiftPermissions,
   type ShiftWithRelations,
 } from '@/hooks/use-shifts'
 
@@ -79,6 +80,7 @@ export default function PendingApprovalsPage() {
 
   // Data fetching
   const { data: shifts = [], isLoading, isError } = usePendingShifts()
+  const { canManage, isLoading: isPermissionLoading } = useShiftPermissions()
 
   // Mutations
   const approveShift = useApproveShift()
@@ -217,7 +219,7 @@ export default function PendingApprovalsPage() {
   }
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || isPermissionLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -273,7 +275,7 @@ export default function PendingApprovalsPage() {
       />
 
       {/* Bulk Actions */}
-      {selectedIds.size > 0 && (
+      {canManage && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
           <span className="text-sm font-medium text-blue-800">
             {selectedIds.size}件選択中
@@ -313,21 +315,23 @@ export default function PendingApprovalsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === pendingShifts.length && pendingShifts.length > 0}
-                      onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
-                  </TableHead>
+                  {canManage && (
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === pendingShifts.length && pendingShifts.length > 0}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>スタッフ</TableHead>
                   <TableHead>プロジェクト</TableHead>
                   <TableHead>日付</TableHead>
                   <TableHead>時間</TableHead>
                   <TableHead>ステータス</TableHead>
                   <TableHead>申請日時</TableHead>
-                  <TableHead className="text-right">アクション</TableHead>
+                  {canManage && <TableHead className="text-right">アクション</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -337,14 +341,16 @@ export default function PendingApprovalsPage() {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => openDetail(shift)}
                   >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(shift.id)}
-                        onChange={() => toggleSelect(shift.id)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </TableCell>
+                    {canManage && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(shift.id)}
+                          onChange={() => toggleSelect(shift.id)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{shift.staff_name ?? '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{shift.project_name ?? '-'}</Badge>
@@ -359,37 +365,39 @@ export default function PendingApprovalsPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {shift.submitted_at ? formatDateTime(shift.submitted_at) : '-'}
                     </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                          disabled={isMutating}
-                          onClick={() => handleApprove(shift.id)}
-                        >
-                          承認
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 text-xs"
-                          disabled={isMutating}
-                          onClick={() => handleReject(shift.id)}
-                        >
-                          却下
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs text-orange-700 border-orange-300 hover:bg-orange-50"
-                          disabled={isMutating}
-                          onClick={() => openDetail(shift)}
-                        >
-                          修正依頼
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                            disabled={isMutating}
+                            onClick={() => handleApprove(shift.id)}
+                          >
+                            承認
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs"
+                            disabled={isMutating}
+                            onClick={() => handleReject(shift.id)}
+                          >
+                            却下
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-orange-700 border-orange-300 hover:bg-orange-50"
+                            disabled={isMutating}
+                            onClick={() => openDetail(shift)}
+                          >
+                            修正依頼
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -496,50 +504,52 @@ export default function PendingApprovalsPage() {
             </div>
           )}
 
-          <DialogFooter>
-            <div className="flex items-center gap-2 w-full">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-orange-700 border-orange-300 hover:bg-orange-50"
-                disabled={isMutating}
-                onClick={() => detailShift && handleRequestRevision(detailShift.id)}
-              >
-                {requestRevision.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <MessageSquare className="h-4 w-4 mr-1" />
-                )}
-                修正依頼
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={isMutating}
-                onClick={() => detailShift && handleReject(detailShift.id)}
-              >
-                {rejectShift.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <XCircle className="h-4 w-4 mr-1" />
-                )}
-                却下
-              </Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 ml-auto"
-                disabled={isMutating}
-                onClick={() => detailShift && handleApprove(detailShift.id)}
-              >
-                {approveShift.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                )}
-                承認
-              </Button>
-            </div>
-          </DialogFooter>
+          {canManage && (
+            <DialogFooter>
+              <div className="flex items-center gap-2 w-full">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-orange-700 border-orange-300 hover:bg-orange-50"
+                  disabled={isMutating}
+                  onClick={() => detailShift && handleRequestRevision(detailShift.id)}
+                >
+                  {requestRevision.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                  )}
+                  修正依頼
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={() => detailShift && handleReject(detailShift.id)}
+                >
+                  {rejectShift.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4 mr-1" />
+                  )}
+                  却下
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 ml-auto"
+                  disabled={isMutating}
+                  onClick={() => detailShift && handleApprove(detailShift.id)}
+                >
+                  {approveShift.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                  )}
+                  承認
+                </Button>
+              </div>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
