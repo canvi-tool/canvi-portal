@@ -579,53 +579,115 @@ export async function inviteStaffToSlackChannel(
 // =============== ユーザー招待・プロフィール更新 ===============
 
 /**
- * Slackワークスペースにユーザーを招待（users.admin.invite）
- * User OAuth Token（xoxp-）が必要
- * チャンネルIDを指定するとそのチャンネルにも自動招待
+ * Slackワークスペースにユーザーを招待
+ * 複数のAPIを順に試行:
+ * 1. admin.users.invite (Business+/Enterprise Grid + admin.users:write スコープ)
+ * 2. users.admin.invite (レガシー + admin スコープ)
+ * 3. フォールバック: 手動招待の案内メッセージ
  */
 export async function inviteUserToSlackWorkspace(
   email: string,
   channelIds?: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  const token = getUserToken()
-  if (!token) {
-    return { success: false, error: 'SLACK_USER_TOKEN が設定されていません。Slack管理画面からユーザーを招待してください。' }
+  const userToken = getUserToken()
+  const botToken = getBotToken()
+
+  if (!userToken && !botToken) {
+    return { success: false, error: 'Slack Token が設定されていません。Slack管理画面から手動で招待してください。' }
   }
 
-  try {
-    const params = new URLSearchParams({
-      email,
-      set_active: 'true',
-    })
-    if (channelIds && channelIds.length > 0) {
-      params.set('channels', channelIds.join(','))
-    }
+  const errorMap: Record<string, string> = {
+    'already_invited': 'このユーザーは既に招待済みです',
+    'already_in_team': 'このユーザーは既にワークスペースに参加しています',
+    'already_in_team_invited_user': 'このユーザーは既に招待済みです',
+    'sent_recently': '招待メールが最近送信済みです',
+    'user_disabled': 'このユーザーは無効化されています',
+    'team_not_found': 'ワークスペースが見つかりません',
+  }
 
-    const res = await fetch('https://slack.com/api/users.admin.invite', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: params.toString(),
-    })
+  // 「既に招待済み」「既に参加済み」は成功扱い
+  const isAlreadyInvited = (error: string) =>
+    error === 'already_invited' || error === 'already_in_team' || error === 'already_in_team_invited_user'
 
-    const data = await res.json()
-    if (!data.ok) {
-      const errorMessages: Record<string, string> = {
-        'already_invited': 'このユーザーは既に招待済みです',
-        'already_in_team': 'このユーザーは既にワークスペースに参加しています',
-        'sent_recently': '招待メールが最近送信済みです。しばらく待ってから再試行してください',
-        'user_disabled': 'このユーザーは無効化されています',
-        'not_allowed_token_type': 'User OAuth Token（xoxp-）が必要です',
-        'missing_scope': 'admin スコープが必要です',
+  // ① admin.users.invite（新API）を試行
+  if (userToken) {
+    try {
+      // team_id が必要なので、まず取得
+      const teamRes = await fetch('https://slack.com/api/auth.test', {
+        headers: { Authorization: `Bearer ${userToken}` },
+      })
+      const teamData = await teamRes.json()
+      const teamId = teamData.team_id
+
+      if (teamId) {
+        const res = await fetch('https://slack.com/api/admin.users.invite', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}`,
+          },
+          body: JSON.stringify({
+            email,
+            team_id: teamId,
+            channel_ids: channelIds || [],
+            is_restricted: false,
+          }),
+        })
+        const data = await res.json()
+
+        if (data.ok) {
+          return { success: true }
+        }
+        if (isAlreadyInvited(data.error)) {
+          return { success: true }
+        }
+        // admin.users:write スコープがない場合はレガシーAPIにフォールバック
+        if (data.error !== 'missing_scope' && data.error !== 'not_allowed_token_type' && data.error !== 'access_denied') {
+          return { success: false, error: errorMap[data.error] || `Slack API error: ${data.error}` }
+        }
+        console.log('admin.users.invite failed with scope error, trying legacy API...')
       }
-      return { success: false, error: errorMessages[data.error] || `Slack API error: ${data.error}` }
+    } catch (err) {
+      console.error('admin.users.invite error:', err)
     }
 
-    return { success: true }
-  } catch (err) {
-    return { success: false, error: (err as Error).message }
+    // ② users.admin.invite（レガシーAPI）を試行
+    try {
+      const params = new URLSearchParams({ email, set_active: 'true' })
+      if (channelIds && channelIds.length > 0) {
+        params.set('channels', channelIds.join(','))
+      }
+
+      const res = await fetch('https://slack.com/api/users.admin.invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Bearer ${userToken}`,
+        },
+        body: params.toString(),
+      })
+      const data = await res.json()
+
+      if (data.ok) {
+        return { success: true }
+      }
+      if (isAlreadyInvited(data.error)) {
+        return { success: true }
+      }
+      // スコープ不足ならフォールバックへ
+      if (data.error !== 'missing_scope' && data.error !== 'not_allowed_token_type') {
+        return { success: false, error: errorMap[data.error] || `Slack API error: ${data.error}` }
+      }
+      console.log('users.admin.invite also failed with scope error, providing manual invite guidance')
+    } catch (err) {
+      console.error('users.admin.invite error:', err)
+    }
+  }
+
+  // ③ API招待不可 → Slack管理画面の招待URLを案内
+  return {
+    success: false,
+    error: `Slack招待APIの権限が不足しています。Slack管理画面（https://app.slack.com/admin/invites）から ${email} を手動で招待してください。`,
   }
 }
 
