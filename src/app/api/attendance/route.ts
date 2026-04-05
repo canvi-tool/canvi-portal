@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
-import { sendProjectNotificationIfEnabled, buildClockInNotification } from '@/lib/integrations/slack'
+import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -167,13 +167,12 @@ export async function POST(request: NextRequest) {
     }
     const staffName = user.displayName || user.email || 'メンバー'
     // 出勤通知を送信し、スレッドtsを保存（後続の打刻をスレッドにまとめるため）
-    // 同期的に実行して、thread_tsを確実にDBに保存する
+    // 出勤通知は通知設定に関わらず必ず送信する（thread_ts取得がスレッド化の前提条件）
+    // 通知設定OFFの場合でもBot APIで送信してtsを取得→後続打刻をスレッド化
     try {
-      const result = await sendProjectNotificationIfEnabled(
+      const result = await sendProjectNotification(
         buildClockInNotification(staffName, projectName),
-        projectId,
-        projectSlackChannelId,
-        'attendance_clock_in'
+        projectSlackChannelId
       )
       if (result.ts && data?.id) {
         await supabase

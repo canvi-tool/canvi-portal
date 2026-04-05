@@ -24,9 +24,10 @@ export type NotificationToggleKey =
   | 'general_alert'
 
 // デフォルト通知設定（settings未作成の場合）
+// 出退勤はスレッド化のため必ずON（thread_ts取得に必要）
 const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
-  attendance_clock_in: false,
-  attendance_clock_out: false,
+  attendance_clock_in: true,
+  attendance_clock_out: true,
   attendance_missing: true,
   shift_submitted: false,
   shift_approved: false,
