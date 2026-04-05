@@ -1,29 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  ArrowLeft,
-  Plus,
-  Trash2,
-  Play,
-  Square,
-  Coffee,
-  CoffeeIcon,
-  RefreshCw,
-  Save,
-  Send,
-  Clock,
-  Hash,
-  AlertTriangle,
-  CheckCircle2,
-} from 'lucide-react'
+import { toast } from 'sonner'
+import { ArrowLeft, Send, Loader2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/layout/page-header'
 import {
   Card,
   CardContent,
@@ -31,6 +13,11 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -38,234 +25,164 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PageHeader } from '@/components/layout/page-header'
 
-// --- Demo Data ---
+import { useCreateDailyReport, useMonthlyKpiTotals } from '@/hooks/use-daily-reports'
+import { useProjects } from '@/hooks/use-projects'
+import {
+  type DailyReportType,
+  DAILY_REPORT_TYPE_LABELS,
+  calcOutboundRates,
+  calcInboundRates,
+} from '@/lib/validations/daily-report'
 
-const DEMO_PROJECTS = [
-  { id: 'pj-alpha', name: 'PJ-Alpha' },
-  { id: 'pj-beta', name: 'PJ-Beta' },
-  { id: 'pj-gamma', name: 'PJ-Gamma' },
-]
-
-const TODAY = '2026-03-28'
-const CURRENT_USER = { id: '1', name: '田中太郎' }
-
-// --- Types ---
-
-type PunchStatus = 'idle' | 'working' | 'on_break' | 'finished'
-
-type PunchLog = {
-  type: 'work_start' | 'break_start' | 'break_end' | 'work_end'
-  time: string
-  label: string
+function getTodayString(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-type WorkType = 'punch' | 'hours'
-
-type ProjectEntry = {
-  id: string
-  projectId: string
-  workType: WorkType
-  // 打刻
-  punchStatus: PunchStatus
-  punchLogs: PunchLog[]
-  workStartTime: string | null
-  workEndTime: string | null
-  breakStartTime: string | null
-  totalBreakSeconds: number
-  // 時間入力
-  totalHours: string
-  // 実績
-  callCount: string
-  appointmentCount: string
-  otherAchievements: string
-  qualitativeNote: string
-  deliverableUrl: string
-  fetchingCalls: boolean
-}
-
-function createEmptyEntry(): ProjectEntry {
-  return {
-    id: crypto.randomUUID(),
-    projectId: '',
-    workType: 'punch',
-    punchStatus: 'idle',
-    punchLogs: [],
-    workStartTime: null,
-    workEndTime: null,
-    breakStartTime: null,
-    totalBreakSeconds: 0,
-    totalHours: '',
-    callCount: '',
-    appointmentCount: '',
-    otherAchievements: '',
-    qualitativeNote: '',
-    deliverableUrl: '',
-    fetchingCalls: false,
-  }
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-}
-
-function formatTimeShort(date: Date): string {
-  return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
-}
-
-function calcWorkDuration(entry: ProjectEntry): string {
-  if (!entry.workStartTime) return '--:--'
-  const start = entry.workStartTime
-  const end = entry.workEndTime || formatTimeShort(new Date())
-
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
-  const totalMinutes = (eh * 60 + em) - (sh * 60 + sm) - Math.floor(entry.totalBreakSeconds / 60)
-  if (totalMinutes < 0) return '--:--'
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  return `${h}時間${m > 0 ? `${m}分` : ''}`
-}
-
-// --- Component ---
-
-export default function NewWorkReportPage() {
+export default function NewDailyReportPage() {
   const router = useRouter()
+  const createReport = useCreateDailyReport()
+  const { data: projects = [] } = useProjects()
 
-  const [date, setDate] = useState(TODAY)
-  const [isOtherDate, setIsOtherDate] = useState(false)
-  const [otherDateReason, setOtherDateReason] = useState('')
-  const [entries, setEntries] = useState<ProjectEntry[]>([createEmptyEntry()])
+  // --- Common state ---
+  const [reportType, setReportType] = useState<DailyReportType>('outbound')
+  const [reportDate, setReportDate] = useState(getTodayString())
+  const [projectId, setProjectId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [currentTime, setCurrentTime] = useState<Date | null>(null)
-  const [isMounted, setIsMounted] = useState(false)
 
-  // 現在時刻の更新（打刻表示用） - クライアントサイドのみ
-  useEffect(() => {
-    setIsMounted(true)
-    setCurrentTime(new Date())
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
+  // --- Training state ---
+  const [studyTheme, setStudyTheme] = useState('')
+  const [smoothOperations, setSmoothOperations] = useState('')
+  const [difficultPoints, setDifficultPoints] = useState('')
+  const [selfSolution, setSelfSolution] = useState('')
+  const [studyInsight, setStudyInsight] = useState('')
+  const [tomorrowStudyFocus, setTomorrowStudyFocus] = useState('')
+  const [questionsForSupervisor, setQuestionsForSupervisor] = useState('')
+  const [concentrationLevel, setConcentrationLevel] = useState<number>(0)
+  const [conditionComment, setConditionComment] = useState('')
 
-  const updateEntry = useCallback((id: string, updates: Partial<ProjectEntry>) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-    )
-  }, [])
+  // --- Outbound state ---
+  const [callTarget, setCallTarget] = useState('')
+  const [callActual, setCallActual] = useState('')
+  const [contactCount, setContactCount] = useState('')
+  const [appointmentCount, setAppointmentCount] = useState('')
+  const [outboundSelfEvaluation, setOutboundSelfEvaluation] = useState('')
+  const [talkImprovements, setTalkImprovements] = useState('')
+  const [appointmentFeatures, setAppointmentFeatures] = useState('')
+  const [rejectionPatterns, setRejectionPatterns] = useState('')
+  const [tomorrowCallTarget, setTomorrowCallTarget] = useState('')
+  const [tomorrowAppointmentTarget, setTomorrowAppointmentTarget] = useState('')
+  const [tomorrowImprovement, setTomorrowImprovement] = useState('')
+  const [escalationNote, setEscalationNote] = useState('')
+  const [outboundCondition, setOutboundCondition] = useState('')
 
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id))
-  }
+  // --- Inbound state ---
+  const [incomingCount, setIncomingCount] = useState('')
+  const [completedCount, setCompletedCount] = useState('')
+  const [escalationCount, setEscalationCount] = useState('')
+  const [avgHandlingTime, setAvgHandlingTime] = useState('')
+  const [inboundSelfEvaluation, setInboundSelfEvaluation] = useState('')
+  const [inboundImprovements, setInboundImprovements] = useState('')
+  const [frequentInquiries, setFrequentInquiries] = useState('')
+  const [difficultCases, setDifficultCases] = useState('')
+  const [inboundTomorrowImprovement, setInboundTomorrowImprovement] = useState('')
+  const [inboundEscalationNote, setInboundEscalationNote] = useState('')
+  const [inboundCondition, setInboundCondition] = useState('')
 
-  const addEntry = () => {
-    setEntries((prev) => [...prev, createEmptyEntry()])
-  }
+  // --- Monthly KPI totals ---
+  const yearMonth = reportDate ? reportDate.slice(0, 7) : ''
+  const { data: monthlyTotals } = useMonthlyKpiTotals('', projectId, yearMonth)
 
-  // --- 打刻処理 ---
-  const handleWorkStart = (entryId: string) => {
-    const now = new Date()
-    const timeStr = formatTimeShort(now)
-    updateEntry(entryId, {
-      punchStatus: 'working',
-      workStartTime: timeStr,
-      punchLogs: [{
-        type: 'work_start',
-        time: formatTime(now),
-        label: '業務開始',
-      }],
-    })
-  }
+  // --- Auto-calculated rates ---
+  const outboundRates = calcOutboundRates(
+    Number(callActual) || 0,
+    Number(contactCount) || 0,
+    Number(appointmentCount) || 0
+  )
 
-  const handleBreakStart = (entryId: string, entry: ProjectEntry) => {
-    const now = new Date()
-    updateEntry(entryId, {
-      punchStatus: 'on_break',
-      breakStartTime: formatTime(now),
-      punchLogs: [...entry.punchLogs, {
-        type: 'break_start',
-        time: formatTime(now),
-        label: '休憩開始',
-      }],
-    })
-  }
+  const inboundRates = calcInboundRates(
+    Number(incomingCount) || 0,
+    Number(completedCount) || 0
+  )
 
-  const handleBreakEnd = (entryId: string, entry: ProjectEntry) => {
-    const now = new Date()
-    // 休憩時間を加算
-    let additionalBreak = 0
-    if (entry.breakStartTime) {
-      const breakStart = new Date()
-      const [bh, bm, bs] = entry.breakStartTime.split(':').map(Number)
-      breakStart.setHours(bh, bm, bs, 0)
-      additionalBreak = Math.floor((now.getTime() - breakStart.getTime()) / 1000)
-    }
-    updateEntry(entryId, {
-      punchStatus: 'working',
-      breakStartTime: null,
-      totalBreakSeconds: entry.totalBreakSeconds + additionalBreak,
-      punchLogs: [...entry.punchLogs, {
-        type: 'break_end',
-        time: formatTime(now),
-        label: '休憩終了',
-      }],
-    })
-  }
-
-  const handleWorkEnd = (entryId: string, entry: ProjectEntry) => {
-    const now = new Date()
-    const timeStr = formatTimeShort(now)
-    updateEntry(entryId, {
-      punchStatus: 'finished',
-      workEndTime: timeStr,
-      punchLogs: [...entry.punchLogs, {
-        type: 'work_end',
-        time: formatTime(now),
-        label: '業務終了',
-      }],
-    })
-  }
-
-  // API取得（架電件数 + アポ件数の両方を取得）
-  const simulateApiFetch = (entryId: string) => {
-    updateEntry(entryId, { fetchingCalls: true })
-    setTimeout(() => {
-      const callCount = Math.floor(Math.random() * 60) + 10
-      const appointmentCount = Math.floor(Math.random() * 6) + 1
-      updateEntry(entryId, {
-        callCount: String(callCount),
-        appointmentCount: String(appointmentCount),
-        fetchingCalls: false,
-      })
-    }, 1200)
-  }
-
-  // 日付変更ハンドラ
-  const handleDateChange = (newDate: string) => {
-    setDate(newDate)
-    if (newDate !== TODAY) {
-      setIsOtherDate(true)
-    } else {
-      setIsOtherDate(false)
-      setOtherDateReason('')
-    }
-  }
-
-  const handleSubmit = (asDraft: boolean) => {
+  // --- Submit ---
+  const handleSubmit = async () => {
     setIsSubmitting(true)
-    setTimeout(() => {
-      setIsSubmitting(false)
+    try {
+      let data: any
+      if (reportType === 'training') {
+        data = {
+          report_type: 'training',
+          report_date: reportDate,
+          project_id: projectId || '',
+          study_theme: studyTheme,
+          smooth_operations: smoothOperations,
+          difficult_points: difficultPoints,
+          self_solution: selfSolution,
+          study_insight: studyInsight,
+          tomorrow_study_focus: tomorrowStudyFocus,
+          questions_for_supervisor: questionsForSupervisor,
+          concentration_level: concentrationLevel,
+          condition_comment: conditionComment,
+        }
+      } else if (reportType === 'outbound') {
+        data = {
+          report_type: 'outbound',
+          report_date: reportDate,
+          project_id: projectId,
+          call_target: Number(callTarget) || 0,
+          call_actual: Number(callActual) || 0,
+          contact_count: Number(contactCount) || 0,
+          appointment_count: Number(appointmentCount) || 0,
+          self_evaluation: outboundSelfEvaluation,
+          talk_improvements: talkImprovements,
+          appointment_features: appointmentFeatures,
+          rejection_patterns: rejectionPatterns,
+          tomorrow_call_target: Number(tomorrowCallTarget) || 0,
+          tomorrow_appointment_target: Number(tomorrowAppointmentTarget) || 0,
+          tomorrow_improvement: tomorrowImprovement,
+          escalation_note: escalationNote,
+          condition: outboundCondition,
+        }
+      } else {
+        data = {
+          report_type: 'inbound',
+          report_date: reportDate,
+          project_id: projectId,
+          incoming_count: Number(incomingCount) || 0,
+          completed_count: Number(completedCount) || 0,
+          escalation_count: Number(escalationCount) || 0,
+          avg_handling_time: Number(avgHandlingTime) || 0,
+          self_evaluation: inboundSelfEvaluation,
+          improvements: inboundImprovements,
+          frequent_inquiries: frequentInquiries,
+          difficult_cases: difficultCases,
+          tomorrow_improvement: inboundTomorrowImprovement,
+          escalation_note: inboundEscalationNote,
+          condition: inboundCondition,
+        }
+      }
+      await createReport.mutateAsync(data)
+      toast.success('日報を提出しました')
       router.push('/reports/work')
-    }, 800)
-    void asDraft
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '提出に失敗しました')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  // --- Render helpers ---
+  const renderRequiredMark = () => (
+    <span className="text-destructive">*</span>
+  )
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="日次勤務報告"
-        description="打刻ボタンで業務時間を記録し、実績を報告します"
+        title="日報作成"
+        description="日々の業務報告を作成・提出します"
         actions={
           <Button
             variant="outline"
@@ -278,407 +195,649 @@ export default function NewWorkReportPage() {
         }
       />
 
-      {/* ユーザー情報 + 日付 + 現在時刻 */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-bold">
-                {CURRENT_USER.name.charAt(0)}
-              </div>
-              <div>
-                <p className="text-lg font-semibold">{CURRENT_USER.name}</p>
-                <p className="text-sm text-muted-foreground">ログインユーザー</p>
-              </div>
-            </div>
+      {/* Report type selector */}
+      <div className="flex gap-2">
+        {(['training', 'outbound', 'inbound'] as const).map((type) => (
+          <Button
+            key={type}
+            variant={reportType === type ? 'default' : 'outline'}
+            onClick={() => setReportType(type)}
+          >
+            {DAILY_REPORT_TYPE_LABELS[type]}
+          </Button>
+        ))}
+      </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-3xl font-mono font-bold tabular-nums">
-                  {isMounted && currentTime ? formatTime(currentTime) : '--:--:--'}
-                </p>
-                <p className="text-sm text-muted-foreground">現在時刻</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 日付選択 */}
-          <div className="mt-4 flex items-center gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="report-date" className="text-xs text-muted-foreground">報告日</Label>
-              <Input
-                id="report-date"
-                type="date"
-                value={date}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="w-[180px]"
-              />
-            </div>
-            {date === TODAY && (
-              <Badge variant="secondary" className="mt-5">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                本日
-              </Badge>
-            )}
-          </div>
-
-          {/* 他日程の場合は理由入力（管理者承認必須） */}
-          {isOtherDate && (
-            <div className="mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                  当日以外の報告は管理者の承認が必要です
-                </span>
-              </div>
-              <Textarea
-                value={otherDateReason}
-                onChange={(e) => setOtherDateReason(e.target.value)}
-                placeholder="申請理由を入力してください（例：体調不良により前日分を翌日報告）"
-                rows={2}
-                className="bg-white dark:bg-slate-900"
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* プロジェクト稼働セクション */}
-      {entries.map((entry, idx) => (
-        <Card key={entry.id} className="relative">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">
-                  プロジェクト稼働 #{idx + 1}
-                </CardTitle>
-                {entry.punchStatus !== 'idle' && (
-                  <CardDescription className="mt-1">
-                    稼働時間: {calcWorkDuration(entry)}
-                    {entry.totalBreakSeconds > 0 && (
-                      <span className="ml-2">(休憩: {Math.floor(entry.totalBreakSeconds / 60)}分)</span>
-                    )}
-                  </CardDescription>
-                )}
-              </div>
-              {entries.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeEntry(entry.id)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {/* プロジェクト選択 */}
-            <div className="space-y-1.5">
-              <Label>プロジェクト</Label>
-              <Select
-                value={entry.projectId}
-                onValueChange={(v) => updateEntry(entry.id, { projectId: v })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="プロジェクトを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEMO_PROJECTS.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 勤務タイプ選択 */}
-            <div className="space-y-1.5">
-              <Label>勤務タイプ</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={entry.workType === 'punch' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateEntry(entry.id, { workType: 'punch' })}
-                  disabled={entry.punchStatus !== 'idle'}
-                >
-                  <Clock className="h-3 w-3 mr-1" />
-                  打刻
-                </Button>
-                <Button
-                  variant={entry.workType === 'hours' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => updateEntry(entry.id, { workType: 'hours' })}
-                  disabled={entry.punchStatus !== 'idle'}
-                >
-                  <Hash className="h-3 w-3 mr-1" />
-                  時間入力
-                </Button>
-              </div>
-            </div>
-
-            {/* === 打刻モード === */}
-            {entry.workType === 'punch' && (
-              <div className="space-y-4">
-                {/* 打刻ボタンエリア */}
-                <div className="p-4 rounded-lg border-2 border-dashed bg-muted/30">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* 業務開始 */}
-                    <Button
-                      size="lg"
-                      className="h-16 flex-col gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      disabled={entry.punchStatus !== 'idle'}
-                      onClick={() => handleWorkStart(entry.id)}
-                    >
-                      <Play className="h-5 w-5" />
-                      <span className="text-xs font-medium">業務開始</span>
-                    </Button>
-
-                    {/* 休憩開始 */}
-                    <Button
-                      size="lg"
-                      className="h-16 flex-col gap-1 bg-amber-500 hover:bg-amber-600 text-white"
-                      disabled={entry.punchStatus !== 'working'}
-                      onClick={() => handleBreakStart(entry.id, entry)}
-                    >
-                      <Coffee className="h-5 w-5" />
-                      <span className="text-xs font-medium">休憩開始</span>
-                    </Button>
-
-                    {/* 休憩終了 */}
-                    <Button
-                      size="lg"
-                      className="h-16 flex-col gap-1 bg-blue-500 hover:bg-blue-600 text-white"
-                      disabled={entry.punchStatus !== 'on_break'}
-                      onClick={() => handleBreakEnd(entry.id, entry)}
-                    >
-                      <CoffeeIcon className="h-5 w-5" />
-                      <span className="text-xs font-medium">休憩終了</span>
-                    </Button>
-
-                    {/* 業務終了 */}
-                    <Button
-                      size="lg"
-                      className="h-16 flex-col gap-1 bg-red-600 hover:bg-red-700 text-white"
-                      disabled={entry.punchStatus !== 'working'}
-                      onClick={() => handleWorkEnd(entry.id, entry)}
-                    >
-                      <Square className="h-5 w-5" />
-                      <span className="text-xs font-medium">業務終了</span>
-                    </Button>
-                  </div>
-
-                  {/* ステータス表示 */}
-                  <div className="mt-3 flex items-center justify-center gap-2">
-                    {entry.punchStatus === 'idle' && (
-                      <Badge variant="outline" className="text-muted-foreground">
-                        未開始
-                      </Badge>
-                    )}
-                    {entry.punchStatus === 'working' && (
-                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 animate-pulse">
-                        <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                        業務中
-                      </Badge>
-                    )}
-                    {entry.punchStatus === 'on_break' && (
-                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 animate-pulse">
-                        <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-amber-500" />
-                        休憩中
-                      </Badge>
-                    )}
-                    {entry.punchStatus === 'finished' && (
-                      <Badge className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        業務終了
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* 打刻ログ */}
-                {entry.punchLogs.length > 0 && (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">打刻ログ</Label>
-                    <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
-                      {entry.punchLogs.map((log, logIdx) => (
-                        <div key={logIdx} className="flex items-center gap-3 text-sm">
-                          <span className="font-mono text-xs text-muted-foreground w-[80px]">
-                            {log.time}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              log.type === 'work_start' ? 'border-emerald-300 text-emerald-700 dark:text-emerald-400' :
-                              log.type === 'work_end' ? 'border-red-300 text-red-700 dark:text-red-400' :
-                              log.type === 'break_start' ? 'border-amber-300 text-amber-700 dark:text-amber-400' :
-                              'border-blue-300 text-blue-700 dark:text-blue-400'
-                            }
-                          >
-                            {log.label}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 打刻サマリー */}
-                {entry.workStartTime && (
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="rounded-lg border p-2">
-                      <p className="text-xs text-muted-foreground">開始</p>
-                      <p className="text-lg font-mono font-semibold">{entry.workStartTime}</p>
-                    </div>
-                    <div className="rounded-lg border p-2">
-                      <p className="text-xs text-muted-foreground">終了</p>
-                      <p className="text-lg font-mono font-semibold">{entry.workEndTime || '--:--'}</p>
-                    </div>
-                    <div className="rounded-lg border p-2">
-                      <p className="text-xs text-muted-foreground">稼働</p>
-                      <p className="text-lg font-semibold">{calcWorkDuration(entry)}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* === 時間入力モード === */}
-            {entry.workType === 'hours' && (
+      {/* ===== Training Form ===== */}
+      {reportType === 'training' && (
+        <>
+          {/* 基本情報 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>合計稼働時間</Label>
-                <div className="flex items-center gap-2">
+                <Label htmlFor="training-date">日付 {renderRequiredMark()}</Label>
+                <Input
+                  id="training-date"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-[200px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="study-theme">本日の自習テーマ {renderRequiredMark()}</Label>
+                <Input
+                  id="study-theme"
+                  value={studyTheme}
+                  onChange={(e) => setStudyTheme(e.target.value)}
+                  placeholder="例: CRM操作研修、商品知識の復習"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 理解度の自己申告 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 理解度の自己申告</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>スムーズにできた操作・内容 {renderRequiredMark()}</Label>
+                <Textarea
+                  value={smoothOperations}
+                  onChange={(e) => setSmoothOperations(e.target.value)}
+                  placeholder="スムーズにできた操作や理解できた内容を記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>難しかった・わからなかったこと {renderRequiredMark()}</Label>
+                <Textarea
+                  value={difficultPoints}
+                  onChange={(e) => setDifficultPoints(e.target.value)}
+                  placeholder="難しかった点やわからなかったことを記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>自分で解決した方法</Label>
+                <Textarea
+                  value={selfSolution}
+                  onChange={(e) => setSelfSolution(e.target.value)}
+                  placeholder="自分で調べたり工夫して解決した方法があれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 気づき・感想 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 気づき・感想</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>今日の自習を通じて気づいたこと {renderRequiredMark()}</Label>
+                <Textarea
+                  value={studyInsight}
+                  onChange={(e) => setStudyInsight(e.target.value)}
+                  placeholder="自習を通じて気づいたことや感想を記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>明日の自習で重点的に取り組みたいこと {renderRequiredMark()}</Label>
+                <Textarea
+                  value={tomorrowStudyFocus}
+                  onChange={(e) => setTomorrowStudyFocus(e.target.value)}
+                  placeholder="明日取り組みたい内容を記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>上司・担当者への質問・確認事項</Label>
+                <Textarea
+                  value={questionsForSupervisor}
+                  onChange={(e) => setQuestionsForSupervisor(e.target.value)}
+                  placeholder="質問や確認したいことがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* コンディション */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; コンディション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>集中度・理解度 {renderRequiredMark()}</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Button
+                      key={n}
+                      size="sm"
+                      variant={concentrationLevel === n ? 'default' : 'outline'}
+                      onClick={() => setConcentrationLevel(n)}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">1: 低い ～ 5: 高い</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>一言コメント</Label>
+                <Input
+                  value={conditionComment}
+                  onChange={(e) => setConditionComment(e.target.value)}
+                  placeholder="体調や気分など一言"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* ===== Outbound Form ===== */}
+      {reportType === 'outbound' && (
+        <>
+          {/* 基本情報 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="outbound-date">日付 {renderRequiredMark()}</Label>
+                <Input
+                  id="outbound-date"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-[200px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>プロジェクト {renderRequiredMark()}</Label>
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="プロジェクトを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPI実績（当日） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; KPI実績（当日）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>架電数 目標 {renderRequiredMark()}</Label>
                   <Input
                     type="number"
                     min="0"
-                    step="0.5"
-                    value={entry.totalHours}
-                    placeholder="例: 8"
-                    onChange={(e) =>
-                      updateEntry(entry.id, { totalHours: e.target.value })
-                    }
-                    className="w-[160px]"
+                    value={callTarget}
+                    onChange={(e) => setCallTarget(e.target.value)}
+                    placeholder="0"
                   />
-                  <span className="text-sm text-muted-foreground">時間</span>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>架電数 実績 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={callActual}
+                    onChange={(e) => setCallActual(e.target.value)}
+                    placeholder="0"
+                  />
                 </div>
               </div>
-            )}
-
-            {/* 区切り線 */}
-            <div className="border-t pt-4">
-              <p className="text-sm font-medium mb-3">実績報告</p>
-            </div>
-
-            {/* 架電件数 + アポ件数（API取得で両方入る） */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-              <div className="space-y-1.5 sm:col-span-1">
-                <Label>架電件数</Label>
+              <div className="space-y-1.5">
+                <Label>担当者通電数 {renderRequiredMark()}</Label>
                 <Input
                   type="number"
                   min="0"
-                  value={entry.callCount}
+                  value={contactCount}
+                  onChange={(e) => setContactCount(e.target.value)}
                   placeholder="0"
-                  onChange={(e) =>
-                    updateEntry(entry.id, { callCount: e.target.value })
-                  }
+                  className="w-[200px]"
                 />
+                <div className="text-sm text-muted-foreground mt-1">
+                  担当者通電率: {outboundRates.contactRate}%
+                </div>
               </div>
-              <div className="space-y-1.5 sm:col-span-1">
-                <Label>アポ件数</Label>
+              <div className="space-y-1.5">
+                <Label>アポ獲得数 {renderRequiredMark()}</Label>
                 <Input
                   type="number"
                   min="0"
-                  value={entry.appointmentCount}
+                  value={appointmentCount}
+                  onChange={(e) => setAppointmentCount(e.target.value)}
                   placeholder="0"
-                  onChange={(e) =>
-                    updateEntry(entry.id, { appointmentCount: e.target.value })
-                  }
+                  className="w-[200px]"
+                />
+                <div className="text-sm text-muted-foreground mt-1">
+                  アポ獲得率: {outboundRates.appointmentRate}%
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPI実績（月累計） */}
+          {monthlyTotals && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">&#9733; KPI実績（月累計）</CardTitle>
+                <CardDescription>当月の累計値（自動取得）</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総架電数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_calls ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総通電数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_contacts ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総通電率</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_calls > 0 ? Math.round((monthlyTotals.total_contacts / monthlyTotals.total_calls) * 1000) / 10 : '-'}%</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総アポ数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_appointments ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総アポ率</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_calls > 0 ? Math.round((monthlyTotals.total_appointments / monthlyTotals.total_calls) * 1000) / 10 : '-'}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 行動の質（定性） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 行動の質（定性）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>今日のKPIに対する自己評価と要因分析 {renderRequiredMark()}</Label>
+                <Textarea
+                  value={outboundSelfEvaluation}
+                  onChange={(e) => setOutboundSelfEvaluation(e.target.value)}
+                  placeholder="目標に対する達成度と、その要因を分析してください"
+                  rows={4}
                 />
               </div>
-              <div className="sm:col-span-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => simulateApiFetch(entry.id)}
-                  disabled={entry.fetchingCalls || !entry.projectId}
-                  className="w-full"
-                >
-                  <RefreshCw
-                    className={`h-3 w-3 mr-1 ${entry.fetchingCalls ? 'animate-spin' : ''}`}
+              <div className="space-y-1.5">
+                <Label>トークで工夫した点・変えた点 {renderRequiredMark()}</Label>
+                <Textarea
+                  value={talkImprovements}
+                  onChange={(e) => setTalkImprovements(e.target.value)}
+                  placeholder="トークスクリプトの改善や工夫した点を記入"
+                  rows={4}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 任意記入 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 任意記入</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>アポ獲得できた案件の特徴・共通点</Label>
+                <Textarea
+                  value={appointmentFeatures}
+                  onChange={(e) => setAppointmentFeatures(e.target.value)}
+                  placeholder="アポが取れた案件に共通する特徴があれば記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>断られた際の主な理由・パターン</Label>
+                <Textarea
+                  value={rejectionPatterns}
+                  onChange={(e) => setRejectionPatterns(e.target.value)}
+                  placeholder="よくある断り文句やパターンがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 改善・次アクション */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 改善・次アクション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>明日の目標架電数 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={tomorrowCallTarget}
+                    onChange={(e) => setTomorrowCallTarget(e.target.value)}
+                    placeholder="0"
                   />
-                  {entry.fetchingCalls ? '取得中...' : 'APIから実績取得'}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-1 text-center">
-                  架電・アポを一括取得
-                </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>明日のアポ目標 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={tomorrowAppointmentTarget}
+                    onChange={(e) => setTomorrowAppointmentTarget(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
               </div>
-            </div>
+              <div className="space-y-1.5">
+                <Label>明日試す改善アクション {renderRequiredMark()}</Label>
+                <Textarea
+                  value={tomorrowImprovement}
+                  onChange={(e) => setTomorrowImprovement(e.target.value)}
+                  placeholder="明日取り組む具体的な改善アクションを記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>上司への相談・エスカレーション事項</Label>
+                <Textarea
+                  value={escalationNote}
+                  onChange={(e) => setEscalationNote(e.target.value)}
+                  placeholder="相談事項やエスカレーションがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* その他成果 */}
-            <div className="space-y-1.5">
-              <Label>その他成果</Label>
-              <Input
-                value={entry.otherAchievements}
-                placeholder="例: 見積書3件作成、社内MTG参加"
-                onChange={(e) =>
-                  updateEntry(entry.id, { otherAchievements: e.target.value })
-                }
-              />
-            </div>
+          {/* コンディション */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; コンディション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>精神面・体調面で気になること</Label>
+                <Textarea
+                  value={outboundCondition}
+                  onChange={(e) => setOutboundCondition(e.target.value)}
+                  placeholder="体調や精神面で気になることがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-            {/* 定性報告 */}
-            <div className="space-y-1.5">
-              <Label>定性報告</Label>
-              <Textarea
-                value={entry.qualitativeNote}
-                placeholder="業務内容、成果、課題、所感などを記入してください"
-                rows={3}
-                onChange={(e) =>
-                  updateEntry(entry.id, { qualitativeNote: e.target.value })
-                }
-              />
-            </div>
+      {/* ===== Inbound Form ===== */}
+      {reportType === 'inbound' && (
+        <>
+          {/* 基本情報 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="inbound-date">日付 {renderRequiredMark()}</Label>
+                <Input
+                  id="inbound-date"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-[200px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>プロジェクト {renderRequiredMark()}</Label>
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="プロジェクトを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* 成果物URL */}
-            <div className="space-y-1.5">
-              <Label>成果物URL（任意）</Label>
-              <Input
-                type="url"
-                value={entry.deliverableUrl}
-                placeholder="https://..."
-                onChange={(e) =>
-                  updateEntry(entry.id, { deliverableUrl: e.target.value })
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+          {/* KPI実績（当日） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; KPI実績（当日）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>受電数 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={incomingCount}
+                    onChange={(e) => setIncomingCount(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>対応完了数 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={completedCount}
+                    onChange={(e) => setCompletedCount(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>エスカレーション数 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={escalationCount}
+                    onChange={(e) => setEscalationCount(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>平均対応時間（分）</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={avgHandlingTime}
+                    onChange={(e) => setAvgHandlingTime(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* プロジェクト稼働追加 */}
-      <Button variant="outline" className="w-full" onClick={addEntry}>
-        <Plus className="h-4 w-4 mr-1" />
-        プロジェクト稼働を追加
-      </Button>
+          {/* KPI実績（月累計） */}
+          {monthlyTotals && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">&#9733; KPI実績（月累計）</CardTitle>
+                <CardDescription>当月の累計値（自動取得）</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総受電数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_received ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総対応完了数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_completed ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">総エスカレーション数</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_escalations ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">完了率</p>
+                    <p className="text-xl font-bold">{monthlyTotals.total_received > 0 ? Math.round((monthlyTotals.total_completed / monthlyTotals.total_received) * 1000) / 10 : '-'}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* 提出 / 下書きボタン */}
+          {/* 行動の質（定性） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 行動の質（定性）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>自己評価と要因分析 {renderRequiredMark()}</Label>
+                <Textarea
+                  value={inboundSelfEvaluation}
+                  onChange={(e) => setInboundSelfEvaluation(e.target.value)}
+                  placeholder="今日の対応に対する自己評価と要因を分析してください"
+                  rows={4}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>対応で工夫した点 {renderRequiredMark()}</Label>
+                <Textarea
+                  value={inboundImprovements}
+                  onChange={(e) => setInboundImprovements(e.target.value)}
+                  placeholder="対応で工夫した点や改善した点を記入"
+                  rows={4}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 任意記入 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 任意記入</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>多かった問い合わせ内容</Label>
+                <Textarea
+                  value={frequentInquiries}
+                  onChange={(e) => setFrequentInquiries(e.target.value)}
+                  placeholder="今日多かった問い合わせの傾向を記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>対応に困ったケース</Label>
+                <Textarea
+                  value={difficultCases}
+                  onChange={(e) => setDifficultCases(e.target.value)}
+                  placeholder="対応に困ったケースがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 改善・次アクション */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 改善・次アクション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>明日試す改善アクション {renderRequiredMark()}</Label>
+                <Textarea
+                  value={inboundTomorrowImprovement}
+                  onChange={(e) => setInboundTomorrowImprovement(e.target.value)}
+                  placeholder="明日取り組む具体的な改善アクションを記入"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>上司への相談事項</Label>
+                <Textarea
+                  value={inboundEscalationNote}
+                  onChange={(e) => setInboundEscalationNote(e.target.value)}
+                  placeholder="相談事項があれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* コンディション */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; コンディション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>精神面・体調面で気になること</Label>
+                <Textarea
+                  value={inboundCondition}
+                  onChange={(e) => setInboundCondition(e.target.value)}
+                  placeholder="体調や精神面で気になることがあれば記入"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Submit button */}
       <div className="flex items-center justify-end gap-3 pb-6">
         <Button
           variant="outline"
-          onClick={() => handleSubmit(true)}
-          disabled={isSubmitting}
+          onClick={() => router.push('/reports/work')}
         >
-          <Save className="h-4 w-4 mr-1" />
-          下書き保存
+          キャンセル
         </Button>
         <Button
-          onClick={() => handleSubmit(false)}
-          disabled={isSubmitting || (isOtherDate && !otherDateReason.trim())}
+          onClick={handleSubmit}
+          disabled={isSubmitting}
         >
-          <Send className="h-4 w-4 mr-1" />
-          {isOtherDate ? '承認申請して提出' : '提出する'}
+          {isSubmitting ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4 mr-1" />
+          )}
+          {isSubmitting ? '提出中...' : '提出する'}
         </Button>
       </div>
     </div>

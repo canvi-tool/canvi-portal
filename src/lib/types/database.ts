@@ -824,12 +824,16 @@ export interface Database {
           staff_id: string
           project_id: string | null
           year_month: string
+          report_date: string | null
+          report_type: string
           total_hours: number
           overtime_hours: number
           working_days: number
           standby_hours: number
           standby_days: number
           status: string
+          content: string | null
+          custom_fields: Record<string, unknown> | null
           submitted_at: string | null
           approved_at: string | null
           approved_by: string | null
@@ -841,13 +845,17 @@ export interface Database {
           id?: string
           staff_id: string
           project_id?: string | null
-          year_month: string
+          year_month?: string
+          report_date?: string | null
+          report_type?: string
           total_hours?: number
           overtime_hours?: number
           working_days?: number
           standby_hours?: number
           standby_days?: number
           status?: string
+          content?: string | null
+          custom_fields?: Record<string, unknown> | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
@@ -860,12 +868,16 @@ export interface Database {
           staff_id?: string
           project_id?: string | null
           year_month?: string
+          report_date?: string | null
+          report_type?: string
           total_hours?: number
           overtime_hours?: number
           working_days?: number
           standby_hours?: number
           standby_days?: number
           status?: string
+          content?: string | null
+          custom_fields?: Record<string, unknown> | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
