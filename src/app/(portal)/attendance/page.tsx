@@ -395,10 +395,15 @@ export default function AttendancePage() {
   const [selectedProject, setSelectedProject] = useState<MyProject | null>(null)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
-    d.setDate(1)
-    return d.toISOString().split('T')[0]
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+    jst.setUTCDate(1)
+    return jst.toISOString().split('T')[0]
   })
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0])
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date()
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+    return jst.toISOString().split('T')[0]
+  })
 
   const { data: todayData } = useTodayAttendance()
   const { data: myProjects, isLoading: projectsLoading } = useMyProjects()

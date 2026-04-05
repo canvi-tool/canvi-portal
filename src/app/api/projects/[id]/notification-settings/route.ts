@@ -20,8 +20,8 @@ const BOOLEAN_FIELDS = [
 
 // 数値パラメータフィールド（min, max バリデーション付き）
 const NUMERIC_FIELDS: Record<string, { min: number; max: number }> = {
-  attendance_missing_delay_minutes: { min: 5, max: 120 },
-  attendance_missing_repeat_interval_minutes: { min: 10, max: 120 },
+  attendance_missing_delay_minutes: { min: 1, max: 120 },
+  attendance_missing_repeat_interval_minutes: { min: 1, max: 120 },
   attendance_missing_max_repeats: { min: 0, max: 10 },
   shift_submission_deadline_day: { min: 1, max: 28 },
   shift_submission_alert_start_days_before: { min: 1, max: 14 },

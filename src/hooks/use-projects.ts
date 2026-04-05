@@ -13,6 +13,7 @@ export type Project = Tables<'projects'> & {
     google_calendar_id?: string
   } | null
   assignment_count?: number
+  assignment_names?: string[]
 }
 
 export type ProjectAssignment = Tables<'project_assignments'> & {

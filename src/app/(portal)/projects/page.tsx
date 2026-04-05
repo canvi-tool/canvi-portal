@@ -30,23 +30,19 @@ const BULK_STATUS_OPTIONS = [
   { value: 'archived', label: 'アーカイブに変更' },
 ]
 
-/** PJコードのプレフィックスからタイプを判定 */
-function getProjectType(project: Project): string {
-  // project_type カラムがあればそれを使用
-  const pt = (project as Record<string, unknown>).project_type as string | undefined
-  if (pt) return pt.toUpperCase()
-  // フォールバック: project_code のプレフィックスから判定
-  const code = project.project_code || ''
-  if (code.startsWith('BPO')) return 'BPO'
-  if (code.startsWith('RPO')) return 'RPO'
-  return 'ETC'
+/** プロジェクトのステータスからタブカテゴリを判定 */
+function getProjectCategory(project: Project): string {
+  const status = project.status
+  if (status === 'planning') return 'proposing'
+  if (status === 'active' || status === 'paused') return 'active'
+  return 'ended' // completed, archived
 }
 
-const PROJECT_TYPE_TABS = [
+const PROJECT_CATEGORY_TABS = [
   { value: 'all', label: 'すべて' },
-  { value: 'BPO', label: 'BPO' },
-  { value: 'RPO', label: 'RPO' },
-  { value: 'ETC', label: 'ETC' },
+  { value: 'proposing', label: '提案中' },
+  { value: 'active', label: '契約中' },
+  { value: 'ended', label: '契約終了' },
 ] as const
 
 export default function ProjectsPage() {
@@ -67,18 +63,18 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     if (!projects) return []
     if (typeTab === 'all') return projects
-    return projects.filter((p) => getProjectType(p) === typeTab)
+    return projects.filter((p) => getProjectCategory(p) === typeTab)
   }, [projects, typeTab])
 
   // 各タブのカウント
   const tabCounts = useMemo(() => {
-    if (!projects) return { all: 0, BPO: 0, RPO: 0, ETC: 0 }
-    const counts = { all: projects.length, BPO: 0, RPO: 0, ETC: 0 }
+    if (!projects) return { all: 0, proposing: 0, active: 0, ended: 0 }
+    const counts = { all: projects.length, proposing: 0, active: 0, ended: 0 }
     for (const p of projects) {
-      const type = getProjectType(p)
-      if (type === 'BPO') counts.BPO++
-      else if (type === 'RPO') counts.RPO++
-      else counts.ETC++
+      const cat = getProjectCategory(p)
+      if (cat === 'proposing') counts.proposing++
+      else if (cat === 'active') counts.active++
+      else counts.ended++
     }
     return counts
   }, [projects])
@@ -154,23 +150,37 @@ export default function ProjectsPage() {
       header: 'Slack',
       accessor: (row) => row.slack_channel_id ?? '',
       cell: (row) => (
-        <span className={`flex justify-center ${row.slack_channel_id ? 'text-emerald-600' : 'text-muted-foreground/30'}`}>
+        <Link
+          href={`/projects/${row.id}`}
+          title={row.slack_channel_name ? `#${row.slack_channel_name}` : '未連携 — クリックして設定'}
+          className={`flex justify-center cursor-pointer hover:opacity-70 transition-opacity ${row.slack_channel_id ? 'text-emerald-600' : 'text-muted-foreground/30'}`}
+        >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
           </svg>
-        </span>
+        </Link>
       ),
     },
     {
       key: 'assignment_count',
       header: 'メンバー数',
       accessor: (row) => row.assignment_count ?? 0,
-      cell: (row) => (
-        <div className="flex items-center gap-1">
-          <Users className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{row.assignment_count ?? 0}</span>
-        </div>
-      ),
+      cell: (row) => {
+        const names = row.assignment_names ?? []
+        const tooltip = names.length > 0
+          ? names.join('、')
+          : 'メンバー未アサイン'
+        return (
+          <Link
+            href={`/projects/${row.id}?tab=members`}
+            title={tooltip}
+            className="flex items-center gap-1 cursor-pointer hover:opacity-70 transition-opacity"
+          >
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{row.assignment_count ?? 0}</span>
+          </Link>
+        )
+      },
     },
   ]
 
@@ -187,10 +197,10 @@ export default function ProjectsPage() {
         }
       />
 
-      {/* BPO / RPO / ETC タブ */}
+      {/* 提案中 / 契約中 / 契約終了 タブ */}
       <Tabs value={typeTab} onValueChange={(val) => { setTypeTab(val); setSelectedIds(new Set()) }}>
         <TabsList>
-          {PROJECT_TYPE_TABS.map((tab) => (
+          {PROJECT_CATEGORY_TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label}
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">

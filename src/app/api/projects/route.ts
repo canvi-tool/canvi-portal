@@ -48,28 +48,33 @@ export async function GET(request: NextRequest) {
     const projectIds = (data || []).map((p) => p.id)
     let assignmentCounts: Record<string, number> = {}
 
+    let assignmentNames: Record<string, string[]> = {}
+
     if (projectIds.length > 0) {
       const { data: assignments } = await supabase
         .from('project_assignments')
-        .select('project_id')
+        .select('project_id, staff:staff_id(display_name)')
         .in('project_id', projectIds)
         .is('deleted_at', null)
         .in('status', ['confirmed', 'in_progress'])
 
       if (assignments) {
-        assignmentCounts = assignments.reduce(
-          (acc, a) => {
-            acc[a.project_id] = (acc[a.project_id] || 0) + 1
-            return acc
-          },
-          {} as Record<string, number>
-        )
+        for (const a of assignments) {
+          assignmentCounts[a.project_id] = (assignmentCounts[a.project_id] || 0) + 1
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const name = (a as any).staff?.display_name as string | undefined
+          if (name) {
+            if (!assignmentNames[a.project_id]) assignmentNames[a.project_id] = []
+            assignmentNames[a.project_id].push(name)
+          }
+        }
       }
     }
 
     const result = (data || []).map((p) => ({
       ...p,
       assignment_count: assignmentCounts[p.id] || 0,
+      assignment_names: assignmentNames[p.id] || [],
     }))
 
     return NextResponse.json(result)

@@ -95,7 +95,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient()
-    const today = new Date().toISOString().split('T')[0]
+    const now_jst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000)
+    const today = now_jst.toISOString().split('T')[0]
     const now = new Date().toISOString()
 
     // 今日既に出勤打刻済みか確認（同じプロジェクトの場合のみ重複エラー）
