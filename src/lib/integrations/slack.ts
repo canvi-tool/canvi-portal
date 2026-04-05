@@ -5,7 +5,7 @@
  * - Webhook: フォールバック / 汎用通知
  */
 
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // 通知設定のトグルキー名
 export type NotificationToggleKey =
@@ -55,7 +55,7 @@ export async function isNotificationEnabled(
   }
 
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('project_notification_settings')
       .select('*')
@@ -230,7 +230,7 @@ export async function getProjectMentionText(
 ): Promise<string> {
   if (!getBotToken()) return ''
 
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const slackUserIds: Set<string> = new Set()
 
   // 本人のSlack User IDを取得（単一または複数対応）
@@ -264,13 +264,15 @@ export async function getProjectMentionText(
 
   // PJにアサインされた管理者以上のSlack User IDを取得
   if (projectId) {
-    // project_assignmentsから該当PJのアサイン済みスタッフを取得
-    const { data: assignments } = await supabase
+    // project_assignmentsから該当PJのアサイン済みスタッフを取得（deleted_at=nullのみ）
+    const { data: assignments, error: assignErr } = await supabase
       .from('project_assignments')
-      .select('staff_id, staff:staff_id(id, user_id, email, custom_fields)')
+      .select('staff_id, status, staff:staff_id(id, user_id, email, custom_fields)')
       .eq('project_id', projectId)
+      .is('deleted_at', null)
       .in('status', ['confirmed', 'in_progress'])
 
+    console.log(`[mention] projectId=${projectId}, assignments=${assignments?.length ?? 0}, err=${assignErr?.message ?? 'none'}`)
     if (assignments && assignments.length > 0) {
       // アサインメンバーのuser_idを収集
       const userIds = assignments
@@ -278,12 +280,16 @@ export async function getProjectMentionText(
         .map((a: any) => a.staff?.user_id)
         .filter(Boolean) as string[]
 
+      console.log(`[mention] assigned userIds: ${JSON.stringify(userIds)}`)
+
       if (userIds.length > 0) {
         // admin/ownerロールを持つユーザーをフィルタ
         const { data: adminRoles } = await supabase
           .from('user_roles')
           .select('user_id, role:role_id(name)')
           .in('user_id', userIds)
+
+        console.log(`[mention] adminRoles: ${JSON.stringify(adminRoles)}`)
 
         const adminUserIds = new Set(
           (adminRoles || [])
@@ -296,12 +302,15 @@ export async function getProjectMentionText(
             .map((ur: any) => ur.user_id as string)
         )
 
+        console.log(`[mention] adminUserIds for PJ: ${JSON.stringify([...adminUserIds])}`)
+
         // PJアサイン済み管理者のSlack User IDを収集
         for (const assignment of assignments) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const staff = (assignment as any).staff
           if (!staff || !adminUserIds.has(staff.user_id)) continue
 
+          console.log(`[mention] adding admin staff: ${staff.email} (staff.id=${staff.id})`)
           const cf = (staff.custom_fields as Record<string, unknown>) || {}
           let slackId = cf.slack_user_id as string | undefined
           if (!slackId && staff.email) {
@@ -644,7 +653,7 @@ export async function resolveSlackUserId(
   staffId: string,
   email: string
 ): Promise<{ slackUserId?: string; error?: string; cached: boolean }> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
 
   // 1. DBからキャッシュ済みSlack User IDを取得
   const { data: staff } = await supabase
