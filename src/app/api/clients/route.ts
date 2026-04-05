@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, requireAdmin } from '@/lib/auth/rbac'
+import { getCurrentUser, requireAdmin, isOwner } from '@/lib/auth/rbac'
 import { clientFormSchema, clientSearchSchema } from '@/lib/validations/client'
 import type { Json } from '@/lib/types/database'
 
@@ -68,9 +68,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireAdmin().catch(() => null)
-    if (!admin) {
-      return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 })
+    const user = await getCurrentUser()
+    if (!user || !isOwner(user)) {
+      return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Create audit log
     await supabase.from('audit_logs').insert({
-      user_id: admin.id,
+      user_id: user.id,
       action: 'create',
       resource: 'clients',
       resource_id: client.id,

@@ -23,6 +23,7 @@ import { PROJECT_STATUS_LABELS } from '@/lib/constants'
 import { useProjects, useBulkUpdateProjectStatus, type Project } from '@/hooks/use-projects'
 import { toast } from 'sonner'
 import { Plus, Search, Briefcase, Users } from 'lucide-react'
+import { useAuth } from '@/components/providers/auth-provider'
 
 const BULK_STATUS_OPTIONS = [
   { value: 'proposing', label: '提案中に変更' },
@@ -39,6 +40,8 @@ const PROJECT_TYPE_TABS = [
 
 export default function ProjectsPage() {
   const router = useRouter()
+  const { demoAccount } = useAuth()
+  const isOwner = demoAccount?.role === 'owner'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeTab, setTypeTab] = useState('all')
@@ -193,10 +196,12 @@ export default function ProjectsPage() {
         title="プロジェクト管理"
         description="プロジェクトの一覧と管理"
         actions={
-          <Button onClick={() => router.push('/projects/new')}>
-            <Plus className="h-4 w-4 mr-1" />
-            新規作成
-          </Button>
+          isOwner ? (
+            <Button onClick={() => router.push('/projects/new')}>
+              <Plus className="h-4 w-4 mr-1" />
+              新規作成
+            </Button>
+          ) : undefined
         }
       />
 
@@ -251,10 +256,12 @@ export default function ProjectsPage() {
           title="プロジェクトがありません"
           description="新しいプロジェクトを作成して、スタッフのアサインと報酬ルールを設定しましょう。"
           action={
-            <Button onClick={() => router.push('/projects/new')}>
-              <Plus className="h-4 w-4 mr-1" />
-              新規作成
-            </Button>
+            isOwner ? (
+              <Button onClick={() => router.push('/projects/new')}>
+                <Plus className="h-4 w-4 mr-1" />
+                新規作成
+              </Button>
+            ) : undefined
           }
         />
       ) : (

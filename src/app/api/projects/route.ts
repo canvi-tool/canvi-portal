@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
 import { getProjectAccess } from '@/lib/auth/project-access'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,6 +95,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await getCurrentUser()
+    if (!currentUser || !isOwner(currentUser)) {
+      return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
+    }
+
     const supabase = await createServerSupabaseClient()
     const body = await request.json()
 

@@ -72,6 +72,26 @@ export async function POST(request: NextRequest) {
       approverUserId = approverStaff.user_id
     }
 
+    // Check if the Slack user has admin or owner role
+    if (!approverUserId) {
+      await updateSlackMessage(payload, '❌ 管理者権限が必要です（スタッフが見つかりません）')
+      return new Response('', { status: 200 })
+    }
+
+    const { data: userRoles } = await supabase
+      .from('user_roles')
+      .select('role:roles(name)')
+      .eq('user_id', approverUserId)
+
+    const roleNames = (userRoles as { role: { name: string } | null }[] | null)
+      ?.map((ur) => ur.role?.name)
+      .filter(Boolean) || []
+
+    if (!roleNames.includes('admin') && !roleNames.includes('owner')) {
+      await updateSlackMessage(payload, '❌ 管理者権限が必要です')
+      return new Response('', { status: 200 })
+    }
+
     // Update the report
     const updateData: Record<string, unknown> = {
       status: newStatus,
