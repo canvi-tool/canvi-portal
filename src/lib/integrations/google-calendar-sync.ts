@@ -37,8 +37,10 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
 
-    const startDateTime = `${shift.shift_date}T${shift.start_time}:00+09:00`
-    const endDateTime = `${shift.shift_date}T${shift.end_time}:00+09:00`
+    // start_time is "HH:MM" or "HH:MM:SS" from DB — normalize to HH:MM:SS
+    const normalizeTime = (t: string) => t.length === 5 ? `${t}:00` : t.slice(0, 8)
+    const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
+    const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
     const summary = `[${projectData.name}] シフト`
     const description = shift.notes || undefined
 
