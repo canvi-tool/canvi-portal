@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { dailyReportSchema } from '@/lib/validations/daily-report'
+import { dailyReportSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
+import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
+import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
 
 // ---- GET: 日報一覧取得 ----
 export async function GET(request: NextRequest) {
@@ -131,10 +133,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Slack通知（日報提出）
+    const staffName = (() => {
+      const s = data.staff as { last_name?: string; first_name?: string } | null
+      return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+    })()
+    const projectName = (data.project as { name?: string } | null)?.name || ''
+    const typeLabel = DAILY_REPORT_TYPE_LABELS[report_type as DailyReportType] || '日報'
+
+    if (data.project_id) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('slack_channel_id')
+        .eq('id', data.project_id)
+        .single()
+
+      if (proj?.slack_channel_id) {
+        const kpiSummary = buildKpiSummary(report_type, customFields)
+        await sendProjectNotificationIfEnabled(
+          {
+            text: `📝 ${staffName} が ${typeLabel} を提出しました（${projectName}）`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `📝 *${staffName}* が *${typeLabel}* を提出しました\n📅 ${report_date} | 🏢 ${projectName}`,
+                },
+              },
+              ...(kpiSummary ? [{
+                type: 'context' as const,
+                elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
+              }] : []),
+            ],
+          },
+          data.project_id,
+          proj.slack_channel_id,
+          'report_submitted',
+          { noMention: true }
+        )
+      }
+    }
+
     return NextResponse.json(data, { status: 201 })
   } catch (error) {
     console.error('POST /api/reports/daily error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
+// ---- ヘルパー: KPIサマリー（Slack用） ----
+function buildKpiSummary(reportType: string, fields: Record<string, unknown>): string | null {
+  switch (reportType) {
+    case 'outbound':
+      return `📞 架電 ${fields.daily_call_count_actual ?? 0} | 📱 通電 ${fields.daily_contact_count ?? 0} | 🤝 アポ ${fields.daily_appointment_count ?? 0}`
+    case 'inbound':
+      return `📞 受電 ${fields.daily_received_count ?? 0} | ✅ 完了 ${fields.daily_completed_count ?? 0} | ⬆️ エスカレ ${fields.daily_escalation_count ?? 0}`
+    case 'training':
+      return fields.study_theme ? `📚 テーマ: ${fields.study_theme}` : null
+    default:
+      return null
   }
 }
 

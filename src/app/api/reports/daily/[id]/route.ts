@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { dailyReportSchema, workReportApprovalSchema } from '@/lib/validations/daily-report'
+import { dailyReportSchema, workReportApprovalSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
+import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isAdmin } from '@/lib/auth/rbac'
+import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -178,6 +180,46 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: '日報が見つかりません' }, { status: 404 })
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Slack通知（承認/差戻し）
+    const staffName = (() => {
+      const s = data.staff as { last_name?: string; first_name?: string } | null
+      return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+    })()
+    const projectName = (data.project as { name?: string } | null)?.name || ''
+    const typeLabel = DAILY_REPORT_TYPE_LABELS[data.report_type as DailyReportType] || '日報'
+    const isApproved = parsed.data.status === 'approved'
+
+    if (data.project_id) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('slack_channel_id')
+        .eq('id', data.project_id)
+        .single()
+
+      if (proj?.slack_channel_id) {
+        const emoji = isApproved ? '✅' : '🔙'
+        const action = isApproved ? '承認' : '差戻し'
+        await sendProjectNotificationIfEnabled(
+          {
+            text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `${emoji} *${staffName}* の *${typeLabel}* が *${action}* されました\n📅 ${data.report_date} | 🏢 ${projectName}${parsed.data.comment ? `\n💬 ${parsed.data.comment}` : ''}`,
+                },
+              },
+            ],
+          },
+          data.project_id,
+          proj.slack_channel_id,
+          'report_submitted',
+          { noMention: true }
+        )
+      }
     }
 
     return NextResponse.json(data)
