@@ -48,9 +48,15 @@ export const CONTRACT_STATUS_LABELS: Record<string, string> = {
 }
 
 export const PROJECT_STATUS_LABELS: Record<string, string> = {
+  // 新ステータス
   proposing: '提案中',
   active: '契約中',
   ended: '契約終了',
+  // 旧ステータス互換（マイグレーション前）
+  planning: '提案中',
+  paused: '契約終了',
+  completed: '契約終了',
+  archived: '契約終了',
 }
 
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {

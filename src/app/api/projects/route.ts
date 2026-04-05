@@ -32,10 +32,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (status && status !== 'all') {
-      query = query.eq('status', status)
-    } else {
-      // デフォルトではアーカイブ済みプロジェクトを非表示
-      query = query.not('status', 'in', '("ended")')
+      // 新旧ステータス互換: UIが新値を送っても旧DB値にマッピング
+      const statusMap: Record<string, string[]> = {
+        proposing: ['proposing', 'planning'],
+        active: ['active'],
+        ended: ['ended', 'completed', 'archived', 'paused'],
+      }
+      const mappedStatuses = statusMap[status]
+      if (mappedStatuses && mappedStatuses.length > 1) {
+        query = query.in('status', mappedStatuses)
+      } else {
+        query = query.eq('status', status)
+      }
     }
 
     const { data, error } = await query
