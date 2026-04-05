@@ -15,93 +15,113 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { ESTIMATE_STATUS_LABELS } from '@/lib/constants'
+import { INVOICE_STATUS_LABELS } from '@/lib/constants'
 import {
   Plus,
   Search,
   Wallet,
   CheckCircle2,
-  Clock,
+  AlertTriangle,
   Send,
+  TrendingUp,
 } from 'lucide-react'
 
 // --- Types ---
-type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
 
-interface Estimate {
+interface Invoice {
   id: string
-  estimate_number: string
+  invoice_number: string
   project_name: string
   client_name: string
   amount: number
   tax_amount: number
   total_amount: number
-  status: EstimateStatus
-  created_at: string
-  valid_until: string
+  status: InvoiceStatus
+  issued_at: string
+  due_date: string
+  paid_at: string | null
 }
 
 // --- Demo Data ---
-const demoEstimates: Estimate[] = [
+const demoInvoices: Invoice[] = [
   {
-    id: 'est-001',
-    estimate_number: 'EST-2026-001',
+    id: 'inv-001',
+    invoice_number: 'INV-2026-001',
     project_name: 'Webリニューアル',
     client_name: '株式会社ABC商事',
-    amount: 2500000,
-    tax_amount: 250000,
-    total_amount: 2750000,
-    status: 'accepted',
-    created_at: '2026-03-01',
-    valid_until: '2026-03-31',
+    amount: 1250000,
+    tax_amount: 125000,
+    total_amount: 1375000,
+    status: 'paid',
+    issued_at: '2026-03-01',
+    due_date: '2026-03-31',
+    paid_at: '2026-03-28',
   },
   {
-    id: 'est-002',
-    estimate_number: 'EST-2026-002',
+    id: 'inv-002',
+    invoice_number: 'INV-2026-002',
+    project_name: 'Webリニューアル',
+    client_name: '株式会社ABC商事',
+    amount: 1250000,
+    tax_amount: 125000,
+    total_amount: 1375000,
+    status: 'sent',
+    issued_at: '2026-03-15',
+    due_date: '2026-04-15',
+    paid_at: null,
+  },
+  {
+    id: 'inv-003',
+    invoice_number: 'INV-2026-003',
     project_name: 'SNSマーケ運用',
     client_name: '合同会社デジタルフロント',
     amount: 850000,
     tax_amount: 85000,
     total_amount: 935000,
-    status: 'sent',
-    created_at: '2026-03-15',
-    valid_until: '2026-04-14',
+    status: 'draft',
+    issued_at: '',
+    due_date: '',
+    paid_at: null,
   },
   {
-    id: 'est-003',
-    estimate_number: 'EST-2026-003',
+    id: 'inv-004',
+    invoice_number: 'INV-2026-004',
     project_name: '業務システム開発',
     client_name: '株式会社テクノソリューション',
-    amount: 5800000,
-    tax_amount: 580000,
-    total_amount: 6380000,
-    status: 'draft',
-    created_at: '2026-03-25',
-    valid_until: '',
+    amount: 2900000,
+    tax_amount: 290000,
+    total_amount: 3190000,
+    status: 'overdue',
+    issued_at: '2026-02-01',
+    due_date: '2026-02-28',
+    paid_at: null,
   },
   {
-    id: 'est-004',
-    estimate_number: 'EST-2026-004',
+    id: 'inv-005',
+    invoice_number: 'INV-2026-005',
     project_name: 'ECサイト構築',
     client_name: '株式会社ネクストステージ',
-    amount: 3200000,
-    tax_amount: 320000,
-    total_amount: 3520000,
-    status: 'rejected',
-    created_at: '2026-02-10',
-    valid_until: '2026-03-10',
+    amount: 1600000,
+    tax_amount: 160000,
+    total_amount: 1760000,
+    status: 'sent',
+    issued_at: '2026-03-20',
+    due_date: '2026-04-20',
+    paid_at: null,
   },
   {
-    id: 'est-005',
-    estimate_number: 'EST-2026-005',
+    id: 'inv-006',
+    invoice_number: 'INV-2026-006',
     project_name: 'アプリ開発',
     client_name: '株式会社イノベーションラボ',
-    amount: 4500000,
-    tax_amount: 450000,
-    total_amount: 4950000,
-    status: 'expired',
-    created_at: '2026-01-15',
-    valid_until: '2026-02-14',
+    amount: 2250000,
+    tax_amount: 225000,
+    total_amount: 2475000,
+    status: 'cancelled',
+    issued_at: '2026-01-15',
+    due_date: '2026-02-15',
+    paid_at: null,
   },
 ]
 
@@ -109,18 +129,18 @@ const demoEstimates: Estimate[] = [
 const formatCurrency = (value: number) =>
   `¥${value.toLocaleString('ja-JP')}`
 
-// --- Column definitions (static, outside component to avoid re-creation) ---
-const columns: DataTableColumn<Estimate>[] = [
+// --- Column definitions (static, outside component) ---
+const columns: DataTableColumn<Invoice>[] = [
   {
-    key: 'estimate_number',
-    header: '見積番号',
-    accessor: (row) => row.estimate_number,
+    key: 'invoice_number',
+    header: '請求番号',
+    accessor: (row) => row.invoice_number,
     cell: (row) => (
       <Link
-        href={`/documents/estimates/${row.id}`}
+        href={`/documents/invoices/${row.id}`}
         className="font-mono text-sm text-primary hover:underline"
       >
-        {row.estimate_number}
+        {row.invoice_number}
       </Link>
     ),
   },
@@ -137,7 +157,7 @@ const columns: DataTableColumn<Estimate>[] = [
   },
   {
     key: 'total_amount',
-    header: '金額（税込）',
+    header: '請求額（税込）',
     accessor: (row) => row.total_amount,
     cell: (row) => (
       <div className="text-right">
@@ -153,27 +173,42 @@ const columns: DataTableColumn<Estimate>[] = [
     header: 'ステータス',
     accessor: (row) => row.status,
     cell: (row) => (
-      <StatusBadge status={row.status} labels={ESTIMATE_STATUS_LABELS} />
+      <StatusBadge
+        status={row.status}
+        labels={INVOICE_STATUS_LABELS}
+        variants={{
+          paid: 'default',
+          sent: 'secondary',
+          draft: 'outline',
+          overdue: 'destructive',
+          cancelled: 'outline',
+        }}
+      />
     ),
   },
   {
-    key: 'created_at',
-    header: '作成日',
-    accessor: (row) => row.created_at,
-    cell: (row) => <span>{row.created_at.replace(/-/g, '/')}</span>,
+    key: 'issued_at',
+    header: '発行日',
+    accessor: (row) => row.issued_at,
+    cell: (row) =>
+      row.issued_at ? (
+        <span>{row.issued_at.replace(/-/g, '/')}</span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
   },
   {
-    key: 'valid_until',
-    header: '有効期限',
-    accessor: (row) => row.valid_until,
+    key: 'due_date',
+    header: '支払期限',
+    accessor: (row) => row.due_date,
     cell: (row) => {
-      if (!row.valid_until) return <span className="text-muted-foreground">-</span>
-      // Compare date strings (YYYY-MM-DD) to avoid timezone issues
+      if (!row.due_date) return <span className="text-muted-foreground">-</span>
+      // Compare date strings to avoid timezone issues
       const today = new Date().toISOString().slice(0, 10)
-      const isExpired = row.valid_until < today
+      const isOverdue = row.status === 'overdue' || (row.status === 'sent' && row.due_date < today)
       return (
-        <span className={isExpired ? 'text-destructive' : ''}>
-          {row.valid_until.replace(/-/g, '/')}
+        <span className={isOverdue ? 'text-destructive font-medium' : ''}>
+          {row.due_date.replace(/-/g, '/')}
         </span>
       )
     },
@@ -181,18 +216,18 @@ const columns: DataTableColumn<Estimate>[] = [
 ]
 
 // --- Component ---
-export default function EstimatesPage() {
+export default function InvoicesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
   // Filtered data
   const filtered = useMemo(() => {
-    let data: Estimate[] = demoEstimates
+    let data: Invoice[] = demoInvoices
     if (search) {
       const lower = search.toLowerCase()
       data = data.filter(
         (d) =>
-          d.estimate_number.toLowerCase().includes(lower) ||
+          d.invoice_number.toLowerCase().includes(lower) ||
           d.project_name.toLowerCase().includes(lower) ||
           d.client_name.toLowerCase().includes(lower)
       )
@@ -205,26 +240,45 @@ export default function EstimatesPage() {
 
   // Summary calculations
   const summary = useMemo(() => {
-    const all = demoEstimates
+    const all = demoInvoices
+    const paidAmount = all
+      .filter((i) => i.status === 'paid')
+      .reduce((sum, i) => sum + i.total_amount, 0)
+    const unpaidAmount = all
+      .filter((i) => i.status === 'sent' || i.status === 'overdue')
+      .reduce((sum, i) => sum + i.total_amount, 0)
+    const overdueAmount = all
+      .filter((i) => i.status === 'overdue')
+      .reduce((sum, i) => sum + i.total_amount, 0)
+
     return {
       total: all.length,
-      totalAmount: all.reduce((sum, e) => sum + e.total_amount, 0),
-      accepted: all.filter((e) => e.status === 'accepted').length,
-      sent: all.filter((e) => e.status === 'sent').length,
-      draft: all.filter((e) => e.status === 'draft').length,
+      totalAmount: all.reduce((sum, i) => sum + i.total_amount, 0),
+      paidAmount,
+      unpaidAmount,
+      overdueCount: all.filter((i) => i.status === 'overdue').length,
+      overdueAmount,
+      sent: all.filter((i) => i.status === 'sent').length,
+      draft: all.filter((i) => i.status === 'draft').length,
     }
   }, [])
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="見積書"
-        description="見積書の作成・送付・管理"
+        title="請求書"
+        description="請求書の発行・送付・入金管理"
         actions={
-          <Link href="/documents/estimates/new" className={buttonVariants()}>
-            <Plus className="h-4 w-4 mr-1" />
-            新規作成
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/documents/invoices/auto" className={buttonVariants({ variant: 'outline' })}>
+              <TrendingUp className="h-4 w-4 mr-1" />
+              自動作成
+            </Link>
+            <Link href="/documents/invoices/new" className={buttonVariants()}>
+              <Plus className="h-4 w-4 mr-1" />
+              新規作成
+            </Link>
+          </div>
         }
       />
 
@@ -232,7 +286,7 @@ export default function EstimatesPage() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">見積総額</CardTitle>
+            <CardTitle className="text-sm font-medium">請求総額</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </CardHeader>
           <CardContent>
@@ -240,43 +294,49 @@ export default function EstimatesPage() {
               {formatCurrency(summary.totalAmount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {summary.total}件の見積書
+              {summary.total}件の請求書
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">受注済</CardTitle>
+            <CardTitle className="text-sm font-medium">入金済</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.accepted}件</div>
+            <div className="text-2xl font-bold font-mono">
+              {formatCurrency(summary.paidAmount)}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              受注率 {summary.total > 0 ? Math.round((summary.accepted / summary.total) * 100) : 0}%
+              回収率 {summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0}%
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">送付済</CardTitle>
+            <CardTitle className="text-sm font-medium">未入金</CardTitle>
             <Send className="h-4 w-4 text-blue-600" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.sent}件</div>
+            <div className="text-2xl font-bold font-mono">
+              {formatCurrency(summary.unpaidAmount)}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              回答待ち
+              {summary.sent}件 送付済
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className={summary.overdueCount > 0 ? 'border-destructive/50' : ''}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">下書き</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <CardTitle className="text-sm font-medium">支払遅延</CardTitle>
+            <AlertTriangle className={`h-4 w-4 ${summary.overdueCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`} aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.draft}件</div>
+            <div className={`text-2xl font-bold font-mono ${summary.overdueCount > 0 ? 'text-destructive' : ''}`}>
+              {formatCurrency(summary.overdueAmount)}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              未送付
+              {summary.overdueCount}件 遅延中
             </p>
           </CardContent>
         </Card>
@@ -287,8 +347,8 @@ export default function EstimatesPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
-            placeholder="見積番号、PJ名、クライアント名で検索..."
-            aria-label="見積書を検索"
+            placeholder="請求番号、PJ名、クライアント名で検索..."
+            aria-label="請求書を検索"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8"
@@ -298,12 +358,12 @@ export default function EstimatesPage() {
           <SelectTrigger className="w-40" aria-label="ステータスで絞り込み">
             <SelectValueWithLabel
               value={statusFilter}
-              labels={{ all: 'すべて', ...ESTIMATE_STATUS_LABELS }}
+              labels={{ all: 'すべて', ...INVOICE_STATUS_LABELS }}
             />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">すべて</SelectItem>
-            {Object.entries(ESTIMATE_STATUS_LABELS).map(([value, label]) => (
+            {Object.entries(INVOICE_STATUS_LABELS).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
               </SelectItem>
@@ -316,7 +376,7 @@ export default function EstimatesPage() {
       <DataTable
         columns={columns}
         data={filtered}
-        emptyMessage="条件に一致する見積書が見つかりません"
+        emptyMessage="条件に一致する請求書が見つかりません"
         keyExtractor={(row) => row.id}
       />
     </div>

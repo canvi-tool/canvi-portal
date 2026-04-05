@@ -683,9 +683,13 @@ export interface Database {
           google_calendar_event_id: string | null
           google_calendar_synced: boolean
           google_meet_url: string | null
+          slack_thread_ts: string | null
+          approval_comment: string | null
           submitted_at: string | null
           approved_at: string | null
           approved_by: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           created_by: string
           created_at: string
           updated_at: string
@@ -704,9 +708,13 @@ export interface Database {
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean
           google_meet_url?: string | null
+          slack_thread_ts?: string | null
+          approval_comment?: string | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           created_by: string
           created_at?: string
           updated_at?: string
@@ -725,9 +733,13 @@ export interface Database {
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean
           google_meet_url?: string | null
+          slack_thread_ts?: string | null
+          approval_comment?: string | null
           submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           created_by?: string
           created_at?: string
           updated_at?: string

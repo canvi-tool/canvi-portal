@@ -26,8 +26,8 @@ export async function updateSession(request: NextRequest) {
 
     // ポータルページ: ロール未選択ならログインへ
     const portalPaths = [
-      '/dashboard', '/staff', '/clients', '/contracts', '/projects',
-      '/documents', '/shifts', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
+      '/dashboard', '/tutorial', '/staff', '/clients', '/contracts', '/projects',
+      '/documents', '/invoices', '/shifts', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
       '/ai', '/alerts', '/settings',
     ]
     if (!demoRole && portalPaths.some((p) => request.nextUrl.pathname.startsWith(p))) {
@@ -77,8 +77,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   const portalPaths = [
-    '/dashboard', '/staff', '/contracts', '/projects',
-    '/shifts', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
+    '/dashboard', '/tutorial', '/staff', '/contracts', '/projects',
+    '/documents', '/invoices', '/shifts', '/calendar', '/attendance', '/reports', '/payments', '/retirement',
     '/ai', '/alerts', '/settings',
   ]
   if (!user && portalPaths.some((p) => request.nextUrl.pathname.startsWith(p))) {

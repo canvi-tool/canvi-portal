@@ -3,6 +3,15 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema } from '@/lib/validations/shift'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
+import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
+
+const SHIFT_TYPE_LABELS: Record<string, string> = {
+  WORK: '通常勤務',
+  PAID_LEAVE: '有給休暇',
+  ABSENCE: '欠勤',
+  HALF_DAY_LEAVE: '半休',
+  SPECIAL_LEAVE: '特別休暇',
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -84,17 +93,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { user } = await getProjectAccess()
+    const { user, staffId, allowedProjectIds } = await getProjectAccess()
     if (!user) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
+    // プロジェクトアクセス権チェック
+    if (allowedProjectIds !== null && !allowedProjectIds.includes(parsed.data.project_id)) {
+      return NextResponse.json({ error: 'このプロジェクトへのアクセス権がありません' }, { status: 403 })
+    }
+
     const supabase = await createServerSupabaseClient()
 
-    // プロジェクトの承認モードを確認
+    // プロジェクトの承認モードとSlackチャンネルを確認
     const { data: project } = await supabase
       .from('projects')
-      .select('shift_approval_mode')
+      .select('shift_approval_mode, slack_channel_id, name')
       .eq('id', parsed.data.project_id)
       .single()
 
@@ -125,7 +139,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('shifts')
       .insert(insertData as never)
-      .select()
+      .select('*, staff:staff_id(id, last_name, first_name)')
       .single()
 
     if (error) {
@@ -138,6 +152,42 @@ export async function POST(request: NextRequest) {
         await syncShiftToCalendar(data.id)
       } catch (e) {
         console.error('Calendar sync failed on create:', e)
+      }
+
+      // AUTO承認時のSlack通知（登録完了通知）
+      if (project?.slack_channel_id) {
+        const staffName = (() => {
+          const s = data.staff as { last_name?: string; first_name?: string } | null
+          return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+        })()
+        const shiftTypeLabel = SHIFT_TYPE_LABELS[parsed.data.shift_type || 'WORK'] || 'シフト'
+
+        const result = await sendProjectNotificationIfEnabled(
+          {
+            text: `📅 ${staffName} のシフトが登録されました（${project.name || ''}）`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `📅 *${staffName}* のシフトが自動確定されました\n📆 ${parsed.data.shift_date} | ⏰ ${parsed.data.start_time}〜${parsed.data.end_time} | 🏢 ${project.name || ''}\n📝 種別: ${shiftTypeLabel}`,
+                },
+              },
+            ],
+          },
+          parsed.data.project_id,
+          project.slack_channel_id,
+          'shift_submitted',
+          { staffId: staffId || parsed.data.staff_id }
+        )
+
+        // slack_thread_ts 保存
+        if (result.ts) {
+          await supabase
+            .from('shifts')
+            .update({ slack_thread_ts: result.ts })
+            .eq('id', data.id)
+        }
       }
     }
 

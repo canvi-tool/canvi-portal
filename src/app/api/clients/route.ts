@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, requireAdmin, isOwner } from '@/lib/auth/rbac'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 import { clientFormSchema, clientSearchSchema } from '@/lib/validations/client'
 import type { Json } from '@/lib/types/database'
 

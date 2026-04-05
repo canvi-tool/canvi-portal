@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftApprovalSchema } from '@/lib/validations/shift'
+import { canManageProjectShifts } from '@/lib/auth/project-access'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -25,13 +26,19 @@ export async function POST(
     // 現在のシフトを確認
     const { data: shift, error: fetchError } = await supabase
       .from('shifts')
-      .select('id, status, start_time, end_time')
+      .select('id, status, project_id, start_time, end_time')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
 
     if (fetchError || !shift) {
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
+    }
+
+    // 認証・権限チェック: オーナーまたはアサイン済み管理者のみ修正依頼可能
+    const { user: currentUser, canManage } = await canManageProjectShifts(shift.project_id)
+    if (!currentUser || !canManage) {
+      return NextResponse.json({ error: 'このプロジェクトのシフトを修正依頼する権限がありません' }, { status: 403 })
     }
 
     if (shift.status !== 'SUBMITTED') {
@@ -42,9 +49,8 @@ export async function POST(
     }
 
     const now = new Date().toISOString()
-    const performedBy = body.performed_by
 
-    // ステータスを NEEDS_REVISION に更新
+    // ステータスを NEEDS_REVISION に更新（ステータスもWHERE条件に含めて競合防止）
     const { data, error } = await supabase
       .from('shifts')
       .update({
@@ -52,11 +58,12 @@ export async function POST(
         updated_at: now,
       })
       .eq('id', id)
+      .eq('status', 'SUBMITTED')
       .select()
       .single()
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error || !data) {
+      return NextResponse.json({ error: 'ステータスが変更されたため更新できませんでした' }, { status: 409 })
     }
 
     // 承認履歴に記録 (時刻変更の提案がある場合は MODIFY として記録)
@@ -69,7 +76,7 @@ export async function POST(
       previous_end_time: newStartTime || newEndTime ? shift.end_time : null,
       new_start_time: newStartTime || null,
       new_end_time: newEndTime || null,
-      performed_by: performedBy,
+      performed_by: currentUser.id,
     })
 
     return NextResponse.json({
