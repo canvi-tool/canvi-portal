@@ -91,7 +91,7 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
             </div>
             <div className="my-1 h-px bg-border" />
             <Link
-              href="/settings"
+              href="/profile"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
             >

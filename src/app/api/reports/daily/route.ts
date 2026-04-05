@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
 
       if (proj?.slack_channel_id) {
         const kpiSummary = buildKpiSummary(report_type, customFields)
+        const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
         await sendProjectNotificationIfEnabled(
           {
             text: `📝 ${staffName} が ${typeLabel} を提出しました（${projectName}）`,
@@ -165,6 +166,31 @@ export async function POST(request: NextRequest) {
                 type: 'context' as const,
                 elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
               }] : []),
+              {
+                type: 'actions',
+                elements: [
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '✅ 承認' },
+                    style: 'primary',
+                    action_id: 'report_approve',
+                    value: data.id,
+                  },
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '🔙 差戻し' },
+                    style: 'danger',
+                    action_id: 'report_reject',
+                    value: data.id,
+                  },
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '📄 詳細を見る' },
+                    url: `${portalUrl}/reports/work/${data.id}`,
+                    action_id: 'report_view',
+                  },
+                ],
+              },
             ],
           },
           data.project_id,
