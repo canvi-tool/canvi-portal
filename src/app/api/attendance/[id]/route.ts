@@ -8,6 +8,7 @@ import {
   buildBreakStartNotification,
   buildBreakEndNotification,
 } from '@/lib/integrations/slack'
+import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -44,7 +45,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const now = new Date().toISOString()
-    console.log(`[thread] PUT action=${action}, recordId=${id}, slack_thread_ts=${record.slack_thread_ts || 'NULL'}`)
+    const slackThreadTs = extractSlackThreadTs(record.note)
+    console.log(`[thread] PUT action=${action}, recordId=${id}, thread_ts=${slackThreadTs || 'NULL'}`)
 
     switch (action) {
       case 'clock_out': {
@@ -100,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             buildClockOutNotification(staffName, `${hours}h ${mins}m`, undefined, projectName),
             projectSlackChannelId,
             {
-              ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
               projectId: record.project_id,
               staffId: record.staff_id,
             }
@@ -147,7 +149,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             buildBreakStartNotification(breakStaffName),
             breakChannelId,
             {
-              ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
               projectId: record.project_id,
               staffId: record.staff_id,
             }
@@ -201,7 +203,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
             breakEndChannelId,
             {
-              ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
               projectId: record.project_id,
               staffId: record.staff_id,
             }

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
 import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
+import { embedSlackThreadTs } from '@/lib/utils/slack-thread'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -167,27 +168,26 @@ export async function POST(request: NextRequest) {
       projectName = proj?.name
     }
     const staffName = user.displayName || user.email || 'メンバー'
-    // 出勤通知を送信し、スレッドtsを保存（後続の打刻をスレッドにまとめるため）
-    // 出勤通知は通知設定に関わらず必ず送信する（thread_ts取得がスレッド化の前提条件）
-    // 通知設定OFFの場合でもBot APIで送信してtsを取得→後続打刻をスレッド化
+    // 出勤通知を送信し、thread_tsをnoteフィールドに埋め込む（後続打刻をスレッドにまとめるため）
     try {
       const result = await sendProjectNotification(
         buildClockInNotification(staffName, projectName),
         projectSlackChannelId,
         { projectId, staffId: staffRecord?.id }
       )
-      console.log(`[thread] clock-in notification result: success=${result.success}, ts=${result.ts}, recordId=${data?.id}`)
+      console.log(`[thread] clock-in result: success=${result.success}, ts=${result.ts}, id=${data?.id}`)
       if (result.ts && data?.id) {
-        // Admin clientでthread_tsを保存（RLSバイパス・確実に保存する）
+        // noteフィールドにthread_tsを埋め込み保存（admin clientでRLSバイパス）
         const adminSupabase = createAdminClient()
+        const newNote = embedSlackThreadTs(data.note, result.ts)
         const { error: updateErr } = await adminSupabase
           .from('attendance_records')
-          .update({ slack_thread_ts: result.ts })
+          .update({ note: newNote })
           .eq('id', data.id)
         if (updateErr) {
-          console.error(`[thread] slack_thread_ts save FAILED: ${updateErr.message}`)
+          console.error(`[thread] thread_ts save FAILED: ${updateErr.message}`)
         } else {
-          console.log(`[thread] slack_thread_ts saved: ${result.ts} for record ${data.id}`)
+          console.log(`[thread] thread_ts saved in note: ${result.ts}`)
         }
       }
     } catch (err) {
