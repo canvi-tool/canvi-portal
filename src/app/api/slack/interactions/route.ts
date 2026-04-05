@@ -147,7 +147,7 @@ async function openCommentModal(
               multiline: true,
               placeholder: { type: 'plain_text', text: 'コメントを入力（任意）' },
             },
-            label: { type: 'plain_text', text: '💬 コメント' },
+            label: { type: 'plain_text', text: 'コメント' },
           },
         ],
       },
@@ -218,21 +218,21 @@ async function handleReportApproval(payload: Record<string, unknown>) {
     .single()
 
   if (fetchError || !report) {
-    await updateSlackMessageDirect(channelId, messageTs, '❌ 日報が見つかりません')
+    await updateSlackMessageDirect(channelId, messageTs, '日報が見つかりません')
     return new Response('', { status: 200 })
   }
 
   // Check if already processed
   if (report.status === 'approved' || report.status === 'rejected') {
     const statusLabel = report.status === 'approved' ? '承認済み' : '差戻し済み'
-    await updateSlackMessageDirect(channelId, messageTs, `⚠️ この日報は既に${statusLabel}です`)
+    await updateSlackMessageDirect(channelId, messageTs, `この日報は既に${statusLabel}です`)
     return new Response('', { status: 200 })
   }
 
   // Permission check
   const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
   if (!approverUserId || !isAuthorized) {
-    await updateSlackMessageDirect(channelId, messageTs, '❌ 管理者権限が必要です')
+    await updateSlackMessageDirect(channelId, messageTs, '管理者権限が必要です')
     return new Response('', { status: 200 })
   }
 
@@ -255,7 +255,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
     .eq('id', reportId)
 
   if (updateError) {
-    await updateSlackMessageDirect(channelId, messageTs, `❌ 更新に失敗しました: ${updateError.message}`)
+    await updateSlackMessageDirect(channelId, messageTs, `更新に失敗しました: ${updateError.message}`)
     return new Response('', { status: 200 })
   }
 
@@ -273,7 +273,6 @@ async function handleReportApproval(payload: Record<string, unknown>) {
   }
   const typeLabel = REPORT_TYPE_LABELS[report.report_type || ''] || '日報'
 
-  const emoji = newStatus === 'approved' ? '✅' : '🔙'
   const actionLabel = newStatus === 'approved' ? '承認' : '差戻し'
 
   // Update the original Slack message (remove buttons, show result)
@@ -284,7 +283,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${emoji} *${staffName}* の *${typeLabel}* が *${actionLabel}* されました\n📅 ${report.report_date} | 🏢 ${projectName}`,
+          text: `*${staffName}* の *${typeLabel}* が *${actionLabel}* されました\n${report.report_date} | ${projectName}`,
         },
       },
     ]
@@ -292,7 +291,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
     if (comment) {
       messageBlocks.push({
         type: 'section',
-        text: { type: 'mrkdwn', text: `💬 コメント: ${comment}` },
+        text: { type: 'mrkdwn', text: `コメント: ${comment}` },
       })
     }
 
@@ -315,7 +314,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `${emoji} ${staffName} の ${typeLabel} が${actionLabel}されました（${projectName}）`,
+        text: `${staffName} の ${typeLabel} が${actionLabel}されました（${projectName}）`,
         blocks: messageBlocks,
       }),
     })
@@ -350,7 +349,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `${emoji} *${actionLabel}* by <@${slackUserId}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+            text: `*${actionLabel}* by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
           },
         },
       ]
@@ -358,7 +357,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
       if (comment) {
         threadBlocks.push({
           type: 'section',
-          text: { type: 'mrkdwn', text: `💬 コメント: ${comment}` },
+          text: { type: 'mrkdwn', text: `コメント: ${comment}` },
         })
       }
 
@@ -370,7 +369,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
       }
 
       await sendSlackBotMessage(channelId, {
-        text: `${emoji} ${actionLabel}されました`,
+        text: `${actionLabel}されました`,
         blocks: threadBlocks,
       }, { thread_ts: threadTs })
     }
@@ -402,21 +401,21 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
     .single()
 
   if (fetchError || !shift) {
-    await updateSlackMessageDirect(channelId, messageTs, '❌ シフトが見つかりません')
+    await updateSlackMessageDirect(channelId, messageTs, 'シフトが見つかりません')
     return new Response('', { status: 200 })
   }
 
   // Check if already processed
   if (shift.status === 'APPROVED' || shift.status === 'REJECTED') {
     const statusLabel = shift.status === 'APPROVED' ? '承認済み' : '差戻し済み'
-    await updateSlackMessageDirect(channelId, messageTs, `⚠️ このシフトは既に${statusLabel}です`)
+    await updateSlackMessageDirect(channelId, messageTs, `このシフトは既に${statusLabel}です`)
     return new Response('', { status: 200 })
   }
 
   // Permission check
   const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
   if (!approverUserId || !isAuthorized) {
-    await updateSlackMessageDirect(channelId, messageTs, '❌ 管理者権限が必要です')
+    await updateSlackMessageDirect(channelId, messageTs, '管理者権限が必要です')
     return new Response('', { status: 200 })
   }
 
@@ -440,7 +439,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
     .eq('id', shiftId)
 
   if (updateError) {
-    await updateSlackMessageDirect(channelId, messageTs, `❌ 更新に失敗しました: ${updateError.message}`)
+    await updateSlackMessageDirect(channelId, messageTs, `更新に失敗しました: ${updateError.message}`)
     return new Response('', { status: 200 })
   }
 
@@ -459,7 +458,6 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
   })()
   const projectName = (shift.project as { name?: string } | null)?.name || ''
 
-  const emoji = newStatus === 'APPROVED' ? '✅' : '🔙'
   const actionLabel = newStatus === 'APPROVED' ? '承認' : '差戻し'
 
   const botToken = process.env.SLACK_BOT_TOKEN
@@ -470,7 +468,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${emoji} *${staffName}* のシフトが *${actionLabel}* されました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
+          text: `*${staffName}* のシフトが *${actionLabel}* されました\n${shift.shift_date} | ${shift.start_time}〜${shift.end_time} | ${projectName}`,
         },
       },
     ]
@@ -478,7 +476,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
     if (comment) {
       messageBlocks.push({
         type: 'section',
-        text: { type: 'mrkdwn', text: `💬 コメント: ${comment}` },
+        text: { type: 'mrkdwn', text: `コメント: ${comment}` },
       })
     }
 
@@ -501,7 +499,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `${emoji} ${staffName} のシフトが${actionLabel}されました（${projectName}）`,
+        text: `${staffName} のシフトが${actionLabel}されました（${projectName}）`,
         blocks: messageBlocks,
       }),
     })
@@ -530,7 +528,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `${emoji} *${actionLabel}* by <@${slackUserId}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+            text: `*${actionLabel}* by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
           },
         },
       ]
@@ -538,7 +536,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
       if (comment) {
         threadBlocks.push({
           type: 'section',
-          text: { type: 'mrkdwn', text: `💬 コメント: ${comment}` },
+          text: { type: 'mrkdwn', text: `コメント: ${comment}` },
         })
       }
 
@@ -550,7 +548,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
       }
 
       await sendSlackBotMessage(channelId, {
-        text: `${emoji} ${actionLabel}されました`,
+        text: `${actionLabel}されました`,
         blocks: threadBlocks,
       }, { thread_ts: threadTs })
     }

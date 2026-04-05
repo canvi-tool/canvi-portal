@@ -155,13 +155,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
 
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `🔄 ${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+            text: `${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `🔄 *${staffName}* が *${typeLabel}* を *再提出* しました\n📅 ${report_date} | 🏢 ${projectName}`,
+                  text: `*${staffName}* が *${typeLabel}* を *再提出* しました\n${report_date} | ${projectName}`,
                 },
               },
               ...(kpiSummary ? [{
@@ -173,21 +173,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 elements: [
                   {
                     type: 'button',
-                    text: { type: 'plain_text', text: '✅ 承認' },
+                    text: { type: 'plain_text', text: '承認' },
                     style: 'primary',
                     action_id: 'report_approve',
                     value: data.id,
                   },
                   {
                     type: 'button',
-                    text: { type: 'plain_text', text: '🔙 差戻し' },
+                    text: { type: 'plain_text', text: '差戻し' },
                     style: 'danger',
                     action_id: 'report_reject',
                     value: data.id,
                   },
                   {
                     type: 'button',
-                    text: { type: 'plain_text', text: '📄 詳細を見る' },
+                    text: { type: 'plain_text', text: '詳細を見る' },
                     url: `${portalUrl}/reports/work/${data.id}`,
                     action_id: 'report_view',
                   },
@@ -200,7 +200,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           // スレッド内に報告内容の詳細を投稿
           const detailBlocks = buildReportDetailBlocks(report_type, customFields)
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `📋 ${staffName} の ${typeLabel} 詳細（再提出）`,
+            text: `${staffName} の ${typeLabel} 詳細（再提出）`,
             blocks: detailBlocks,
           }, { thread_ts: existingThreadTs })
         } else {
@@ -210,13 +210,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
           const result = await sendProjectNotificationIfEnabled(
             {
-              text: `🔄 ${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+              text: `${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `🔄 *${staffName}* が *${typeLabel}* を *再提出* しました\n📅 ${report_date} | 🏢 ${projectName}`,
+                    text: `*${staffName}* が *${typeLabel}* を *再提出* しました\n${report_date} | ${projectName}`,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -228,21 +228,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                   elements: [
                     {
                       type: 'button',
-                      text: { type: 'plain_text', text: '✅ 承認' },
+                      text: { type: 'plain_text', text: '承認' },
                       style: 'primary',
                       action_id: 'report_approve',
                       value: data.id,
                     },
                     {
                       type: 'button',
-                      text: { type: 'plain_text', text: '🔙 差戻し' },
+                      text: { type: 'plain_text', text: '差戻し' },
                       style: 'danger',
                       action_id: 'report_reject',
                       value: data.id,
                     },
                     {
                       type: 'button',
-                      text: { type: 'plain_text', text: '📄 詳細を見る' },
+                      text: { type: 'plain_text', text: '詳細を見る' },
                       url: `${portalUrl}/reports/work/${data.id}`,
                       action_id: 'report_view',
                     },
@@ -264,7 +264,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
             const detailBlocks = buildReportDetailBlocks(report_type, customFields)
             await sendSlackBotMessage(proj.slack_channel_id, {
-              text: `📋 ${staffName} の ${typeLabel} 詳細（再提出）`,
+              text: `${staffName} の ${typeLabel} 詳細（再提出）`,
               blocks: detailBlocks,
             }, { thread_ts: result.ts })
           }
@@ -348,7 +348,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .single()
 
       if (proj?.slack_channel_id) {
-        const emoji = isApproved ? '✅' : '🔙'
         const action = isApproved ? '承認' : '差戻し'
         const slackThreadTs = data.slack_thread_ts as string | null
 
@@ -356,13 +355,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           // 既存スレッドにリプライ
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+            text: `${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `${emoji} *${staffName}* の *${typeLabel}* が *${action}* されました\n📅 ${data.report_date} | 🏢 ${projectName}${parsed.data.comment ? `\n💬 ${parsed.data.comment}` : ''}`,
+                  text: `*${staffName}* の *${typeLabel}* が *${action}* されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
                 },
               },
               ...(mentionText ? [{ type: 'context' as const, elements: [{ type: 'mrkdwn' as const, text: mentionText }] }] : []),
@@ -372,13 +371,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           // フォールバック: slack_thread_ts がない場合は従来通りトップレベル
           await sendProjectNotificationIfEnabled(
             {
-              text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+              text: `${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `${emoji} *${staffName}* の *${typeLabel}* が *${action}* されました\n📅 ${data.report_date} | 🏢 ${projectName}${parsed.data.comment ? `\n💬 ${parsed.data.comment}` : ''}`,
+                    text: `*${staffName}* の *${typeLabel}* が *${action}* されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
                   },
                 },
               ],
@@ -496,11 +495,11 @@ function generateContentSummary(
 function buildKpiSummary(reportType: string, fields: Record<string, unknown>): string | null {
   switch (reportType) {
     case 'outbound':
-      return `📞 架電 ${fields.daily_call_count_actual ?? 0} | 📱 通電 ${fields.daily_contact_count ?? 0} | 🤝 アポ ${fields.daily_appointment_count ?? 0}`
+      return `架電 ${fields.daily_call_count_actual ?? 0} | 通電 ${fields.daily_contact_count ?? 0} | アポ ${fields.daily_appointment_count ?? 0}`
     case 'inbound':
-      return `📞 受電 ${fields.daily_received_count ?? 0} | ✅ 完了 ${fields.daily_completed_count ?? 0} | ⬆️ エスカレ ${fields.daily_escalation_count ?? 0}`
+      return `受電 ${fields.daily_received_count ?? 0} | 完了 ${fields.daily_completed_count ?? 0} | エスカレ ${fields.daily_escalation_count ?? 0}`
     case 'training':
-      return fields.study_theme ? `📚 テーマ: ${fields.study_theme}` : null
+      return fields.study_theme ? `テーマ: ${fields.study_theme}` : null
     default:
       return null
   }
@@ -524,20 +523,20 @@ function buildReportDetailBlocks(
 
   switch (reportType) {
     case 'training':
-      addSection('📚 自習テーマ', fields.study_theme)
-      addSection('✅ スムーズにできた内容', fields.smooth_operations)
-      addSection('⚠️ 難しかった内容', fields.difficulties)
-      addSection('💡 自力で解決できたこと', fields.self_solved)
-      addSection('🔍 気づき', fields.awareness)
-      addSection('🎯 明日の重点項目', fields.tomorrow_focus)
-      addSection('❓ 上長への質問', fields.questions)
+      addSection('自習テーマ', fields.study_theme)
+      addSection('スムーズにできた内容', fields.smooth_operations)
+      addSection('難しかった内容', fields.difficulties)
+      addSection('自力で解決できたこと', fields.self_solved)
+      addSection('気づき', fields.awareness)
+      addSection('明日の重点項目', fields.tomorrow_focus)
+      addSection('上長への質問', fields.questions)
       if (fields.concentration_level) {
         blocks.push({
           type: 'context',
           elements: [{ type: 'mrkdwn', text: `集中度: ${'★'.repeat(Number(fields.concentration_level))}${'☆'.repeat(5 - Number(fields.concentration_level))}` }],
         })
       }
-      addSection('🩺 体調・コンディション', fields.condition_comment)
+      addSection('体調・コンディション', fields.condition_comment)
       break
 
     case 'outbound': {
@@ -552,25 +551,25 @@ function buildReportDetailBlocks(
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*📊 KPI実績*\n📞 架電: ${callActual}件 (目標: ${callTarget})\n📱 通電: ${contact}件 (通電率: ${contactRate}%)\n🤝 アポ: ${appt}件 (アポ率: ${apptRate}%)`,
+          text: `*KPI実績*\n架電: ${callActual}件 (目標: ${callTarget})\n通電: ${contact}件 (通電率: ${contactRate}%)\nアポ: ${appt}件 (アポ率: ${apptRate}%)`,
         },
       })
-      addSection('📝 自己評価', fields.self_evaluation)
-      addSection('💬 トークの工夫', fields.talk_improvements)
-      addSection('🎯 アポの特徴・傾向', fields.appointment_patterns)
-      addSection('🚫 断られパターン', fields.rejection_patterns)
+      addSection('自己評価', fields.self_evaluation)
+      addSection('トークの工夫', fields.talk_improvements)
+      addSection('アポの特徴・傾向', fields.appointment_patterns)
+      addSection('断られパターン', fields.rejection_patterns)
       if (fields.tomorrow_call_target || fields.tomorrow_appointment_target) {
         blocks.push({
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*🔮 明日の目標*\n📞 架電: ${fields.tomorrow_call_target || 0}件 | 🤝 アポ: ${fields.tomorrow_appointment_target || 0}件`,
+            text: `*明日の目標*\n架電: ${fields.tomorrow_call_target || 0}件 | アポ: ${fields.tomorrow_appointment_target || 0}件`,
           },
         })
       }
-      addSection('🔄 改善アクション', fields.tomorrow_improvement)
-      addSection('⬆️ エスカレーション', fields.escalation_items)
-      addSection('🩺 体調・コンディション', fields.condition)
+      addSection('改善アクション', fields.tomorrow_improvement)
+      addSection('エスカレーション', fields.escalation_items)
+      addSection('体調・コンディション', fields.condition)
       break
     }
 
@@ -585,16 +584,16 @@ function buildReportDetailBlocks(
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*📊 KPI実績*\n📞 受電: ${received}件\n✅ 完了: ${completed}件 (完了率: ${completionRate}%)\n⬆️ エスカレ: ${escalation}件\n⏱️ 平均対応時間: ${avgTime}`,
+          text: `*KPI実績*\n受電: ${received}件\n完了: ${completed}件 (完了率: ${completionRate}%)\nエスカレ: ${escalation}件\n平均対応時間: ${avgTime}`,
         },
       })
-      addSection('📝 自己評価', fields.self_evaluation)
-      addSection('💡 工夫した点', fields.improvements)
-      addSection('📋 よくある問い合わせ', fields.common_inquiries)
-      addSection('⚠️ 対応が難しかったケース', fields.difficult_cases)
-      addSection('🔄 改善アクション', fields.tomorrow_improvement)
-      addSection('⬆️ エスカレーション', fields.escalation_items)
-      addSection('🩺 体調・コンディション', fields.condition)
+      addSection('自己評価', fields.self_evaluation)
+      addSection('工夫した点', fields.improvements)
+      addSection('よくある問い合わせ', fields.common_inquiries)
+      addSection('対応が難しかったケース', fields.difficult_cases)
+      addSection('改善アクション', fields.tomorrow_improvement)
+      addSection('エスカレーション', fields.escalation_items)
+      addSection('体調・コンディション', fields.condition)
       break
     }
   }
