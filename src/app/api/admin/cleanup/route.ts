@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 
 export async function DELETE(request: NextRequest) {
-  try {
-    await requireAdmin()
-  } catch {
-    return NextResponse.json(
-      { error: '管理者権限が必要です' },
-      { status: 403 }
-    )
+  // CRON_SECRET or admin auth
+  const authHeader = request.headers.get('authorization')
+  const isCronAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`
+
+  if (!isCronAuth) {
+    try {
+      await requireAdmin()
+    } catch {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      )
+    }
   }
 
   try {
@@ -20,7 +26,7 @@ export async function DELETE(request: NextRequest) {
       staff_name?: string
     }
 
-    const supabase = await createServerSupabaseClient()
+    const supabase = createAdminClient()
 
     if (type === 'projects') {
       if (!project_codes || project_codes.length === 0) {
