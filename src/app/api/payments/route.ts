@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/rbac'
 
 /**
  * GET /api/payments?yearMonth=YYYY-MM&status=...
@@ -7,6 +8,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const yearMonth = searchParams.get('yearMonth')
@@ -40,7 +46,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('GET /api/payments query error:', error.message)
+      return NextResponse.json({ error: 'データの取得に失敗しました' }, { status: 500 })
     }
 
     return NextResponse.json(data ?? [])

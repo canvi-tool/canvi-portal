@@ -7,7 +7,7 @@ export type RoleName = 'owner' | 'admin' | 'staff'
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 /** オーナーメールアドレス（初回自動セットアップ用） */
-const OWNER_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp']
+const OWNER_EMAILS = (process.env.OWNER_EMAILS || 'yuji.okabayashi@canvi.co.jp,okabayashi@canvi.co.jp').split(',').map(e => e.trim()).filter(Boolean)
 
 const DEMO_USERS: Record<string, UserWithRole> = {
   owner: {

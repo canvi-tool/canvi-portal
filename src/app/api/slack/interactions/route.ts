@@ -132,6 +132,9 @@ export async function POST(request: NextRequest) {
     // Update the original Slack message (remove buttons, show result)
     const botToken = process.env.SLACK_BOT_TOKEN
     if (botToken) {
+      const messageTs = payload.message?.ts
+      const channelId = payload.channel?.id
+
       const res = await fetch('https://slack.com/api/chat.update', {
         method: 'POST',
         headers: {
@@ -139,8 +142,8 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          channel: payload.channel?.id,
-          ts: payload.message?.ts,
+          channel: channelId,
+          ts: messageTs,
           text: `${emoji} ${staffName} の ${typeLabel} が${actionLabel}されました（${projectName}）`,
           blocks: [
             {
@@ -162,9 +165,51 @@ export async function POST(request: NextRequest) {
           ],
         }),
       })
-      const result = await res.json()
-      if (!result.ok) {
-        console.error('chat.update failed:', result.error)
+      const updateResult = await res.json()
+      if (!updateResult.ok) {
+        console.error('chat.update failed:', updateResult.error)
+      }
+
+      // スレッドにリプライ（承認/差戻し詳細）
+      // slack_thread_ts を取得（なければ message.ts をフォールバック）
+      const { data: reportWithThread } = await supabase
+        .from('work_reports')
+        .select('slack_thread_ts')
+        .eq('id', reportId)
+        .single()
+
+      const threadTs = (reportWithThread?.slack_thread_ts as string) || messageTs
+
+      if (threadTs && channelId) {
+        // slack_thread_ts が未保存の場合は保存
+        if (!reportWithThread?.slack_thread_ts && messageTs) {
+          await supabase
+            .from('work_reports')
+            .update({ slack_thread_ts: messageTs })
+            .eq('id', reportId)
+        }
+
+        await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            thread_ts: threadTs,
+            text: `${emoji} ${actionLabel}されました`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `${emoji} *${actionLabel}* by <@${slackUserId}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+                },
+              },
+            ],
+          }),
+        })
       }
     }
 

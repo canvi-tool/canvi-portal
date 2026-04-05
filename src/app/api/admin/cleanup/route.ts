@@ -59,8 +59,9 @@ export async function DELETE(request: NextRequest) {
           .select('id')
 
         if (error) {
+          console.error('プロジェクト削除エラー:', error.message)
           return NextResponse.json(
-            { error: `プロジェクト削除エラー: ${error.message}` },
+            { error: 'プロジェクト削除エラーが発生しました' },
             { status: 500 }
           )
         }
@@ -121,8 +122,9 @@ export async function DELETE(request: NextRequest) {
           .select('id')
 
         if (error) {
+          console.error('スタッフ削除エラー:', error.message)
           return NextResponse.json(
-            { error: `スタッフ削除エラー: ${error.message}` },
+            { error: 'スタッフ削除エラーが発生しました' },
             { status: 500 }
           )
         }

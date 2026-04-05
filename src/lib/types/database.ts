@@ -838,6 +838,9 @@ export interface Database {
           approved_at: string | null
           approved_by: string | null
           notes: string | null
+          slack_thread_ts: string | null
+          approval_comment: string | null
+          deleted_at: string | null
           created_at: string
           updated_at: string
         }
@@ -860,6 +863,9 @@ export interface Database {
           approved_at?: string | null
           approved_by?: string | null
           notes?: string | null
+          slack_thread_ts?: string | null
+          approval_comment?: string | null
+          deleted_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -882,6 +888,9 @@ export interface Database {
           approved_at?: string | null
           approved_by?: string | null
           notes?: string | null
+          slack_thread_ts?: string | null
+          approval_comment?: string | null
+          deleted_at?: string | null
           created_at?: string
           updated_at?: string
         }

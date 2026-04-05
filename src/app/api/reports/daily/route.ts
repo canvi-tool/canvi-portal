@@ -199,13 +199,20 @@ export async function POST(request: NextRequest) {
           { noMention: true }
         )
 
-        // スレッド内に報告内容の詳細を投稿
-        if (result.ts && proj.slack_channel_id) {
+        // slack_thread_ts を保存（スレッド集約用）
+        const threadTs = result.ts
+        if (threadTs) {
+          await supabase
+            .from('work_reports')
+            .update({ slack_thread_ts: threadTs })
+            .eq('id', data.id)
+
+          // スレッド内に報告内容の詳細を投稿
           const detailBlocks = buildReportDetailBlocks(report_type, customFields)
           await sendSlackBotMessage(proj.slack_channel_id, {
             text: `📋 ${staffName} の ${typeLabel} 詳細`,
             blocks: detailBlocks,
-          }, { thread_ts: result.ts })
+          }, { thread_ts: threadTs })
         }
       }
     }

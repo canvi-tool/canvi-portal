@@ -4,7 +4,7 @@ import { dailyReportSchema, workReportApprovalSchema, DAILY_REPORT_TYPE_LABELS }
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isAdmin } from '@/lib/auth/rbac'
-import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
+import { sendProjectNotificationIfEnabled, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -123,6 +123,153 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Slack通知（再提出 → 既存スレッドにリプライ）
+    if (existing.status === 'rejected' && data.project_id) {
+      const staffName = (() => {
+        const s = data.staff as { last_name?: string; first_name?: string } | null
+        return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+      })()
+      const projectName = (data.project as { name?: string } | null)?.name || ''
+      const typeLabel = DAILY_REPORT_TYPE_LABELS[report_type as DailyReportType] || '日報'
+
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('slack_channel_id')
+        .eq('id', data.project_id)
+        .single()
+
+      if (proj?.slack_channel_id) {
+        // 既存の slack_thread_ts を取得
+        const { data: reportWithThread } = await supabase
+          .from('work_reports')
+          .select('slack_thread_ts')
+          .eq('id', id)
+          .single()
+
+        const existingThreadTs = reportWithThread?.slack_thread_ts as string | null
+
+        if (existingThreadTs) {
+          // 既存スレッドにリプライ（再提出通知 + ボタン付き）
+          const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
+          const kpiSummary = buildKpiSummary(report_type, customFields)
+
+          await sendSlackBotMessage(proj.slack_channel_id, {
+            text: `🔄 ${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `🔄 *${staffName}* が *${typeLabel}* を *再提出* しました\n📅 ${report_date} | 🏢 ${projectName}`,
+                },
+              },
+              ...(kpiSummary ? [{
+                type: 'context' as const,
+                elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
+              }] : []),
+              {
+                type: 'actions',
+                elements: [
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '✅ 承認' },
+                    style: 'primary',
+                    action_id: 'report_approve',
+                    value: data.id,
+                  },
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '🔙 差戻し' },
+                    style: 'danger',
+                    action_id: 'report_reject',
+                    value: data.id,
+                  },
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: '📄 詳細を見る' },
+                    url: `${portalUrl}/reports/work/${data.id}`,
+                    action_id: 'report_view',
+                  },
+                ],
+              },
+            ],
+          }, { thread_ts: existingThreadTs, reply_broadcast: true })
+
+          // スレッド内に報告内容の詳細を投稿
+          const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+          await sendSlackBotMessage(proj.slack_channel_id, {
+            text: `📋 ${staffName} の ${typeLabel} 詳細（再提出）`,
+            blocks: detailBlocks,
+          }, { thread_ts: existingThreadTs })
+        } else {
+          // slack_thread_ts がない場合は新規トップレベルメッセージ（フォールバック）
+          const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
+          const kpiSummary = buildKpiSummary(report_type, customFields)
+
+          const result = await sendProjectNotificationIfEnabled(
+            {
+              text: `🔄 ${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: `🔄 *${staffName}* が *${typeLabel}* を *再提出* しました\n📅 ${report_date} | 🏢 ${projectName}`,
+                  },
+                },
+                ...(kpiSummary ? [{
+                  type: 'context' as const,
+                  elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
+                }] : []),
+                {
+                  type: 'actions',
+                  elements: [
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '✅ 承認' },
+                      style: 'primary',
+                      action_id: 'report_approve',
+                      value: data.id,
+                    },
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '🔙 差戻し' },
+                      style: 'danger',
+                      action_id: 'report_reject',
+                      value: data.id,
+                    },
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '📄 詳細を見る' },
+                      url: `${portalUrl}/reports/work/${data.id}`,
+                      action_id: 'report_view',
+                    },
+                  ],
+                },
+              ],
+            },
+            data.project_id,
+            proj.slack_channel_id,
+            'report_submitted',
+            { noMention: true }
+          )
+
+          if (result.ts) {
+            await supabase
+              .from('work_reports')
+              .update({ slack_thread_ts: result.ts })
+              .eq('id', data.id)
+
+            const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+            await sendSlackBotMessage(proj.slack_channel_id, {
+              text: `📋 ${staffName} の ${typeLabel} 詳細（再提出）`,
+              blocks: detailBlocks,
+            }, { thread_ts: result.ts })
+          }
+        }
+      }
+    }
+
     return NextResponse.json(data)
   } catch (error) {
     console.error('PUT /api/reports/daily/[id] error:', error)
@@ -182,7 +329,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Slack通知（承認/差戻し）
+    // Slack通知（承認/差戻し → スレッドにリプライ）
     const staffName = (() => {
       const s = data.staff as { last_name?: string; first_name?: string } | null
       return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
@@ -201,8 +348,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (proj?.slack_channel_id) {
         const emoji = isApproved ? '✅' : '🔙'
         const action = isApproved ? '承認' : '差戻し'
-        await sendProjectNotificationIfEnabled(
-          {
+        const slackThreadTs = data.slack_thread_ts as string | null
+
+        if (slackThreadTs) {
+          // 既存スレッドにリプライ
+          await sendSlackBotMessage(proj.slack_channel_id, {
             text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
             blocks: [
               {
@@ -213,12 +363,28 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 },
               },
             ],
-          },
-          data.project_id,
-          proj.slack_channel_id,
-          'report_submitted',
-          { noMention: true }
-        )
+          }, { thread_ts: slackThreadTs, reply_broadcast: true })
+        } else {
+          // フォールバック: slack_thread_ts がない場合は従来通りトップレベル
+          await sendProjectNotificationIfEnabled(
+            {
+              text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: `${emoji} *${staffName}* の *${typeLabel}* が *${action}* されました\n📅 ${data.report_date} | 🏢 ${projectName}${parsed.data.comment ? `\n💬 ${parsed.data.comment}` : ''}`,
+                  },
+                },
+              ],
+            },
+            data.project_id,
+            proj.slack_channel_id,
+            'report_submitted',
+            { noMention: true }
+          )
+        }
       }
     }
 
@@ -320,4 +486,114 @@ function generateContentSummary(
   }
 
   return parts.join('\n')
+}
+
+// ---- ヘルパー: KPIサマリー（Slack用） ----
+function buildKpiSummary(reportType: string, fields: Record<string, unknown>): string | null {
+  switch (reportType) {
+    case 'outbound':
+      return `📞 架電 ${fields.daily_call_count_actual ?? 0} | 📱 通電 ${fields.daily_contact_count ?? 0} | 🤝 アポ ${fields.daily_appointment_count ?? 0}`
+    case 'inbound':
+      return `📞 受電 ${fields.daily_received_count ?? 0} | ✅ 完了 ${fields.daily_completed_count ?? 0} | ⬆️ エスカレ ${fields.daily_escalation_count ?? 0}`
+    case 'training':
+      return fields.study_theme ? `📚 テーマ: ${fields.study_theme}` : null
+    default:
+      return null
+  }
+}
+
+// ---- ヘルパー: Slackスレッド用の日報詳細ブロック ----
+function buildReportDetailBlocks(
+  reportType: string,
+  fields: Record<string, unknown>
+): SlackBlock[] {
+  const blocks: SlackBlock[] = []
+
+  const addSection = (label: string, value: unknown) => {
+    if (value && String(value).trim()) {
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*${label}*\n${String(value)}` },
+      })
+    }
+  }
+
+  switch (reportType) {
+    case 'training':
+      addSection('📚 自習テーマ', fields.study_theme)
+      addSection('✅ スムーズにできた内容', fields.smooth_operations)
+      addSection('⚠️ 難しかった内容', fields.difficulties)
+      addSection('💡 自力で解決できたこと', fields.self_solved)
+      addSection('🔍 気づき', fields.awareness)
+      addSection('🎯 明日の重点項目', fields.tomorrow_focus)
+      addSection('❓ 上長への質問', fields.questions)
+      if (fields.concentration_level) {
+        blocks.push({
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `集中度: ${'★'.repeat(Number(fields.concentration_level))}${'☆'.repeat(5 - Number(fields.concentration_level))}` }],
+        })
+      }
+      addSection('🩺 体調・コンディション', fields.condition_comment)
+      break
+
+    case 'outbound': {
+      const callTarget = Number(fields.daily_call_count_target || 0)
+      const callActual = Number(fields.daily_call_count_actual || 0)
+      const contact = Number(fields.daily_contact_count || 0)
+      const appt = Number(fields.daily_appointment_count || 0)
+      const contactRate = callActual > 0 ? ((contact / callActual) * 100).toFixed(1) : '0'
+      const apptRate = callActual > 0 ? ((appt / callActual) * 100).toFixed(1) : '0'
+
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*📊 KPI実績*\n📞 架電: ${callActual}件 (目標: ${callTarget})\n📱 通電: ${contact}件 (通電率: ${contactRate}%)\n🤝 アポ: ${appt}件 (アポ率: ${apptRate}%)`,
+        },
+      })
+      addSection('📝 自己評価', fields.self_evaluation)
+      addSection('💬 トークの工夫', fields.talk_improvements)
+      addSection('🎯 アポの特徴・傾向', fields.appointment_patterns)
+      addSection('🚫 断られパターン', fields.rejection_patterns)
+      if (fields.tomorrow_call_target || fields.tomorrow_appointment_target) {
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*🔮 明日の目標*\n📞 架電: ${fields.tomorrow_call_target || 0}件 | 🤝 アポ: ${fields.tomorrow_appointment_target || 0}件`,
+          },
+        })
+      }
+      addSection('🔄 改善アクション', fields.tomorrow_improvement)
+      addSection('⬆️ エスカレーション', fields.escalation_items)
+      addSection('🩺 体調・コンディション', fields.condition)
+      break
+    }
+
+    case 'inbound': {
+      const received = Number(fields.daily_received_count || 0)
+      const completed = Number(fields.daily_completed_count || 0)
+      const escalation = Number(fields.daily_escalation_count || 0)
+      const avgTime = fields.daily_avg_handle_time ? `${fields.daily_avg_handle_time}分` : '-'
+      const completionRate = received > 0 ? ((completed / received) * 100).toFixed(1) : '0'
+
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*📊 KPI実績*\n📞 受電: ${received}件\n✅ 完了: ${completed}件 (完了率: ${completionRate}%)\n⬆️ エスカレ: ${escalation}件\n⏱️ 平均対応時間: ${avgTime}`,
+        },
+      })
+      addSection('📝 自己評価', fields.self_evaluation)
+      addSection('💡 工夫した点', fields.improvements)
+      addSection('📋 よくある問い合わせ', fields.common_inquiries)
+      addSection('⚠️ 対応が難しかったケース', fields.difficult_cases)
+      addSection('🔄 改善アクション', fields.tomorrow_improvement)
+      addSection('⬆️ エスカレーション', fields.escalation_items)
+      addSection('🩺 体調・コンディション', fields.condition)
+      break
+    }
+  }
+
+  return blocks
 }
