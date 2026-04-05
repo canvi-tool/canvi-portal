@@ -8,6 +8,7 @@ import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { BulkActionBar } from '@/components/shared/bulk-action-bar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -133,6 +134,19 @@ export default function ProjectsPage() {
       accessor: (row) => row.end_date ?? '',
       cell: (row) =>
         row.end_date || <span className="text-muted-foreground">-</span>,
+    },
+    {
+      key: 'shift_approval_mode',
+      header: 'シフト承認',
+      accessor: (row) => row.shift_approval_mode ?? 'AUTO',
+      cell: (row) => {
+        const mode = row.shift_approval_mode ?? 'AUTO'
+        return (
+          <Badge variant={mode === 'APPROVAL' ? 'default' : 'secondary'} className="text-xs">
+            {mode === 'APPROVAL' ? '承認制' : '自動承認'}
+          </Badge>
+        )
+      },
     },
     {
       key: 'slack',
