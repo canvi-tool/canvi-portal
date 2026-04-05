@@ -884,9 +884,11 @@ export async function updateSlackUserProfile(
  * 出勤通知
  */
 export function buildClockInNotification(staffName: string, projectName?: string, time?: string): SlackMessage {
-  const timeStr = time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
+  const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが出勤しました (${timeStr})`,
+    text: `${staffName}さんが出勤しました (${dateStr} ${timeStr})`,
     blocks: [
       {
         type: 'section',
@@ -895,7 +897,7 @@ export function buildClockInNotification(staffName: string, projectName?: string
           text: `🟢 *${staffName}* さんが出勤しました`,
         },
         fields: [
-          { type: 'mrkdwn', text: `*時刻:* ${timeStr}` },
+          { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
           { type: 'mrkdwn', text: `*PJ:* ${projectName || '未選択'}` },
         ],
       },
@@ -907,9 +909,11 @@ export function buildClockInNotification(staffName: string, projectName?: string
  * 退勤通知
  */
 export function buildClockOutNotification(staffName: string, workHours: string, time?: string, projectName?: string): SlackMessage {
-  const timeStr = time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
+  const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが退勤しました (${timeStr}, 勤務${workHours})`,
+    text: `${staffName}さんが退勤しました (${dateStr} ${timeStr}, 勤務${workHours})`,
     blocks: [
       {
         type: 'section',
@@ -918,7 +922,7 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
           text: `🔴 *${staffName}* さんが退勤しました`,
         },
         fields: [
-          { type: 'mrkdwn', text: `*時刻:* ${timeStr}` },
+          { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
           { type: 'mrkdwn', text: `*勤務時間:* ${workHours}` },
           ...(projectName ? [{ type: 'mrkdwn' as const, text: `*PJ:* ${projectName}` }] : []),
         ],
@@ -995,15 +999,17 @@ export function buildOvertimeWarningNotification(staffName: string, hours: numbe
  * 休憩開始通知
  */
 export function buildBreakStartNotification(staffName: string, time?: string): SlackMessage {
-  const timeStr = time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
+  const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが休憩に入りました (${timeStr})`,
+    text: `${staffName}さんが休憩に入りました (${dateStr} ${timeStr})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:coffee: *${staffName}* さんが休憩に入りました (${timeStr})`,
+          text: `:coffee: *${staffName}* さんが休憩に入りました (${dateStr} ${timeStr})`,
         },
       },
     ],
@@ -1014,15 +1020,17 @@ export function buildBreakStartNotification(staffName: string, time?: string): S
  * 休憩終了通知
  */
 export function buildBreakEndNotification(staffName: string, breakMinutes: number, time?: string): SlackMessage {
-  const timeStr = time || new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
+  const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが休憩から戻りました (${timeStr}, 休憩${breakMinutes}分)`,
+    text: `${staffName}さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:arrow_forward: *${staffName}* さんが休憩から戻りました (${timeStr}, 休憩${breakMinutes}分)`,
+          text: `:arrow_forward: *${staffName}* さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
         },
       },
     ],
