@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
           data.project_id,
           proj.slack_channel_id,
           'report_submitted',
-          { noMention: true }
+          { staffId: staffId }
         )
 
         // slack_thread_ts を保存（スレッド集約用）

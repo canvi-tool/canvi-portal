@@ -4,7 +4,7 @@ import { dailyReportSchema, workReportApprovalSchema, DAILY_REPORT_TYPE_LABELS }
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isAdmin } from '@/lib/auth/rbac'
-import { sendProjectNotificationIfEnabled, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
+import { sendProjectNotificationIfEnabled, sendSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -152,6 +152,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           // 既存スレッドにリプライ（再提出通知 + ボタン付き）
           const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
           const kpiSummary = buildKpiSummary(report_type, customFields)
+          const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
 
           await sendSlackBotMessage(proj.slack_channel_id, {
             text: `🔄 ${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
@@ -192,6 +193,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                   },
                 ],
               },
+              ...(mentionText ? [{ type: 'context' as const, elements: [{ type: 'mrkdwn' as const, text: mentionText }] }] : []),
             ],
           }, { thread_ts: existingThreadTs, reply_broadcast: true })
 
@@ -251,7 +253,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             data.project_id,
             proj.slack_channel_id,
             'report_submitted',
-            { noMention: true }
+            { staffId: data.staff_id }
           )
 
           if (result.ts) {
@@ -352,6 +354,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         if (slackThreadTs) {
           // 既存スレッドにリプライ
+          const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
           await sendSlackBotMessage(proj.slack_channel_id, {
             text: `${emoji} ${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
             blocks: [
@@ -362,6 +365,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                   text: `${emoji} *${staffName}* の *${typeLabel}* が *${action}* されました\n📅 ${data.report_date} | 🏢 ${projectName}${parsed.data.comment ? `\n💬 ${parsed.data.comment}` : ''}`,
                 },
               },
+              ...(mentionText ? [{ type: 'context' as const, elements: [{ type: 'mrkdwn' as const, text: mentionText }] }] : []),
             ],
           }, { thread_ts: slackThreadTs, reply_broadcast: true })
         } else {
@@ -382,7 +386,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             data.project_id,
             proj.slack_channel_id,
             'report_submitted',
-            { noMention: true }
+            { staffId: data.staff_id }
           )
         }
       }
