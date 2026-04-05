@@ -125,7 +125,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
           notification,
           projectId,
           project.slack_channel_id,
-          'member_removed'
+          'member_removed',
+          { noMention: true }
         )
 
         // Slackチャンネルからリムーブ

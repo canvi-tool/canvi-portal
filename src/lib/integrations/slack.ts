@@ -83,16 +83,15 @@ export async function sendProjectNotificationIfEnabled(
   projectId: string | null | undefined,
   projectSlackChannelId: string | null | undefined,
   eventType: NotificationToggleKey,
-  options?: { thread_ts?: string; staffId?: string | string[] | null }
+  options?: { thread_ts?: string; staffId?: string | string[] | null; noMention?: boolean }
 ): Promise<{ success: boolean; error?: string; skipped?: boolean; ts?: string }> {
   const enabled = await isNotificationEnabled(projectId, eventType)
   if (!enabled) {
     return { success: true, skipped: true }
   }
   return sendProjectNotification(message, projectSlackChannelId, {
-    ...options,
-    projectId,
-    staffId: options?.staffId,
+    thread_ts: options?.thread_ts,
+    ...(options?.noMention ? {} : { projectId, staffId: options?.staffId }),
   })
 }
 
