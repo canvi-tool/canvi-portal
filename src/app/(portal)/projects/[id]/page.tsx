@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -88,7 +88,16 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const deleteProject = useDeleteProject()
 
   const { demoAccount } = useAuth()
-  const isOwner = demoAccount?.role === 'owner'
+  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
+
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwner(true)
+      })
+      .catch(() => {})
+  }, [])
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [addMemberOpen, setAddMemberOpen] = useState(false)

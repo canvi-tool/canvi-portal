@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
@@ -41,8 +41,17 @@ const PROJECT_TYPE_TABS = [
 export default function ProjectsPage() {
   const router = useRouter()
   const { demoAccount } = useAuth()
-  const isOwner = demoAccount?.role === 'owner'
+  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwner(true)
+      })
+      .catch(() => {})
+  }, [])
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeTab, setTypeTab] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())

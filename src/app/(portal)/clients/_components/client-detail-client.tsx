@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -41,7 +42,16 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 export function ClientDetailClient({ client }: ClientDetailClientProps) {
   const router = useRouter()
   const { demoAccount } = useAuth()
-  const isOwner = demoAccount?.role === 'owner'
+  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
+
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwner(true)
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleDelete() {
     if (!confirm('このクライアントを削除しますか？')) return
