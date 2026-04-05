@@ -13,14 +13,12 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { useDailyReports, type DailyReport } from '@/hooks/use-daily-reports'
-import { useStaffList } from '@/hooks/use-projects'
 import {
   DAILY_REPORT_TYPE_LABELS,
   DAILY_REPORT_STATUS_LABELS,
@@ -75,7 +73,6 @@ export default function WorkReportsPage() {
 
   // Data fetching
   const { data: reports = [], isLoading } = useDailyReports(queryParams)
-  const { data: staffList = [] } = useStaffList()
 
   // Stats (current month)
   const stats = useMemo(() => {

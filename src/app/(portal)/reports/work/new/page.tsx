@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -32,7 +31,6 @@ import {
   type DailyReportType,
   DAILY_REPORT_TYPE_LABELS,
   calcOutboundRates,
-  calcInboundRates,
 } from '@/lib/validations/daily-report'
 
 function getTodayString(): string {
@@ -101,15 +99,11 @@ export default function NewDailyReportPage() {
     Number(appointmentCount) || 0
   )
 
-  const inboundRates = calcInboundRates(
-    Number(incomingCount) || 0,
-    Number(completedCount) || 0
-  )
-
   // --- Submit ---
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any
       if (reportType === 'training') {
         data = {
@@ -372,7 +366,7 @@ export default function NewDailyReportPage() {
                     <SelectValue placeholder="プロジェクトを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map((p: any) => (
+                    {projects.map((p: { id: string; name: string }) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
                       </SelectItem>
@@ -625,7 +619,7 @@ export default function NewDailyReportPage() {
                     <SelectValue placeholder="プロジェクトを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map((p: any) => (
+                    {projects.map((p: { id: string; name: string }) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
                       </SelectItem>
