@@ -83,7 +83,7 @@ export async function sendProjectNotificationIfEnabled(
   projectId: string | null | undefined,
   projectSlackChannelId: string | null | undefined,
   eventType: NotificationToggleKey,
-  options?: { thread_ts?: string; staffId?: string | null }
+  options?: { thread_ts?: string; staffId?: string | string[] | null }
 ): Promise<{ success: boolean; error?: string; skipped?: boolean; ts?: string }> {
   const enabled = await isNotificationEnabled(projectId, eventType)
   if (!enabled) {
@@ -226,34 +226,36 @@ export async function sendSlackBotMessage(
  */
 export async function getProjectMentionText(
   projectId?: string | null,
-  selfStaffId?: string | null
+  selfStaffId?: string | string[] | null
 ): Promise<string> {
   if (!getBotToken()) return ''
 
   const supabase = await createServerSupabaseClient()
   const slackUserIds: Set<string> = new Set()
 
-  // 本人のSlack User IDを取得
-  if (selfStaffId) {
-    const { data: selfStaff } = await supabase
-      .from('staff')
-      .select('email, custom_fields')
-      .eq('id', selfStaffId)
-      .single()
+  // 本人のSlack User IDを取得（単一または複数対応）
+  const staffIds = selfStaffId
+    ? (Array.isArray(selfStaffId) ? selfStaffId : [selfStaffId])
+    : []
 
-    if (selfStaff) {
-      const cf = (selfStaff.custom_fields as Record<string, unknown>) || {}
+  if (staffIds.length > 0) {
+    const { data: staffList } = await supabase
+      .from('staff')
+      .select('id, email, custom_fields')
+      .in('id', staffIds)
+
+    for (const staff of staffList || []) {
+      const cf = (staff.custom_fields as Record<string, unknown>) || {}
       let slackId = cf.slack_user_id as string | undefined
-      if (!slackId && selfStaff.email) {
-        const lookup = await lookupSlackUserByEmail(selfStaff.email)
+      if (!slackId && staff.email) {
+        const lookup = await lookupSlackUserByEmail(staff.email)
         if (lookup.slackUserId) {
           slackId = lookup.slackUserId
-          // キャッシュに保存
           const updatedCf = { ...cf, slack_user_id: slackId }
           await supabase
             .from('staff')
             .update({ custom_fields: updatedCf })
-            .eq('id', selfStaffId)
+            .eq('id', staff.id)
         }
       }
       if (slackId) slackUserIds.add(slackId)
@@ -338,7 +340,7 @@ export async function getProjectMentionText(
 export async function sendProjectNotification(
   message: SlackMessage,
   projectSlackChannelId?: string | null,
-  options?: { thread_ts?: string; projectId?: string | null; staffId?: string | null }
+  options?: { thread_ts?: string; projectId?: string | null; staffId?: string | string[] | null }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
 

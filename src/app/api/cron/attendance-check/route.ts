@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         projectName: string
         slackChannelId: string | null
         names: string[]
+        staffIds: string[]
       }>()
 
       for (const shift of todayShifts) {
@@ -72,9 +73,11 @@ export async function GET(request: NextRequest) {
             projectName: project?.name || '未割当',
             slackChannelId: project?.slack_channel_id || null,
             names: [],
+            staffIds: [],
           }
           const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
           existing.names.push(staffName)
+          if (shift.staff_id) existing.staffIds.push(shift.staff_id)
           missingByProject.set(projectId, existing)
         }
       }
@@ -87,9 +90,10 @@ export async function GET(request: NextRequest) {
 
           const notification = buildMissingClockNotification(info.names, today)
           if (info.slackChannelId) {
-            // PJ紐付けチャンネルに送信（管理者メンション付き）
+            // PJ紐付けチャンネルに送信（管理者+本人メンション付き）
             await sendProjectNotification(notification, info.slackChannelId, {
               projectId: projectId !== '__no_project__' ? projectId : null,
+              staffId: info.staffIds.length > 0 ? info.staffIds : null,
             })
           } else {
             // デフォルトアラートチャンネルに送信
@@ -102,7 +106,7 @@ export async function GET(request: NextRequest) {
     // 2. 残業警告: 勤務時間10時間超 → PJ別チャンネルに送信
     const { data: longWorkRecords } = await admin
       .from('attendance_records')
-      .select('user_id, work_minutes, project_id, staff:staff_id(last_name, first_name), project:project_id(slack_channel_id)')
+      .select('user_id, staff_id, work_minutes, project_id, staff:staff_id(last_name, first_name), project:project_id(slack_channel_id)')
       .eq('date', today)
       .is('deleted_at', null)
       .gt('work_minutes', 600)
@@ -121,6 +125,7 @@ export async function GET(request: NextRequest) {
         if (project?.slack_channel_id) {
           await sendProjectNotification(notification, project.slack_channel_id, {
             projectId: rec.project_id,
+            staffId: rec.staff_id,
           })
         } else {
           await sendSlackAlert(notification)
