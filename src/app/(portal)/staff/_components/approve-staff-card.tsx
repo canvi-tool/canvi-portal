@@ -82,6 +82,9 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
       if (data.results?.google && !data.results.google.success) {
         warnings.push(`Google: ${data.results.google.error}`)
       }
+      if (data.results?.slack && !data.results.slack.success) {
+        warnings.push(`Slack: ${data.results.slack.error}`)
+      }
       if (data.results?.portal && !data.results.portal.success) {
         warnings.push(`ポータル: ${data.results.portal.error}`)
       }
@@ -96,6 +99,7 @@ export function ApproveStaffCard({ staff }: ApproveStaffCardProps) {
       } else {
         const desc = [
           data.google_email ? `Googleアカウント: ${data.google_email}` : '',
+          data.results?.slack?.success ? 'Slack招待: 送信済み' : '',
           googleNote || '',
         ].filter(Boolean).join('\n')
         toast.success('承認が完了しました', {

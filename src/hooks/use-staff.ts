@@ -9,6 +9,7 @@ type Staff = Tables<'staff'>
 
 export interface ProvisioningResult {
   google_workspace?: { success: boolean; email?: string; error?: string }
+  slack?: { success: boolean; email?: string; error?: string }
   zoom?: { success: boolean; email?: string; error?: string }
   portal?: { success: boolean; email?: string; error?: string }
 }

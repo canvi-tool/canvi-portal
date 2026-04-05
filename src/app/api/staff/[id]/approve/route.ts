@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 import { createUser as createGoogleUser, resolveAvailableEmail } from '@/lib/integrations/google-workspace'
+import { inviteUserToSlackWorkspace } from '@/lib/integrations/slack'
 import { sendEmail, buildAccountActivatedEmail } from '@/lib/email/send'
 import type { Json } from '@/lib/types/database'
 
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const results: {
       google?: { success: boolean; email?: string; error?: string }
+      slack?: { success: boolean; email?: string; error?: string }
       portal?: { success: boolean; error?: string }
     } = {}
 
@@ -92,7 +94,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // ② Supabaseポータルアカウント作成（パスワード指定）
+    // ② Slack招待（Google発行成功後に自動実行）
+    if (results.google?.success && canviEmail) {
+      try {
+        const slackResult = await inviteUserToSlackWorkspace(canviEmail)
+        results.slack = {
+          success: slackResult.success,
+          email: canviEmail,
+          ...(slackResult.error ? { error: slackResult.error } : {}),
+        }
+      } catch (err) {
+        console.error('Slack invitation error:', err)
+        results.slack = {
+          success: false,
+          error: err instanceof Error ? err.message : 'Slack招待に失敗しました',
+        }
+      }
+    }
+
+    // ③ Supabaseポータルアカウント作成（パスワード指定）
     if (canviEmail) {
       try {
         const adminClient = createAdminClient()
@@ -156,7 +176,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
       }
 
-      // ③ 個人メール宛にアカウント発行完了通知（パスワード付き）
+      // ④ 個人メール宛にアカウント発行完了通知（パスワード付き）
       if (staff.personal_email && canviEmail) {
         try {
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://canvi-portal.vercel.app'
@@ -173,7 +193,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // ④ スタッフレコード更新（承認完了）
+    // ⑤ スタッフレコード更新（承認完了）
     const nextStaffCode = body.staff_code as string | undefined
 
     const { error: updateError } = await supabase

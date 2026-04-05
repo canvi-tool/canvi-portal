@@ -39,6 +39,14 @@ export default function NewStaffPage() {
           }
         }
 
+        if (provisioningResult.slack) {
+          if (provisioningResult.slack.success) {
+            messages.push(`Slack招待: ${provisioningResult.slack.email}`)
+          } else {
+            warnings.push(`Slack: ${provisioningResult.slack.error}`)
+          }
+        }
+
         if (provisioningResult.portal) {
           if (provisioningResult.portal.success) {
             messages.push(`ポータル招待: ${provisioningResult.portal.email}`)

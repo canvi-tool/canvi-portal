@@ -5,6 +5,7 @@ import { getCurrentUser, requireAdmin, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
 import { createUser as createZoomUser } from '@/lib/integrations/zoom'
+import { inviteUserToSlackWorkspace } from '@/lib/integrations/slack'
 import { generateNextStaffCode } from '@/lib/staff-code'
 import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
 import { filterStaffListForStaffRole } from '@/lib/security/field-filter'
@@ -200,6 +201,24 @@ export async function POST(request: NextRequest) {
         provisioning.google_workspace = {
           success: false,
           error: err instanceof Error ? err.message : 'Google Workspaceアカウントの作成に失敗しました',
+        }
+      }
+    }
+
+    // Slack workspace invitation（Google発行成功後に自動実行）
+    if (provisioning.google_workspace?.success && provisioning.google_workspace.email) {
+      try {
+        const slackResult = await inviteUserToSlackWorkspace(provisioning.google_workspace.email)
+        provisioning.slack = {
+          success: slackResult.success,
+          email: provisioning.google_workspace.email,
+          ...(slackResult.error ? { error: slackResult.error } : {}),
+        }
+      } catch (err) {
+        console.error('Slack invitation error:', err)
+        provisioning.slack = {
+          success: false,
+          error: err instanceof Error ? err.message : 'Slack招待に失敗しました',
         }
       }
     }
