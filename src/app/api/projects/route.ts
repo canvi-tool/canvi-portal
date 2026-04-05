@@ -106,6 +106,14 @@ export async function POST(request: NextRequest) {
 
     const { project_code, project_type, project_number, google_calendar_id, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, ...rest } = parsed.data
 
+    // 新ステータス→旧DB enum値マッピング（マイグレーション前の互換対応）
+    const STATUS_TO_DB: Record<string, string> = {
+      proposing: 'planning',
+      active: 'active',
+      ended: 'completed',
+    }
+    const dbStatus = STATUS_TO_DB[rest.status] || rest.status
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -118,7 +126,7 @@ export async function POST(request: NextRequest) {
         project_number,
         name: rest.name,
         description: rest.description || null,
-        status: rest.status,
+        status: dbStatus,
         client_id: client_id || null,
         client_name: rest.client_name || null,
         start_date: rest.start_date || null,

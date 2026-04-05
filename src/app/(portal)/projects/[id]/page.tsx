@@ -34,6 +34,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import { AssignmentTable } from '../_components/assignment-table'
+import { SlackChannelCombobox } from '../_components/slack-channel-combobox'
 import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
 import { ASSIGNMENT_STATUS_LABELS } from '@/lib/validations/assignment'
 import { useQueryClient } from '@tanstack/react-query'
@@ -556,23 +557,33 @@ export default function ProjectDetailPage({ params }: PageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2 rounded-lg border p-3 bg-muted/30">
-                  <Hash className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">
-                      通知先チャンネル:{' '}
-                      {project.slack_channel_name ? (
-                        <span className="font-mono text-primary">#{project.slack_channel_name}</span>
-                      ) : (
-                        <span className="text-muted-foreground">未設定</span>
-                      )}
-                    </p>
-                    {!project.slack_channel_id && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        プロジェクト編集画面からSlackチャンネルを設定してください
-                      </p>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">通知先チャンネル</Label>
+                  <SlackChannelCombobox
+                    value={project.slack_channel_id || ''}
+                    onValueChange={async (channelId, channelName) => {
+                      try {
+                        const res = await fetch(`/api/projects/${id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            ...project,
+                            project_type: project.project_type || 'BPO',
+                            project_number: project.project_number || '001',
+                            name: project.name,
+                            status: project.status,
+                            slack_channel_id: channelId || null,
+                            slack_channel_name: channelName || null,
+                          }),
+                        })
+                        if (!res.ok) throw new Error('更新に失敗しました')
+                        queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) })
+                        toast.success(channelId ? `チャンネル「#${channelName}」を設定しました` : 'チャンネル連携を解除しました')
+                      } catch {
+                        toast.error('Slackチャンネルの更新に失敗しました')
+                      }
+                    }}
+                  />
                 </div>
               </CardContent>
             </Card>

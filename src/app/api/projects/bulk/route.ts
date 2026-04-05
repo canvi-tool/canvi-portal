@@ -8,18 +8,26 @@ const bulkStatusSchema = z.object({
   status: z.enum(['proposing', 'active', 'ended']),
 })
 
+// 新ステータス→旧DB enum値マッピング（マイグレーション前の互換対応）
+const STATUS_TO_DB: Record<string, string> = {
+  proposing: 'planning',
+  active: 'active',
+  ended: 'completed',
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     await requireAdmin()
 
     const body = await request.json()
     const { ids, status } = bulkStatusSchema.parse(body)
+    const dbStatus = STATUS_TO_DB[status] || status
 
     const supabase = await createServerSupabaseClient()
 
     const { data, error } = await supabase
       .from('projects')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status: dbStatus, updated_at: new Date().toISOString() })
       .in('id', ids)
       .select('id')
 
