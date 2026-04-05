@@ -80,15 +80,17 @@ export async function GET(request: NextRequest) {
       }
 
       // PJ別に通知送信
-      for (const [, info] of missingByProject) {
+      for (const [projectId, info] of missingByProject) {
         if (info.names.length > 0) {
           results.missing_clock.alerted += info.names.length
           results.missing_clock.names.push(...info.names)
 
           const notification = buildMissingClockNotification(info.names, today)
           if (info.slackChannelId) {
-            // PJ紐付けチャンネルに送信
-            await sendProjectNotification(notification, info.slackChannelId)
+            // PJ紐付けチャンネルに送信（管理者メンション付き）
+            await sendProjectNotification(notification, info.slackChannelId, {
+              projectId: projectId !== '__no_project__' ? projectId : null,
+            })
           } else {
             // デフォルトアラートチャンネルに送信
             await sendSlackAlert(notification)
@@ -117,7 +119,9 @@ export async function GET(request: NextRequest) {
 
         const notification = buildOvertimeWarningNotification(name, hours, today)
         if (project?.slack_channel_id) {
-          await sendProjectNotification(notification, project.slack_channel_id)
+          await sendProjectNotification(notification, project.slack_channel_id, {
+            projectId: rec.project_id,
+          })
         } else {
           await sendSlackAlert(notification)
         }

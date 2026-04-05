@@ -96,7 +96,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         sendProjectNotification(
           buildClockOutNotification(staffName, `${hours}h ${mins}m`, undefined, projectName),
           projectSlackChannelId,
-          record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
+          {
+            ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+            projectId: record.project_id,
+            staffId: record.staff_id,
+          }
         ).catch(() => {})
 
         return NextResponse.json(data)
@@ -136,7 +140,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           sendProjectNotification(
             buildBreakStartNotification(breakStaffName),
             breakChannelId,
-            record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
+            {
+              ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+              projectId: record.project_id,
+              staffId: record.staff_id,
+            }
           ).catch(() => {})
         }
 
@@ -184,7 +192,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           sendProjectNotification(
             buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
             breakEndChannelId,
-            record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : undefined
+            {
+              ...(record.slack_thread_ts ? { thread_ts: record.slack_thread_ts } : {}),
+              projectId: record.project_id,
+              staffId: record.staff_id,
+            }
           ).catch(() => {})
         }
 

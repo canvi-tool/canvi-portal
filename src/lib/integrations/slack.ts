@@ -83,13 +83,17 @@ export async function sendProjectNotificationIfEnabled(
   projectId: string | null | undefined,
   projectSlackChannelId: string | null | undefined,
   eventType: NotificationToggleKey,
-  options?: { thread_ts?: string }
+  options?: { thread_ts?: string; staffId?: string | null }
 ): Promise<{ success: boolean; error?: string; skipped?: boolean; ts?: string }> {
   const enabled = await isNotificationEnabled(projectId, eventType)
   if (!enabled) {
     return { success: true, skipped: true }
   }
-  return sendProjectNotification(message, projectSlackChannelId, options)
+  return sendProjectNotification(message, projectSlackChannelId, {
+    ...options,
+    projectId,
+    staffId: options?.staffId,
+  })
 }
 
 export interface SlackMessage {
@@ -216,6 +220,94 @@ export async function sendSlackBotMessage(
 }
 
 /**
+ * プロジェクトの管理者以上（admin/owner）のSlack User IDを取得
+ * + 指定されたスタッフ本人のSlack User IDも取得
+ * メンション文字列を生成して返す
+ */
+export async function getProjectMentionText(
+  projectId?: string | null,
+  selfStaffId?: string | null
+): Promise<string> {
+  if (!getBotToken()) return ''
+
+  const supabase = await createServerSupabaseClient()
+  const slackUserIds: Set<string> = new Set()
+
+  // 本人のSlack User IDを取得
+  if (selfStaffId) {
+    const { data: selfStaff } = await supabase
+      .from('staff')
+      .select('email, custom_fields')
+      .eq('id', selfStaffId)
+      .single()
+
+    if (selfStaff) {
+      const cf = (selfStaff.custom_fields as Record<string, unknown>) || {}
+      let slackId = cf.slack_user_id as string | undefined
+      if (!slackId && selfStaff.email) {
+        const lookup = await lookupSlackUserByEmail(selfStaff.email)
+        if (lookup.slackUserId) {
+          slackId = lookup.slackUserId
+          // キャッシュに保存
+          const updatedCf = { ...cf, slack_user_id: slackId }
+          await supabase
+            .from('staff')
+            .update({ custom_fields: updatedCf })
+            .eq('id', selfStaffId)
+        }
+      }
+      if (slackId) slackUserIds.add(slackId)
+    }
+  }
+
+  // PJ管理者以上のSlack User IDを取得
+  if (projectId) {
+    // 全admin/ownerのSlack User IDを取得
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: allAdminRoles } = await supabase
+      .from('user_roles')
+      .select('user_id, role:role_id(name)')
+
+    const allAdminUserIds = (allAdminRoles || [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((ur: any) => {
+        const roleName = ur.role?.name
+        return roleName === 'admin' || roleName === 'owner'
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((ur: any) => ur.user_id as string)
+
+    if (allAdminUserIds.length > 0) {
+      const { data: adminStaffs } = await supabase
+        .from('staff')
+        .select('id, user_id, email, custom_fields')
+        .in('user_id', allAdminUserIds)
+        .is('deleted_at', null)
+
+      for (const staff of adminStaffs || []) {
+        const cf = (staff.custom_fields as Record<string, unknown>) || {}
+        let slackId = cf.slack_user_id as string | undefined
+        if (!slackId && staff.email) {
+          const lookup = await lookupSlackUserByEmail(staff.email)
+          if (lookup.slackUserId) {
+            slackId = lookup.slackUserId
+            const updatedCf = { ...cf, slack_user_id: slackId }
+            await supabase
+              .from('staff')
+              .update({ custom_fields: updatedCf })
+              .eq('id', staff.id)
+          }
+        }
+        if (slackId) slackUserIds.add(slackId)
+      }
+    }
+  }
+
+  if (slackUserIds.size === 0) return ''
+  return Array.from(slackUserIds).map(id => `<@${id}>`).join(' ')
+}
+
+/**
  * プロジェクト紐付けチャンネルに通知送信
  * Bot Token + channelId で送信し、tsを返す（スレッド化に必須）
  *
@@ -223,13 +315,36 @@ export async function sendSlackBotMessage(
  * 1. SLACK_BOT_TOKEN が設定されていること
  * 2. プロジェクトに slack_channel_id が設定されていること（または SLACK_DEFAULT_CHANNEL_ID）
  * 3. Botが対象チャンネルに手動で招待済みであること（/invite @BotName）
+ *
+ * mentions オプション:
+ * - projectId + staffId を渡すと、PJ管理者以上 + 本人をメンション付きで通知
  */
 export async function sendProjectNotification(
   message: SlackMessage,
   projectSlackChannelId?: string | null,
-  options?: { thread_ts?: string }
+  options?: { thread_ts?: string; projectId?: string | null; staffId?: string | null }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
+
+  // メンション文字列を生成してメッセージに追加
+  if (options?.projectId || options?.staffId) {
+    try {
+      const mentionText = await getProjectMentionText(options.projectId, options.staffId)
+      if (mentionText) {
+        // text にメンションを追加（通知に必要）
+        message.text = `${mentionText}\n${message.text}`
+        // blocks がある場合、先頭にメンション用contextブロックを追加
+        if (message.blocks && message.blocks.length > 0) {
+          message.blocks.push({
+            type: 'context',
+            elements: [{ type: 'mrkdwn', text: mentionText }],
+          })
+        }
+      }
+    } catch (err) {
+      console.warn('メンション生成に失敗:', err)
+    }
+  }
 
   if (channelId && getBotToken()) {
     return sendSlackBotMessage(channelId, message, options)

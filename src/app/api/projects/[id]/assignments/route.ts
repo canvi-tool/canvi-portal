@@ -125,7 +125,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         notification,
         projectId,
         project.slack_channel_id,
-        'member_assigned'
+        'member_assigned',
+        { staffId: parsed.data.staff_id }
       )
     }
 

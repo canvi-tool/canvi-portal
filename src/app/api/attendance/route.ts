@@ -172,7 +172,8 @@ export async function POST(request: NextRequest) {
     try {
       const result = await sendProjectNotification(
         buildClockInNotification(staffName, projectName),
-        projectSlackChannelId
+        projectSlackChannelId,
+        { projectId, staffId: staffRecord?.id }
       )
       if (result.ts && data?.id) {
         await supabase
