@@ -242,11 +242,9 @@ export async function checkPermission(
 /**
  * マイナンバー担当者権限チェック
  * user_permissionsテーブルでmy_number/readが付与されているか確認
- * ownerは全権限を持つため常にtrue
+ * オーナーであってもマイナンバー担当者にアサインされていなければアクセス不可
  */
 export async function hasMyNumberAccess(user: UserWithRole): Promise<boolean> {
-  if (isOwner(user)) return true
-
   try {
     const adminClient = createAdminClient()
 
