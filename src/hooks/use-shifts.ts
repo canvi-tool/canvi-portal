@@ -49,7 +49,9 @@ async function fetchShifts(params?: ShiftQueryParams): Promise<ShiftWithRelation
   if (params?.status) searchParams.set('status', params.status)
   const res = await fetch(`/api/shifts?${searchParams.toString()}`)
   if (!res.ok) throw new Error('シフトの取得に失敗しました')
-  return res.json()
+  const json = await res.json()
+  // API returns { data: [...], total: N }
+  return json.data ?? json
 }
 
 async function fetchShift(id: string): Promise<ShiftWithRelations> {
@@ -61,7 +63,9 @@ async function fetchShift(id: string): Promise<ShiftWithRelations> {
 async function fetchPendingShifts(): Promise<ShiftWithRelations[]> {
   const res = await fetch('/api/shifts?status=SUBMITTED')
   if (!res.ok) throw new Error('承認待ちシフトの取得に失敗しました')
-  return res.json()
+  const json = await res.json()
+  // API returns { data: [...], total: N }
+  return json.data ?? json
 }
 
 async function createShift(data: ShiftFormValues): Promise<Shift> {

@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { dailyReportSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
+import { sendProjectNotificationIfEnabled, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
 
 // ---- GET: 日報一覧取得 ----
 export async function GET(request: NextRequest) {
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       if (proj?.slack_channel_id) {
         const kpiSummary = buildKpiSummary(report_type, customFields)
         const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
-        await sendProjectNotificationIfEnabled(
+        const result = await sendProjectNotificationIfEnabled(
           {
             text: `📝 ${staffName} が ${typeLabel} を提出しました（${projectName}）`,
             blocks: [
@@ -198,6 +198,15 @@ export async function POST(request: NextRequest) {
           'report_submitted',
           { noMention: true }
         )
+
+        // スレッド内に報告内容の詳細を投稿
+        if (result.ts && proj.slack_channel_id) {
+          const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+          await sendSlackBotMessage(proj.slack_channel_id, {
+            text: `📋 ${staffName} の ${typeLabel} 詳細`,
+            blocks: detailBlocks,
+          }, { thread_ts: result.ts })
+        }
       }
     }
 
@@ -220,6 +229,102 @@ function buildKpiSummary(reportType: string, fields: Record<string, unknown>): s
     default:
       return null
   }
+}
+
+// ---- ヘルパー: Slackスレッド用の日報詳細ブロック ----
+function buildReportDetailBlocks(
+  reportType: string,
+  fields: Record<string, unknown>
+): SlackBlock[] {
+  const blocks: SlackBlock[] = []
+
+  const addSection = (label: string, value: unknown) => {
+    if (value && String(value).trim()) {
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*${label}*\n${String(value)}` },
+      })
+    }
+  }
+
+  switch (reportType) {
+    case 'training':
+      addSection('📚 自習テーマ', fields.study_theme)
+      addSection('✅ スムーズにできた内容', fields.smooth_operations)
+      addSection('⚠️ 難しかった内容', fields.difficulties)
+      addSection('💡 自力で解決できたこと', fields.self_solved)
+      addSection('🔍 気づき', fields.awareness)
+      addSection('🎯 明日の重点項目', fields.tomorrow_focus)
+      addSection('❓ 上長への質問', fields.questions)
+      if (fields.concentration_level) {
+        blocks.push({
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `集中度: ${'★'.repeat(Number(fields.concentration_level))}${'☆'.repeat(5 - Number(fields.concentration_level))}` }],
+        })
+      }
+      addSection('🩺 体調・コンディション', fields.condition_comment)
+      break
+
+    case 'outbound': {
+      const callTarget = Number(fields.daily_call_count_target || 0)
+      const callActual = Number(fields.daily_call_count_actual || 0)
+      const contact = Number(fields.daily_contact_count || 0)
+      const appt = Number(fields.daily_appointment_count || 0)
+      const contactRate = callActual > 0 ? ((contact / callActual) * 100).toFixed(1) : '0'
+      const apptRate = callActual > 0 ? ((appt / callActual) * 100).toFixed(1) : '0'
+
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*📊 KPI実績*\n📞 架電: ${callActual}件 (目標: ${callTarget})\n📱 通電: ${contact}件 (通電率: ${contactRate}%)\n🤝 アポ: ${appt}件 (アポ率: ${apptRate}%)`,
+        },
+      })
+      addSection('📝 自己評価', fields.self_evaluation)
+      addSection('💬 トークの工夫', fields.talk_improvements)
+      addSection('🎯 アポの特徴・傾向', fields.appointment_patterns)
+      addSection('🚫 断られパターン', fields.rejection_patterns)
+      if (fields.tomorrow_call_target || fields.tomorrow_appointment_target) {
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*🔮 明日の目標*\n📞 架電: ${fields.tomorrow_call_target || 0}件 | 🤝 アポ: ${fields.tomorrow_appointment_target || 0}件`,
+          },
+        })
+      }
+      addSection('🔄 改善アクション', fields.tomorrow_improvement)
+      addSection('⬆️ エスカレーション', fields.escalation_items)
+      addSection('🩺 体調・コンディション', fields.condition)
+      break
+    }
+
+    case 'inbound': {
+      const received = Number(fields.daily_received_count || 0)
+      const completed = Number(fields.daily_completed_count || 0)
+      const escalation = Number(fields.daily_escalation_count || 0)
+      const avgTime = fields.daily_avg_handle_time ? `${fields.daily_avg_handle_time}分` : '-'
+      const completionRate = received > 0 ? ((completed / received) * 100).toFixed(1) : '0'
+
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*📊 KPI実績*\n📞 受電: ${received}件\n✅ 完了: ${completed}件 (完了率: ${completionRate}%)\n⬆️ エスカレ: ${escalation}件\n⏱️ 平均対応時間: ${avgTime}`,
+        },
+      })
+      addSection('📝 自己評価', fields.self_evaluation)
+      addSection('💡 工夫した点', fields.improvements)
+      addSection('📋 よくある問い合わせ', fields.common_inquiries)
+      addSection('⚠️ 対応が難しかったケース', fields.difficult_cases)
+      addSection('🔄 改善アクション', fields.tomorrow_improvement)
+      addSection('⬆️ エスカレーション', fields.escalation_items)
+      addSection('🩺 体調・コンディション', fields.condition)
+      break
+    }
+  }
+
+  return blocks
 }
 
 // ---- ヘルパー: 検索用テキストサマリー生成 ----
