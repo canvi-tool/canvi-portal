@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
 import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
@@ -175,14 +176,22 @@ export async function POST(request: NextRequest) {
         projectSlackChannelId,
         { projectId, staffId: staffRecord?.id }
       )
+      console.log(`[thread] clock-in notification result: success=${result.success}, ts=${result.ts}, recordId=${data?.id}`)
       if (result.ts && data?.id) {
-        await supabase
+        // Admin clientでthread_tsを保存（RLSバイパス・確実に保存する）
+        const adminSupabase = createAdminClient()
+        const { error: updateErr } = await adminSupabase
           .from('attendance_records')
           .update({ slack_thread_ts: result.ts })
           .eq('id', data.id)
+        if (updateErr) {
+          console.error(`[thread] slack_thread_ts save FAILED: ${updateErr.message}`)
+        } else {
+          console.log(`[thread] slack_thread_ts saved: ${result.ts} for record ${data.id}`)
+        }
       }
-    } catch {
-      // Slack通知失敗は出勤処理に影響させない
+    } catch (err) {
+      console.error('[thread] clock-in notification error:', err)
     }
 
     return NextResponse.json(data, { status: 201 })

@@ -44,6 +44,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const now = new Date().toISOString()
+    console.log(`[thread] PUT action=${action}, recordId=${id}, slack_thread_ts=${record.slack_thread_ts || 'NULL'}`)
 
     switch (action) {
       case 'clock_out': {

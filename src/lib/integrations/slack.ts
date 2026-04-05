@@ -189,21 +189,24 @@ export async function sendSlackBotMessage(
   }
 
   try {
+    const payload = {
+      channel: channelId,
+      text: message.text,
+      blocks: message.blocks,
+      username: message.username || 'Canvi Portal',
+      icon_emoji: message.icon_emoji || ':office:',
+      ...(options?.thread_ts ? { thread_ts: options.thread_ts } : {}),
+      ...(options?.reply_broadcast ? { reply_broadcast: true } : {}),
+    }
+    console.log(`[thread] sendSlackBotMessage: channel=${channelId}, thread_ts=${options?.thread_ts || 'NONE'}`)
+
     const res = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        channel: channelId,
-        text: message.text,
-        blocks: message.blocks,
-        username: message.username || 'Canvi Portal',
-        icon_emoji: message.icon_emoji || ':office:',
-        ...(options?.thread_ts ? { thread_ts: options.thread_ts } : {}),
-        ...(options?.reply_broadcast ? { reply_broadcast: true } : {}),
-      }),
+      body: JSON.stringify(payload),
     })
 
     const data = await res.json()
