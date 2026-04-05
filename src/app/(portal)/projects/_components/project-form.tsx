@@ -17,7 +17,9 @@ import {
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
 import { SlackChannelCombobox } from './slack-channel-combobox'
-import { Loader2, Hash, ShieldCheck } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Hash, ShieldCheck, Bot, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Client {
   id: string
@@ -75,6 +77,49 @@ export function ProjectForm({
   const statusValue = watch('status')
   const projectType = watch('project_type')
   const projectNumber = watch('project_number')
+  const slackChannelId = watch('slack_channel_id')
+
+  // Slack Bot参加状態の管理
+  const [botStatus, setBotStatus] = useState<'unknown' | 'checking' | 'joined' | 'not_joined'>('unknown')
+  const [botJoining, setBotJoining] = useState(false)
+
+  // チャンネルが変更されたらBot参加状態をチェック
+  useEffect(() => {
+    if (!slackChannelId) {
+      setBotStatus('unknown')
+      return
+    }
+    setBotStatus('checking')
+    fetch(`/api/slack/bot-join?channelId=${slackChannelId}`)
+      .then((r) => r.json())
+      .then((res) => {
+        setBotStatus(res.isMember ? 'joined' : 'not_joined')
+      })
+      .catch(() => setBotStatus('unknown'))
+  }, [slackChannelId])
+
+  const handleBotJoin = async () => {
+    if (!slackChannelId) return
+    setBotJoining(true)
+    try {
+      const res = await fetch('/api/slack/bot-join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: slackChannelId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBotStatus('joined')
+        toast.success(`Botがチャンネルに参加しました`)
+      } else {
+        toast.error(data.error || 'Botの参加に失敗しました')
+      }
+    } catch {
+      toast.error('Botの参加に失敗しました')
+    } finally {
+      setBotJoining(false)
+    }
+  }
 
   // Auto-generate project_code from type + number
   useEffect(() => {
@@ -364,6 +409,52 @@ export function ProjectForm({
             />
           )}
         />
+
+        {/* Bot参加状態 & 招待ボタン */}
+        {slackChannelId && (
+          <div className="flex items-center gap-2 mt-2">
+            {botStatus === 'checking' && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Bot状態を確認中...
+              </Badge>
+            )}
+            {botStatus === 'joined' && (
+              <Badge variant="outline" className="text-xs gap-1 border-green-300 text-green-700 bg-green-50">
+                <CheckCircle2 className="h-3 w-3" />
+                Bot参加済み（通知・スレッド化OK）
+              </Badge>
+            )}
+            {botStatus === 'not_joined' && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs gap-1 border-amber-300 text-amber-700 bg-amber-50">
+                  <AlertTriangle className="h-3 w-3" />
+                  Bot未参加
+                </Badge>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleBotJoin}
+                  disabled={botJoining}
+                >
+                  {botJoining ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Bot className="h-3 w-3" />
+                  )}
+                  Botを招待
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+        {slackChannelId && botStatus === 'not_joined' && (
+          <p className="text-xs text-amber-600">
+            Botが未参加のため出退勤通知のスレッド化が動作しません。「Botを招待」で参加させてください。
+          </p>
+        )}
       </div>
 
       {/* Actions */}

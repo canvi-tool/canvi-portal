@@ -1,0 +1,102 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+
+/**
+ * POST /api/slack/bot-join
+ * Botを指定チャンネルに参加させる（管理者の明示的な操作のみ）
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || (!isOwner(user) && !isAdmin(user))) {
+      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    }
+
+    const { channelId } = await request.json()
+    if (!channelId) {
+      return NextResponse.json({ error: 'チャンネルIDが必要です' }, { status: 400 })
+    }
+
+    const token = process.env.SLACK_BOT_TOKEN
+    if (!token) {
+      return NextResponse.json({ error: 'SLACK_BOT_TOKENが未設定です' }, { status: 500 })
+    }
+
+    // conversations.join でBotをチャンネルに参加させる
+    const res = await fetch('https://slack.com/api/conversations.join', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ channel: channelId }),
+    })
+
+    const data = await res.json()
+
+    if (!data.ok) {
+      const errorMessages: Record<string, string> = {
+        'channel_not_found': 'チャンネルが見つかりません',
+        'is_archived': 'アーカイブ済みチャンネルには参加できません',
+        'method_not_supported_for_channel_type': 'このチャンネルタイプには参加できません（プライベートチャンネルの場合はSlack上で /invite してください）',
+        'missing_scope': 'Botに channels:join スコープがありません',
+        'not_authed': 'Bot Tokenが無効です',
+      }
+      return NextResponse.json({
+        error: errorMessages[data.error] || `Slack API error: ${data.error}`,
+      }, { status: 400 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      channel: {
+        id: data.channel?.id,
+        name: data.channel?.name,
+      },
+    })
+  } catch (error) {
+    console.error('POST /api/slack/bot-join error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
+/**
+ * GET /api/slack/bot-join?channelId=xxx
+ * Botが指定チャンネルに参加済みか確認
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    const channelId = new URL(request.url).searchParams.get('channelId')
+    if (!channelId) {
+      return NextResponse.json({ error: 'channelIdが必要です' }, { status: 400 })
+    }
+
+    const token = process.env.SLACK_BOT_TOKEN
+    if (!token) {
+      return NextResponse.json({ isMember: false, error: 'SLACK_BOT_TOKENが未設定' })
+    }
+
+    // conversations.info でBot参加状態を確認
+    const res = await fetch(`https://slack.com/api/conversations.info?channel=${channelId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const data = await res.json()
+
+    if (!data.ok) {
+      return NextResponse.json({ isMember: false, error: data.error })
+    }
+
+    return NextResponse.json({
+      isMember: data.channel?.is_member === true,
+      channelName: data.channel?.name,
+    })
+  } catch (error) {
+    console.error('GET /api/slack/bot-join error:', error)
+    return NextResponse.json({ isMember: false, error: 'サーバーエラー' })
+  }
+}
