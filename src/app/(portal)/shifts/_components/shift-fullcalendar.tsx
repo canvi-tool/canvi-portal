@@ -30,8 +30,18 @@ export interface CalendarShift {
   approvalMode: 'AUTO' | 'APPROVAL'
 }
 
+export interface GoogleCalendarEvent {
+  id: string
+  summary: string
+  start: string
+  end: string
+  description?: string
+  location?: string
+}
+
 interface ShiftFullCalendarProps {
   shifts: CalendarShift[]
+  googleEvents?: GoogleCalendarEvent[]
   isManager: boolean
   onShiftClick: (shift: CalendarShift) => void
   onShiftDragUpdate: (shiftId: string, date: string, startTime: string, endTime: string) => Promise<boolean>
@@ -61,13 +71,49 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
       extendedProps: {
         shift: s,
         statusColor: STATUS_COLORS[s.status] || '#9ca3af',
+        isGoogleEvent: false,
       },
       editable: true,
     }
   })
 }
 
+function toGoogleCalendarFCEvents(events: GoogleCalendarEvent[]) {
+  return events.map((e) => ({
+    id: `gcal-${e.id}`,
+    title: e.summary || '(予定)',
+    start: e.start,
+    end: e.end,
+    backgroundColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: '#94a3b8',
+    textColor: '#475569',
+    editable: false,
+    extendedProps: {
+      isGoogleEvent: true,
+      summary: e.summary,
+      description: e.description,
+      location: e.location,
+    },
+  }))
+}
+
 function renderEventContent(eventInfo: EventContentArg) {
+  const isGoogleEvent = eventInfo.event.extendedProps.isGoogleEvent
+
+  if (isGoogleEvent) {
+    const summary = eventInfo.event.extendedProps.summary as string || '(予定)'
+    const startStr = eventInfo.event.start ? formatTime(eventInfo.event.start) : ''
+    const endStr = eventInfo.event.end ? formatTime(eventInfo.event.end) : ''
+    return (
+      <div className="flex flex-col h-full p-0.5 overflow-hidden opacity-70">
+        <div className="text-[10px] text-slate-500">
+          {startStr}-{endStr}
+        </div>
+        <div className="text-[10px] font-medium text-slate-600 truncate">{summary}</div>
+      </div>
+    )
+  }
+
   const shift = eventInfo.event.extendedProps.shift as CalendarShift
   const statusColor = eventInfo.event.extendedProps.statusColor as string
 
@@ -90,6 +136,7 @@ function renderEventContent(eventInfo: EventContentArg) {
 
 export function ShiftFullCalendar({
   shifts,
+  googleEvents = [],
   isManager,
   onShiftClick,
   onShiftDragUpdate,
@@ -108,10 +155,13 @@ export function ShiftFullCalendar({
     shiftDate: string
   } | null>(null)
 
-  const events = toFullCalendarEvents(shifts)
+  const shiftEvents = toFullCalendarEvents(shifts)
+  const gcalEvents = toGoogleCalendarFCEvents(googleEvents)
+  const events = [...shiftEvents, ...gcalEvents]
 
   // イベントドラッグ完了（移動）
   const handleEventDrop = useCallback(async (info: EventDropArg) => {
+    if (info.event.extendedProps.isGoogleEvent) { info.revert(); return }
     const shift = info.event.extendedProps.shift as CalendarShift
 
     if (!isManager && shift.status === 'APPROVED') {
@@ -132,8 +182,9 @@ export function ShiftFullCalendar({
     }
   }, [isManager, onShiftDragUpdate])
 
-  // イベン���リサイズ完了
+  // イベントリサイズ完了
   const handleEventResize = useCallback(async (info: EventResizeDoneArg) => {
+    if (info.event.extendedProps.isGoogleEvent) { info.revert(); return }
     const shift = info.event.extendedProps.shift as CalendarShift
 
     if (!isManager && shift.status === 'APPROVED') {
@@ -156,6 +207,9 @@ export function ShiftFullCalendar({
 
   // イベントクリック
   const handleEventClick = useCallback((info: { event: EventApi; jsEvent: MouseEvent }) => {
+    // Googleカレンダーイベントはクリック無効
+    if (info.event.extendedProps.isGoogleEvent) return
+
     const shift = info.event.extendedProps.shift as CalendarShift
 
     // 右クリック → コンテキストメニュー

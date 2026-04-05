@@ -22,7 +22,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/page-header'
-import { ShiftFullCalendar, type CalendarShift } from './_components/shift-fullcalendar'
+import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
 import { ShiftBulkDialog } from './_components/shift-bulk-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
@@ -48,6 +48,7 @@ export default function ShiftsPage() {
 
   // Data
   const [shifts, setShifts] = useState<CalendarShift[]>([])
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,6 +78,7 @@ export default function ShiftsPage() {
 
   const [isManager, setIsManager] = useState(false)
   const [currentStaffId, setCurrentStaffId] = useState('')
+  const [currentUserId, setCurrentUserId] = useState('')
   const [userRoles, setUserRoles] = useState<string[]>([])
 
   useEffect(() => {
@@ -86,6 +88,7 @@ export default function ShiftsPage() {
         if (data.isManager != null) setIsManager(data.isManager)
         if (data.staffId) setCurrentStaffId(data.staffId)
         if (data.roles) setUserRoles(data.roles)
+        if (data.id) setCurrentUserId(data.id)
       })
       .catch(() => {})
   }, [])
@@ -169,6 +172,35 @@ export default function ShiftsPage() {
   useEffect(() => {
     fetchShifts()
   }, [fetchShifts])
+
+  // Googleカレンダー予定取得
+  useEffect(() => {
+    if (!currentUserId || !dateRange.start || !dateRange.end) {
+      setGoogleEvents([])
+      return
+    }
+    const timeMin = `${dateRange.start}T00:00:00+09:00`
+    const timeMax = `${dateRange.end}T23:59:59+09:00`
+    const params = new URLSearchParams({ user_ids: currentUserId, time_min: timeMin, time_max: timeMax })
+    fetch(`/api/calendar/availability?${params}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.members?.length) { setGoogleEvents([]); return }
+        const member = data.members[0]
+        const gcEvents: GoogleCalendarEvent[] = (member.busy || [])
+          .filter((b: { source: string }) => b.source === 'google')
+          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string }) => ({
+            id: b.eventId || `gcal-${b.start}`,
+            summary: b.summary || '(予定)',
+            start: b.start,
+            end: b.end,
+            description: b.description,
+            location: b.location,
+          }))
+        setGoogleEvents(gcEvents)
+      })
+      .catch(() => setGoogleEvents([]))
+  }, [currentUserId, dateRange.start, dateRange.end])
 
   // FullCalendar handlers
 
@@ -508,6 +540,7 @@ export default function ShiftsPage() {
       {/* FullCalendar */}
       <ShiftFullCalendar
         shifts={shifts}
+        googleEvents={googleEvents}
         isManager={isManager}
         onShiftClick={handleShiftClick}
         onShiftDragUpdate={handleShiftDragUpdate}

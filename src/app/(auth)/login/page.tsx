@@ -76,7 +76,7 @@ function LoginPageInner() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/callback`,
-          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+          scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
