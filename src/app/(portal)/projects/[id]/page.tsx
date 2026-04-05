@@ -563,17 +563,34 @@ export default function ProjectDetailPage({ params }: PageProps) {
                     value={project.slack_channel_id || ''}
                     onValueChange={async (channelId, channelName) => {
                       try {
+                        // DB旧ステータス→スキーマ用マッピング
+                        const DB_TO_UI_STATUS: Record<string, string> = {
+                          planning: 'proposing',
+                          active: 'active',
+                          completed: 'ended',
+                          paused: 'ended',
+                          archived: 'ended',
+                          proposing: 'proposing',
+                          ended: 'ended',
+                        }
                         const res = await fetch(`/api/projects/${id}`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            ...project,
                             project_type: project.project_type || 'BPO',
                             project_number: project.project_number || '001',
+                            project_code: project.project_code || '',
                             name: project.name,
-                            status: project.status,
-                            slack_channel_id: channelId || null,
-                            slack_channel_name: channelName || null,
+                            description: project.description || '',
+                            status: DB_TO_UI_STATUS[project.status] || 'active',
+                            client_id: project.client_id || '',
+                            client_name: project.client_name || '',
+                            start_date: project.start_date || '',
+                            end_date: project.end_date || '',
+                            google_calendar_id: (project.custom_fields as Record<string, string> | null)?.google_calendar_id || '',
+                            slack_channel_id: channelId || '',
+                            slack_channel_name: channelName || '',
+                            shift_approval_mode: project.shift_approval_mode || 'AUTO',
                           }),
                         })
                         if (!res.ok) throw new Error('更新に失敗しました')
