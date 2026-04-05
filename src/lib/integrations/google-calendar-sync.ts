@@ -16,7 +16,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
         shift_type, notes, google_calendar_event_id,
-        staff!inner(user_id, display_name),
+        staff!inner(user_id, last_name, first_name),
         projects!inner(name)
       `)
       .eq('id', shiftId)
@@ -24,7 +24,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
 
     if (!shift) return
 
-    const staffData = shift.staff as unknown as { user_id: string; display_name: string }
+    const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
     const projectData = shift.projects as unknown as { name: string }
     const userId = staffData.user_id
     if (!userId) return

@@ -11,8 +11,9 @@ import {
   User,
   Briefcase,
   CalendarDays,
-
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -37,127 +38,23 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/layout/page-header'
+import {
+  usePendingShifts,
+  useApproveShift,
+  useRejectShift,
+  useRequestRevision,
+  type ShiftWithRelations,
+} from '@/hooks/use-shifts'
 
-// --- Types ---
+// --- Helpers ---
 
-type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
-
-interface PendingShift {
-  id: string
-  staffId: string
-  staffName: string
-  projectId: string
-  projectName: string
-  date: string
-  startTime: string
-  endTime: string
-  status: ShiftStatus
-  submittedAt: string
-  notes?: string
-  approvalHistory: ApprovalEvent[]
+const ACTION_LABEL: Record<string, string> = {
+  APPROVE: '承認',
+  REJECT: '却下',
+  NEEDS_REVISION: '修正依頼',
+  MODIFY: '修正',
+  COMMENT: 'コメント',
 }
-
-interface ApprovalEvent {
-  action: string
-  by: string
-  at: string
-  comment?: string
-}
-
-// --- Demo Data ---
-
-const today = new Date()
-function dayOffset(offset: number): string {
-  const d = new Date(today)
-  d.setDate(d.getDate() + offset)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const INITIAL_SHIFTS: PendingShift[] = [
-  {
-    id: 'p1',
-    staffId: 's2',
-    staffName: '田中美咲',
-    projectId: 'pj2',
-    projectName: 'WHITE営業代行',
-    date: dayOffset(0),
-    startTime: '10:00',
-    endTime: '19:00',
-    status: 'SUBMITTED',
-    submittedAt: '2026-03-27T20:00:00',
-    notes: '午前中はミーティングあり',
-    approvalHistory: [
-      { action: '作成', by: '田中美咲', at: '2026-03-27T19:50:00' },
-      { action: '申請', by: '田中美咲', at: '2026-03-27T20:00:00' },
-    ],
-  },
-  {
-    id: 'p2',
-    staffId: 's1',
-    staffName: '佐藤健太',
-    projectId: 'pj3',
-    projectName: 'ミズテック受電',
-    date: dayOffset(1),
-    startTime: '09:00',
-    endTime: '18:00',
-    status: 'SUBMITTED',
-    submittedAt: '2026-03-28T08:00:00',
-    approvalHistory: [
-      { action: '作成', by: '佐藤健太', at: '2026-03-28T07:50:00' },
-      { action: '申請', by: '佐藤健太', at: '2026-03-28T08:00:00' },
-    ],
-  },
-  {
-    id: 'p3',
-    staffId: 's3',
-    staffName: '鈴木一郎',
-    projectId: 'pj2',
-    projectName: 'WHITE営業代行',
-    date: dayOffset(2),
-    startTime: '09:00',
-    endTime: '17:00',
-    status: 'SUBMITTED',
-    submittedAt: '2026-03-28T10:00:00',
-    notes: '15時に外出予定',
-    approvalHistory: [
-      { action: '作成', by: '鈴木一郎', at: '2026-03-28T09:45:00' },
-      { action: '申請', by: '鈴木一郎', at: '2026-03-28T10:00:00' },
-    ],
-  },
-  {
-    id: 'p4',
-    staffId: 's4',
-    staffName: '山田花子',
-    projectId: 'pj3',
-    projectName: 'ミズテック受電',
-    date: dayOffset(0),
-    startTime: '13:00',
-    endTime: '22:00',
-    status: 'SUBMITTED',
-    submittedAt: '2026-03-27T22:00:00',
-    approvalHistory: [
-      { action: '作成', by: '山田花子', at: '2026-03-27T21:50:00' },
-      { action: '申請', by: '山田花子', at: '2026-03-27T22:00:00' },
-    ],
-  },
-  {
-    id: 'p5',
-    staffId: 's5',
-    staffName: '高橋雄太',
-    projectId: 'pj2',
-    projectName: 'WHITE営業代行',
-    date: dayOffset(-1),
-    startTime: '13:00',
-    endTime: '22:00',
-    status: 'SUBMITTED',
-    submittedAt: '2026-03-26T23:00:00',
-    notes: '夜間対応込み',
-    approvalHistory: [
-      { action: '作成', by: '高橋雄太', at: '2026-03-26T22:45:00' },
-      { action: '申請', by: '高橋雄太', at: '2026-03-26T23:00:00' },
-    ],
-  },
-]
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
@@ -170,22 +67,41 @@ function formatDateJP(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}(${weekdays[d.getDay()]})`
 }
 
+function formatTime(time: string): string {
+  // start_time/end_time come as "HH:MM" or "HH:MM:SS" - show HH:MM
+  return time.slice(0, 5)
+}
+
 // --- Component ---
 
 export default function PendingApprovalsPage() {
   const router = useRouter()
-  const [shifts, setShifts] = useState<PendingShift[]>(INITIAL_SHIFTS)
+
+  // Data fetching
+  const { data: shifts = [], isLoading, isError } = usePendingShifts()
+
+  // Mutations
+  const approveShift = useApproveShift()
+  const rejectShift = useRejectShift()
+  const requestRevision = useRequestRevision()
+
+  // UI state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [detailShift, setDetailShift] = useState<PendingShift | null>(null)
+  const [detailShift, setDetailShift] = useState<ShiftWithRelations | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [comment, setComment] = useState('')
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
 
-  const pendingShifts = useMemo(() => shifts.filter(s => s.status === 'SUBMITTED'), [shifts])
+  const pendingShifts = useMemo(
+    () => shifts.filter((s) => s.status === 'SUBMITTED'),
+    [shifts],
+  )
+
+  const isMutating = approveShift.isPending || rejectShift.isPending || requestRevision.isPending
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -197,59 +113,150 @@ export default function PendingApprovalsPage() {
     if (selectedIds.size === pendingShifts.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(pendingShifts.map(s => s.id)))
+      setSelectedIds(new Set(pendingShifts.map((s) => s.id)))
     }
   }
 
-  const openDetail = (shift: PendingShift) => {
+  const openDetail = (shift: ShiftWithRelations) => {
     setDetailShift(shift)
-    setEditStartTime(shift.startTime)
-    setEditEndTime(shift.endTime)
+    setEditStartTime(formatTime(shift.start_time))
+    setEditEndTime(formatTime(shift.end_time))
     setComment('')
     setDialogOpen(true)
   }
 
-  const handleAction = (id: string, action: 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION') => {
-    setShifts(prev => prev.map(s => {
-      if (s.id !== id) return s
-      return {
-        ...s,
-        status: action,
-        startTime: editStartTime || s.startTime,
-        endTime: editEndTime || s.endTime,
-        approvalHistory: [
-          ...s.approvalHistory,
-          {
-            action: action === 'APPROVED' ? '承認' : action === 'REJECTED' ? '却下' : '修正依頼',
-            by: '管理者',
-            at: new Date().toISOString(),
-            comment: comment || undefined,
-          },
-        ],
-      }
-    }))
-    setDialogOpen(false)
-    setDetailShift(null)
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
+  const handleApprove = (id: string) => {
+    approveShift.mutate(
+      { id, comment: comment || undefined },
+      {
+        onSuccess: () => {
+          toast.success('シフトを承認しました')
+          setDialogOpen(false)
+          setDetailShift(null)
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        },
+        onError: (error) => {
+          toast.error(error.message || '承認に失敗しました')
+        },
+      },
+    )
   }
 
-  const handleBulkApprove = () => {
-    setShifts(prev => prev.map(s => {
-      if (!selectedIds.has(s.id)) return s
-      return {
-        ...s,
-        status: 'APPROVED' as ShiftStatus,
-        approvalHistory: [
-          ...s.approvalHistory,
-          { action: '一括承認', by: '管理者', at: new Date().toISOString() },
-        ],
+  const handleReject = (id: string) => {
+    rejectShift.mutate(
+      { id, comment: comment || undefined },
+      {
+        onSuccess: () => {
+          toast.success('シフトを却下しました')
+          setDialogOpen(false)
+          setDetailShift(null)
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        },
+        onError: (error) => {
+          toast.error(error.message || '却下に失敗しました')
+        },
+      },
+    )
+  }
+
+  const handleRequestRevision = (id: string) => {
+    requestRevision.mutate(
+      {
+        id,
+        comment: comment || undefined,
+        new_start_time: editStartTime || undefined,
+        new_end_time: editEndTime || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success('修正依頼を送信しました')
+          setDialogOpen(false)
+          setDetailShift(null)
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        },
+        onError: (error) => {
+          toast.error(error.message || '修正依頼に失敗しました')
+        },
+      },
+    )
+  }
+
+  const handleBulkApprove = async () => {
+    const ids = Array.from(selectedIds)
+    let successCount = 0
+    let errorCount = 0
+
+    for (const id of ids) {
+      try {
+        await approveShift.mutateAsync({ id })
+        successCount++
+      } catch {
+        errorCount++
       }
-    }))
+    }
+
+    if (successCount > 0) {
+      toast.success(`${successCount}件のシフトを承認しました`)
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount}件の承認に失敗しました`)
+    }
     setSelectedIds(new Set())
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="承認待ちシフト"
+          description="申請されたシフトを確認し、承認・却下・修正依頼を行います"
+          actions={
+            <Button variant="outline" size="sm" onClick={() => router.push('/shifts')}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              シフト一覧に戻る
+            </Button>
+          }
+        />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">読み込み中...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="承認待ちシフト"
+          description="申請されたシフトを確認し、承認・却下・修正依頼を行います"
+          actions={
+            <Button variant="outline" size="sm" onClick={() => router.push('/shifts')}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              シフト一覧に戻る
+            </Button>
+          }
+        />
+        <div className="py-12 text-center text-destructive">
+          データの取得に失敗しました。ページを再読み込みしてください。
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -271,8 +278,12 @@ export default function PendingApprovalsPage() {
           <span className="text-sm font-medium text-blue-800">
             {selectedIds.size}件選択中
           </span>
-          <Button size="sm" onClick={handleBulkApprove}>
-            <CheckCircle2 className="h-4 w-4 mr-1" />
+          <Button size="sm" onClick={handleBulkApprove} disabled={isMutating}>
+            {approveShift.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+            )}
             一括承認
           </Button>
           <Button
@@ -320,13 +331,13 @@ export default function PendingApprovalsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingShifts.map(shift => (
+                {pendingShifts.map((shift) => (
                   <TableRow
                     key={shift.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => openDetail(shift)}
                   >
-                    <TableCell onClick={e => e.stopPropagation()}>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(shift.id)}
@@ -334,27 +345,28 @@ export default function PendingApprovalsPage() {
                         className="h-4 w-4 rounded border-gray-300"
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{shift.staffName}</TableCell>
+                    <TableCell className="font-medium">{shift.staff_name ?? '-'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{shift.projectName}</Badge>
+                      <Badge variant="outline">{shift.project_name ?? '-'}</Badge>
                     </TableCell>
-                    <TableCell>{formatDateJP(shift.date)}</TableCell>
-                    <TableCell>{shift.startTime} - {shift.endTime}</TableCell>
+                    <TableCell>{formatDateJP(shift.shift_date)}</TableCell>
+                    <TableCell>{formatTime(shift.start_time)} - {formatTime(shift.end_time)}</TableCell>
                     <TableCell>
                       <Badge variant="default" className="bg-amber-100 text-amber-800 border-amber-200">
                         申請中
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDateTime(shift.submittedAt)}
+                      {shift.submitted_at ? formatDateTime(shift.submitted_at) : '-'}
                     </TableCell>
-                    <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           size="sm"
                           variant="default"
                           className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                          onClick={() => handleAction(shift.id, 'APPROVED')}
+                          disabled={isMutating}
+                          onClick={() => handleApprove(shift.id)}
                         >
                           承認
                         </Button>
@@ -362,7 +374,8 @@ export default function PendingApprovalsPage() {
                           size="sm"
                           variant="destructive"
                           className="h-7 text-xs"
-                          onClick={() => handleAction(shift.id, 'REJECTED')}
+                          disabled={isMutating}
+                          onClick={() => handleReject(shift.id)}
                         >
                           却下
                         </Button>
@@ -370,9 +383,8 @@ export default function PendingApprovalsPage() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs text-orange-700 border-orange-300 hover:bg-orange-50"
-                          onClick={() => {
-                            openDetail(shift)
-                          }}
+                          disabled={isMutating}
+                          onClick={() => openDetail(shift)}
                         >
                           修正依頼
                         </Button>
@@ -402,19 +414,19 @@ export default function PendingApprovalsPage() {
               <div className="space-y-3 rounded-lg border p-3">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{detailShift.staffName}</span>
+                  <span className="text-sm font-medium">{detailShift.staff_name ?? '-'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Briefcase className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{detailShift.projectName}</span>
+                  <span className="text-sm">{detailShift.project_name ?? '-'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{formatDateJP(detailShift.date)}</span>
+                  <span className="text-sm">{formatDateJP(detailShift.shift_date)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{detailShift.startTime} - {detailShift.endTime}</span>
+                  <span className="text-sm">{formatTime(detailShift.start_time)} - {formatTime(detailShift.end_time)}</span>
                 </div>
                 {detailShift.notes && (
                   <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
@@ -433,7 +445,7 @@ export default function PendingApprovalsPage() {
                       id="edit-start"
                       type="time"
                       value={editStartTime}
-                      onChange={e => setEditStartTime(e.target.value)}
+                      onChange={(e) => setEditStartTime(e.target.value)}
                     />
                   </div>
                   <div>
@@ -442,7 +454,7 @@ export default function PendingApprovalsPage() {
                       id="edit-end"
                       type="time"
                       value={editEndTime}
-                      onChange={e => setEditEndTime(e.target.value)}
+                      onChange={(e) => setEditEndTime(e.target.value)}
                     />
                   </div>
                 </div>
@@ -455,30 +467,32 @@ export default function PendingApprovalsPage() {
                   id="comment"
                   placeholder="コメントを入力（任意）"
                   value={comment}
-                  onChange={e => setComment(e.target.value)}
+                  onChange={(e) => setComment(e.target.value)}
                   rows={2}
                 />
               </div>
 
               {/* Approval History */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">承認履歴</Label>
-                <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                  {detailShift.approvalHistory.map((event, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs">
-                      <div className="w-2 h-2 rounded-full bg-muted-foreground mt-1 shrink-0" />
-                      <div>
-                        <span className="font-medium">{event.action}</span>
-                        <span className="text-muted-foreground"> - {event.by}</span>
-                        <span className="text-muted-foreground ml-2">{formatDateTime(event.at)}</span>
-                        {event.comment && (
-                          <p className="text-muted-foreground mt-0.5">「{event.comment}」</p>
-                        )}
+              {detailShift.approval_history && detailShift.approval_history.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">承認履歴</Label>
+                  <div className="space-y-2 max-h-[120px] overflow-y-auto">
+                    {detailShift.approval_history.map((event, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs">
+                        <div className="w-2 h-2 rounded-full bg-muted-foreground mt-1 shrink-0" />
+                        <div>
+                          <span className="font-medium">{ACTION_LABEL[event.action] ?? event.action}</span>
+                          <span className="text-muted-foreground"> - {event.performed_by}</span>
+                          <span className="text-muted-foreground ml-2">{formatDateTime(event.performed_at)}</span>
+                          {event.comment && (
+                            <p className="text-muted-foreground mt-0.5">{event.comment}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -488,25 +502,40 @@ export default function PendingApprovalsPage() {
                 variant="outline"
                 size="sm"
                 className="text-orange-700 border-orange-300 hover:bg-orange-50"
-                onClick={() => detailShift && handleAction(detailShift.id, 'NEEDS_REVISION')}
+                disabled={isMutating}
+                onClick={() => detailShift && handleRequestRevision(detailShift.id)}
               >
-                <MessageSquare className="h-4 w-4 mr-1" />
+                {requestRevision.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                )}
                 修正依頼
               </Button>
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => detailShift && handleAction(detailShift.id, 'REJECTED')}
+                disabled={isMutating}
+                onClick={() => detailShift && handleReject(detailShift.id)}
               >
-                <XCircle className="h-4 w-4 mr-1" />
+                {rejectShift.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <XCircle className="h-4 w-4 mr-1" />
+                )}
                 却下
               </Button>
               <Button
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 ml-auto"
-                onClick={() => detailShift && handleAction(detailShift.id, 'APPROVED')}
+                disabled={isMutating}
+                onClick={() => detailShift && handleApprove(detailShift.id)}
               >
-                <CheckCircle2 className="h-4 w-4 mr-1" />
+                {approveShift.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                )}
                 承認
               </Button>
             </div>

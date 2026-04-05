@@ -60,16 +60,17 @@ export async function GET(request: NextRequest) {
     if (projectIds.length > 0) {
       const { data: assignments } = await supabase
         .from('project_assignments')
-        .select('project_id, staff:staff_id(display_name)')
+        .select('project_id, staff:staff_id(last_name, first_name)')
         .in('project_id', projectIds)
         .is('deleted_at', null)
-        .in('status', ['confirmed', 'in_progress'])
+        .in('status', ['proposed', 'confirmed', 'in_progress'])
 
       if (assignments) {
         for (const a of assignments) {
           assignmentCounts[a.project_id] = (assignmentCounts[a.project_id] || 0) + 1
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const name = (a as any).staff?.display_name as string | undefined
+          const s = (a as any).staff as { last_name?: string; first_name?: string } | null
+          const name = s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : undefined
           if (name) {
             if (!assignmentNames[a.project_id]) assignmentNames[a.project_id] = []
             assignmentNames[a.project_id].push(name)

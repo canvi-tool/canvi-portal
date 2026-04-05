@@ -30,7 +30,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
         notes, google_calendar_event_id, google_meet_url,
-        staff!inner(user_id, display_name),
+        staff!inner(user_id, last_name, first_name),
         projects!inner(name)
       `)
       .eq('id', shiftId)
@@ -46,7 +46,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ meetUrl: shift.google_meet_url })
     }
 
-    const staffData = shift.staff as unknown as { user_id: string; display_name: string }
+    const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
     const projectData = shift.projects as unknown as { name: string }
 
     const token = await getValidTokenForUser(user.id)
@@ -60,7 +60,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
     const startDateTime = `${shift.shift_date}T${shift.start_time}:00+09:00`
     const endDateTime = `${shift.shift_date}T${shift.end_time}:00+09:00`
-    const summary = `[${projectData.name}] シフト - ${staffData.display_name}`
+    const summary = `[${projectData.name}] シフト - ${staffData.last_name} ${staffData.first_name}`
 
     if (shift.google_calendar_event_id) {
       // 既存イベントにMeetを追加するため、イベントを再作成（patch不可のため）
@@ -116,7 +116,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
         notes, google_calendar_event_id, google_meet_url,
-        staff!inner(user_id, display_name),
+        staff!inner(user_id, last_name, first_name),
         projects!inner(name)
       `)
       .eq('id', shiftId)
@@ -140,7 +140,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     }
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-    const staffData = shift.staff as unknown as { user_id: string; display_name: string }
+    const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
     const projectData = shift.projects as unknown as { name: string }
 
     // Meetなしでイベントを再作成
@@ -154,7 +154,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     const startDateTime = `${shift.shift_date}T${shift.start_time}:00+09:00`
     const endDateTime = `${shift.shift_date}T${shift.end_time}:00+09:00`
-    const summary = `[${projectData.name}] シフト - ${staffData.display_name}`
+    const summary = `[${projectData.name}] シフト - ${staffData.last_name} ${staffData.first_name}`
 
     const { eventId } = await client.createEvent({
       summary,
