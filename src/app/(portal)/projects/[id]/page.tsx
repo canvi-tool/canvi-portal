@@ -96,7 +96,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [newRole, setNewRole] = useState('')
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
-  const [newStatus, setNewStatus] = useState('confirmed')
+  const [newStatus, setNewStatus] = useState('active')
   const [bulkAssigning, setBulkAssigning] = useState(false)
 
   const { data: staffList } = useStaffList()
@@ -796,9 +796,13 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   <SelectValueWithLabel value={newStatus} labels={ASSIGNMENT_STATUS_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(ASSIGNMENT_STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
+                  {[
+                    { value: 'proposed', label: '打診中' },
+                    { value: 'active', label: '稼働中' },
+                    { value: 'ended', label: '契約終了' },
+                  ].map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

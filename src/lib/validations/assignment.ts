@@ -7,7 +7,7 @@ export const assignmentFormSchema = z.object({
     .max(200, '役割は200文字以内で入力してください')
     .optional()
     .or(z.literal('')),
-  status: z.enum(['proposed', 'confirmed', 'in_progress', 'completed', 'cancelled'], {
+  status: z.enum(['proposed', 'active', 'ended'], {
     message: 'ステータスを選択してください',
   }),
   start_date: z.string().min(1, '開始日は必須です'),
@@ -102,9 +102,19 @@ export function validateParams(ruleType: CompensationRuleTypeValue, params: unkn
 }
 
 export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
-  proposed: '提案中',
-  confirmed: '確定',
+  proposed: '打診中',
+  active: '稼働中',
+  ended: '契約終了',
+  // 旧DB値の互換マッピング
+  confirmed: '稼働中',
   in_progress: '稼働中',
-  completed: '完了',
-  cancelled: 'キャンセル',
+  completed: '契約終了',
+  cancelled: '契約終了',
+}
+
+// 新ステータス→旧DB enum値マッピング（マイグレーション前の互換対応）
+export const ASSIGNMENT_STATUS_TO_DB: Record<string, string> = {
+  proposed: 'proposed',
+  active: 'confirmed',
+  ended: 'completed',
 }

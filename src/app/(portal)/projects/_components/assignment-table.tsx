@@ -22,10 +22,13 @@ interface AssignmentTableProps {
 
 const ASSIGNMENT_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   proposed: 'outline',
+  active: 'default',
+  ended: 'secondary',
+  // 旧DB値互換
   confirmed: 'default',
   in_progress: 'default',
   completed: 'secondary',
-  cancelled: 'destructive',
+  cancelled: 'secondary',
 }
 
 export function AssignmentTable({

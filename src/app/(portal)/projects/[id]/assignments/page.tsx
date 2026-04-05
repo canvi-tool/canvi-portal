@@ -172,7 +172,7 @@ export default function AssignmentsPage({ params }: PageProps) {
   const [newRole, setNewRole] = useState('')
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
-  const [newStatus, setNewStatus] = useState('confirmed')
+  const [newStatus, setNewStatus] = useState('active')
 
   const handleAddAssignment = async () => {
     if (!newStaffId || !newStartDate) {
@@ -183,7 +183,7 @@ export default function AssignmentsPage({ params }: PageProps) {
       await createAssignment.mutateAsync({
         staff_id: newStaffId,
         role_title: newRole,
-        status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
+        status: newStatus as 'proposed' | 'active' | 'ended',
         start_date: newStartDate,
         end_date: newEndDate || undefined,
       })
@@ -193,7 +193,7 @@ export default function AssignmentsPage({ params }: PageProps) {
       setNewRole('')
       setNewStartDate('')
       setNewEndDate('')
-      setNewStatus('confirmed')
+      setNewStatus('active')
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'メンバーの追加に失敗しました'
@@ -326,14 +326,18 @@ export default function AssignmentsPage({ params }: PageProps) {
 
             <div className="space-y-2">
               <Label>ステータス</Label>
-              <Select value={newStatus} onValueChange={(val) => setNewStatus(val ?? 'confirmed')}>
+              <Select value={newStatus} onValueChange={(val) => setNewStatus(val ?? 'active')}>
                 <SelectTrigger className="w-full">
                   <SelectValueWithLabel value={newStatus} labels={ASSIGNMENT_STATUS_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(ASSIGNMENT_STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
+                  {[
+                    { value: 'proposed', label: '打診中' },
+                    { value: 'active', label: '稼働中' },
+                    { value: 'ended', label: '契約終了' },
+                  ].map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

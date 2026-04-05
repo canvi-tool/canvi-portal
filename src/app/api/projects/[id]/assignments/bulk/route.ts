@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildBulkMemberAssignedNotification } from '@/lib/integrations/slack'
 import { z } from 'zod'
+import { ASSIGNMENT_STATUS_TO_DB } from '@/lib/validations/assignment'
 
 const bulkAssignSchema = z.object({
   staff_ids: z.array(z.string().uuid()).min(1),
   role_title: z.string().max(200).optional().or(z.literal('')),
-  status: z.enum(['proposed', 'confirmed', 'in_progress', 'completed', 'cancelled']),
+  status: z.enum(['proposed', 'active', 'ended']),
   start_date: z.string().min(1),
   end_date: z.string().optional().or(z.literal('')),
 })
@@ -29,7 +30,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const { staff_ids, role_title, status, start_date, end_date } = parsed.data
+    const { staff_ids, role_title, status: rawStatus, start_date, end_date } = parsed.data
+    const status = ASSIGNMENT_STATUS_TO_DB[rawStatus] || rawStatus
     const createdAssignments: unknown[] = []
     const skippedIds: string[] = []
     const staffNames: string[] = []

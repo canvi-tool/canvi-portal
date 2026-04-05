@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { assignmentFormSchema } from '@/lib/validations/assignment'
+import { assignmentFormSchema, ASSIGNMENT_STATUS_TO_DB } from '@/lib/validations/assignment'
 import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildMemberAssignedNotification } from '@/lib/integrations/slack'
 
 interface RouteParams {
@@ -65,13 +65,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    const dbStatus = ASSIGNMENT_STATUS_TO_DB[parsed.data.status] || parsed.data.status
+
     const { data, error } = await supabase
       .from('project_assignments')
       .insert({
         project_id: projectId,
         staff_id: parsed.data.staff_id,
         role_title: parsed.data.role_title || null,
-        status: parsed.data.status,
+        status: dbStatus,
         start_date: parsed.data.start_date,
         end_date: parsed.data.end_date || null,
       })
