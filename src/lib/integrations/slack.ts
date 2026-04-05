@@ -167,6 +167,7 @@ function getDefaultChannelId(): string | null {
   return process.env.SLACK_DEFAULT_CHANNEL_ID || null
 }
 
+
 /**
  * Bot Token方式でSlackにメッセージを送信（chat.postMessage）
  * プロジェクト紐付けチャンネルに送信する場合はこちらを使用
@@ -216,7 +217,12 @@ export async function sendSlackBotMessage(
 
 /**
  * プロジェクト紐付けチャンネルに通知送信
- * channelId がある場合はBot Token方式、なければWebhook/デフォルトチャンネルにフォールバック
+ * Bot Token + channelId で送信し、tsを返す（スレッド化に必須）
+ *
+ * スレッド化の前提条件:
+ * 1. SLACK_BOT_TOKEN が設定されていること
+ * 2. プロジェクトに slack_channel_id が設定されていること（または SLACK_DEFAULT_CHANNEL_ID）
+ * 3. Botが対象チャンネルに手動で招待済みであること（/invite @BotName）
  */
 export async function sendProjectNotification(
   message: SlackMessage,
@@ -229,7 +235,12 @@ export async function sendProjectNotification(
     return sendSlackBotMessage(channelId, message, options)
   }
 
-  // フォールバック: Webhook方式
+  if (!channelId) {
+    console.warn('sendProjectNotification: チャンネルIDが未設定のため通知をスキップ。プロジェクト設定でSlackチャンネルを設定し、Botを招待してください。')
+    return { success: false, error: 'Slackチャンネルが未設定です' }
+  }
+
+  // Bot Tokenがない場合のみWebhookフォールバック（tsは返らないためスレッド化不可）
   return sendSlackMessage(message)
 }
 
