@@ -2007,6 +2007,44 @@ export interface Database {
           },
         ]
       }
+      attendance_alert_log: {
+        Row: {
+          id: string
+          shift_id: string
+          project_id: string
+          staff_id: string
+          alert_count: number
+          last_alerted_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shift_id: string
+          project_id: string
+          staff_id: string
+          alert_count?: number
+          last_alerted_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shift_id?: string
+          project_id?: string
+          staff_id?: string
+          alert_count?: number
+          last_alerted_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'attendance_alert_log_shift_id_fkey'
+            columns: ['shift_id']
+            isOneToOne: true
+            referencedRelation: 'shifts'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2031,7 +2069,7 @@ export interface Database {
         | 'active'
         | 'expired'
         | 'terminated'
-      project_status: 'planning' | 'active' | 'paused' | 'completed' | 'archived'
+      project_status: 'proposing' | 'active' | 'ended'
       assignment_status: 'pending' | 'active' | 'suspended' | 'ended'
       compensation_rule_type:
         | 'time_rate'

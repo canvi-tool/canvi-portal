@@ -18,7 +18,7 @@ export const projectFormSchema = z.object({
     .max(2000, '説明は2000文字以内で入力してください')
     .optional()
     .or(z.literal('')),
-  status: z.enum(['planning', 'active', 'paused', 'completed', 'archived'], {
+  status: z.enum(['proposing', 'active', 'ended'], {
     message: 'ステータスを選択してください',
   }),
   client_id: z

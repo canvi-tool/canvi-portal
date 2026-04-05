@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 const bulkStatusSchema = z.object({
   ids: z.array(z.string().uuid()).min(1, '対象を1件以上選択してください').max(100),
-  status: z.enum(['planning', 'active', 'paused', 'completed', 'archived']),
+  status: z.enum(['proposing', 'active', 'ended']),
 })
 
 export async function PATCH(request: NextRequest) {

@@ -17,11 +17,9 @@ export type ContractStatus =
   | 'terminated'
 
 export type ProjectStatus =
-  | 'planning'
+  | 'proposing'
   | 'active'
-  | 'paused'
-  | 'completed'
-  | 'archived'
+  | 'ended'
 
 export type AssignmentStatus = 'pending' | 'active' | 'suspended' | 'ended'
 

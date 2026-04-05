@@ -24,25 +24,16 @@ import { toast } from 'sonner'
 import { Plus, Search, Briefcase, Users } from 'lucide-react'
 
 const BULK_STATUS_OPTIONS = [
-  { value: 'active', label: '稼働中に変更' },
-  { value: 'paused', label: '一時停止に変更' },
-  { value: 'completed', label: '完了に変更' },
-  { value: 'archived', label: 'アーカイブに変更' },
+  { value: 'proposing', label: '提案中に変更' },
+  { value: 'active', label: '契約中に変更' },
+  { value: 'ended', label: '契約終了に変更' },
 ]
 
-/** プロジェクトのステータスからタブカテゴリを判定 */
-function getProjectCategory(project: Project): string {
-  const status = project.status
-  if (status === 'planning') return 'proposing'
-  if (status === 'active' || status === 'paused') return 'active'
-  return 'ended' // completed, archived
-}
-
-const PROJECT_CATEGORY_TABS = [
+const PROJECT_TYPE_TABS = [
   { value: 'all', label: 'すべて' },
-  { value: 'proposing', label: '提案中' },
-  { value: 'active', label: '契約中' },
-  { value: 'ended', label: '契約終了' },
+  { value: 'BPO', label: 'BPO' },
+  { value: 'RPO', label: 'RPO' },
+  { value: 'ETC', label: 'ETC' },
 ] as const
 
 export default function ProjectsPage() {
@@ -59,22 +50,20 @@ export default function ProjectsPage() {
     status: statusFilter !== 'all' ? statusFilter : undefined,
   })
 
-  // タブでフィルタリング
+  // タブでフィルタリング（project_type: BPO/RPO/ETC）
   const filteredProjects = useMemo(() => {
     if (!projects) return []
     if (typeTab === 'all') return projects
-    return projects.filter((p) => getProjectCategory(p) === typeTab)
+    return projects.filter((p) => p.project_type === typeTab)
   }, [projects, typeTab])
 
   // 各タブのカウント
   const tabCounts = useMemo(() => {
-    if (!projects) return { all: 0, proposing: 0, active: 0, ended: 0 }
-    const counts = { all: projects.length, proposing: 0, active: 0, ended: 0 }
+    if (!projects) return { all: 0, BPO: 0, RPO: 0, ETC: 0 }
+    const counts = { all: projects.length, BPO: 0, RPO: 0, ETC: 0 }
     for (const p of projects) {
-      const cat = getProjectCategory(p)
-      if (cat === 'proposing') counts.proposing++
-      else if (cat === 'active') counts.active++
-      else counts.ended++
+      const t = p.project_type as keyof typeof counts
+      if (t in counts) counts[t]++
     }
     return counts
   }, [projects])
@@ -197,10 +186,10 @@ export default function ProjectsPage() {
         }
       />
 
-      {/* 提案中 / 契約中 / 契約終了 タブ */}
+      {/* BPO / RPO / ETC タブ */}
       <Tabs value={typeTab} onValueChange={(val) => { setTypeTab(val); setSelectedIds(new Set()) }}>
         <TabsList>
-          {PROJECT_CATEGORY_TABS.map((tab) => (
+          {PROJECT_TYPE_TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label}
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">

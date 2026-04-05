@@ -61,7 +61,7 @@ export function ProjectForm({
       project_code: '',
       name: '',
       description: '',
-      status: 'planning',
+      status: 'proposing',
       client_id: '',
       client_name: '',
       start_date: '',

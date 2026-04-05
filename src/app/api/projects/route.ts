@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status)
     } else {
       // デフォルトではアーカイブ済みプロジェクトを非表示
-      query = query.not('status', 'in', '("archived")')
+      query = query.not('status', 'in', '("ended")')
     }
 
     const { data, error } = await query
@@ -46,9 +46,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch assignment counts for each project
     const projectIds = (data || []).map((p) => p.id)
-    let assignmentCounts: Record<string, number> = {}
-
-    let assignmentNames: Record<string, string[]> = {}
+    const assignmentCounts: Record<string, number> = {}
+    const assignmentNames: Record<string, string[]> = {}
 
     if (projectIds.length > 0) {
       const { data: assignments } = await supabase

@@ -1105,7 +1105,7 @@ export function buildReportSubmittedNotification(staffName: string, date: string
 }
 
 /**
- * メンバーアサイン通知
+ * メンバーアサイン通知（単体）
  */
 export function buildMemberAssignedNotification(staffName: string, projectName: string, role?: string): SlackMessage {
   return {
@@ -1116,6 +1116,28 @@ export function buildMemberAssignedNotification(staffName: string, projectName: 
         text: {
           type: 'mrkdwn',
           text: `:wave: *${staffName}* さんが *${projectName}* にアサインされました${role ? ` (${role})` : ''}`,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * メンバー一括アサイン通知（複数名を1メッセージに集約）
+ */
+export function buildBulkMemberAssignedNotification(staffNames: string[], projectName: string, role?: string): SlackMessage {
+  if (staffNames.length === 1) {
+    return buildMemberAssignedNotification(staffNames[0], projectName, role)
+  }
+  const nameList = staffNames.map(n => `• ${n}`).join('\n')
+  return {
+    text: `${staffNames.length}名が${projectName}にアサインされました`,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `:wave: *${staffNames.length}名* が *${projectName}* にアサインされました${role ? ` (${role})` : ''}\n\n${nameList}`,
         },
       },
     ],

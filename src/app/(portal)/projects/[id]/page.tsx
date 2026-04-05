@@ -36,10 +36,11 @@ import {
 import { AssignmentTable } from '../_components/assignment-table'
 import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
 import { ASSIGNMENT_STATUS_LABELS } from '@/lib/validations/assignment'
+import { useQueryClient } from '@tanstack/react-query'
 import {
+  projectKeys,
   useProject,
   useAssignments,
-  useCreateAssignment,
   useDeleteAssignment,
   useDeleteProject,
   useStaffList,
@@ -77,10 +78,10 @@ interface PageProps {
 export default function ProjectDetailPage({ params }: PageProps) {
   const { id } = params
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const { data: project, isLoading: projectLoading } = useProject(id)
   const { data: assignments, isLoading: assignmentsLoading } = useAssignments(id)
-  const createAssignment = useCreateAssignment(id)
   const deleteAssignment = useDeleteAssignment(id)
   const deleteProject = useDeleteProject()
 
@@ -95,6 +96,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [newStartDate, setNewStartDate] = useState('')
   const [newEndDate, setNewEndDate] = useState('')
   const [newStatus, setNewStatus] = useState('confirmed')
+  const [bulkAssigning, setBulkAssigning] = useState(false)
 
   const { data: staffList } = useStaffList()
 
@@ -120,35 +122,37 @@ export default function ProjectDetailPage({ params }: PageProps) {
       return
     }
     try {
-      let successCount = 0
-      const errors: string[] = []
-      for (const staffId of selectedStaffIds) {
-        try {
-          await createAssignment.mutateAsync({
-            staff_id: staffId,
-            role_title: newRole,
-            status: newStatus as 'proposed' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
-            start_date: newStartDate,
-            end_date: newEndDate || undefined,
-          })
-          successCount++
-        } catch (error) {
-          const staffName = (staffList || []).find(s => s.id === staffId)
-          errors.push(`${staffName?.last_name || ''}${staffName?.first_name || ''}: ${error instanceof Error ? error.message : '失敗'}`)
-        }
+      setBulkAssigning(true)
+      const res = await fetch(`/api/projects/${id}/assignments/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_ids: Array.from(selectedStaffIds),
+          role_title: newRole,
+          status: newStatus,
+          start_date: newStartDate,
+          end_date: newEndDate || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'アサインに失敗しました')
       }
-      if (successCount > 0) {
-        toast.success(`${successCount}名のメンバーを追加しました`)
+      const result = await res.json()
+      if (result.created > 0) {
+        toast.success(`${result.created}名をアサインしました`)
       }
-      if (errors.length > 0) {
-        for (const e of errors) toast.error(e)
+      if (result.skipped > 0) {
+        toast.warning(`${result.skipped}名は既にアサイン済みのためスキップしました`)
       }
       setAddMemberOpen(false)
       resetAddForm()
+      queryClient.invalidateQueries({ queryKey: projectKeys.assignments(id) })
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) })
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'メンバーの追加に失敗しました'
-      )
+      toast.error(error instanceof Error ? error.message : 'アサインに失敗しました')
+    } finally {
+      setBulkAssigning(false)
     }
   }
 
@@ -816,8 +820,8 @@ export default function ProjectDetailPage({ params }: PageProps) {
             <DialogClose render={<Button variant="outline" />}>
               キャンセル
             </DialogClose>
-            <Button onClick={handleAddMember} disabled={createAssignment.isPending}>
-              {createAssignment.isPending && (
+            <Button onClick={handleAddMember} disabled={bulkAssigning}>
+              {bulkAssigning && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               追加
