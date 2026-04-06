@@ -619,30 +619,70 @@ export default function ShiftsPage() {
   const pendingCount = shifts.filter(s => s.status === 'SUBMITTED').length
   const approvedCount = shifts.filter(s => s.status === 'APPROVED').length
 
-  // 合計時間計算（スタッフ別）
+  // 合計時間計算（スタッフ別: 重複区間をマージして重複カウント回避 / PJ別: 重複除去せず加算）
   const staffHours = useMemo(() => {
-    const map = new Map<string, { name: string; hours: number; shifts: number }>()
-    let totalHours = 0
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number)
+      return h * 60 + m
+    }
+    // スタッフ×日付 でまとめ → 区間マージ
+    const intervalsByStaffDay = new Map<string, { start: number; end: number }[]>()
+    const staffMeta = new Map<string, { name: string; shifts: number }>()
+    const projectMap = new Map<string, { name: string; hours: number; shifts: number }>()
 
     for (const s of shifts) {
       if (s.shiftType !== 'WORK') continue
-      const [sh, sm] = s.startTime.split(':').map(Number)
-      const [eh, em] = s.endTime.split(':').map(Number)
-      const hours = (eh * 60 + em - sh * 60 - sm) / 60
-      if (hours <= 0) continue
+      const start = toMin(s.startTime)
+      const end = toMin(s.endTime)
+      if (end <= start) continue
 
-      totalHours += hours
-      const existing = map.get(s.staffId)
-      if (existing) {
-        existing.hours += hours
-        existing.shifts += 1
-      } else {
-        map.set(s.staffId, { name: s.staffName, hours, shifts: 1 })
-      }
+      const key = `${s.staffId}::${s.date}`
+      if (!intervalsByStaffDay.has(key)) intervalsByStaffDay.set(key, [])
+      intervalsByStaffDay.get(key)!.push({ start, end })
+
+      const meta = staffMeta.get(s.staffId)
+      if (meta) meta.shifts += 1
+      else staffMeta.set(s.staffId, { name: s.staffName, shifts: 1 })
+
+      // PJ別は重複除去しない
+      const hours = (end - start) / 60
+      const pj = projectMap.get(s.projectId)
+      if (pj) { pj.hours += hours; pj.shifts += 1 }
+      else projectMap.set(s.projectId, { name: s.projectName, hours, shifts: 1 })
     }
 
-    const byStaff = Array.from(map.values()).sort((a, b) => b.hours - a.hours)
-    return { byStaff, totalHours }
+    // スタッフごとに区間マージして合計時間算出
+    const staffHoursMap = new Map<string, number>()
+    for (const [key, intervals] of intervalsByStaffDay) {
+      const staffId = key.split('::')[0]
+      intervals.sort((a, b) => a.start - b.start)
+      let merged = 0
+      let curStart = intervals[0].start
+      let curEnd = intervals[0].end
+      for (let i = 1; i < intervals.length; i++) {
+        const iv = intervals[i]
+        if (iv.start <= curEnd) {
+          curEnd = Math.max(curEnd, iv.end)
+        } else {
+          merged += curEnd - curStart
+          curStart = iv.start
+          curEnd = iv.end
+        }
+      }
+      merged += curEnd - curStart
+      staffHoursMap.set(staffId, (staffHoursMap.get(staffId) || 0) + merged / 60)
+    }
+
+    let totalHours = 0
+    const byStaff = Array.from(staffMeta.entries()).map(([id, m]) => {
+      const h = staffHoursMap.get(id) || 0
+      totalHours += h
+      return { name: m.name, hours: h, shifts: m.shifts }
+    }).sort((a, b) => b.hours - a.hours)
+
+    const byProject = Array.from(projectMap.values()).sort((a, b) => b.hours - a.hours)
+
+    return { byStaff, byProject, totalHours }
   }, [shifts])
 
   // シフト由来のGCalイベントを除外（重複表示防止: シフト管理側を優先表示）
@@ -748,7 +788,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
               </div>
             )}
 
-            {/* スタッフ別時間 */}
+            {/* スタッフ別時間（重複区間マージ済） */}
             {staffHours.byStaff.length > 0 && (
               <>
                 <div className="h-4 w-px bg-border" />
@@ -758,6 +798,23 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                       <span className="font-medium">{s.name}</span>
                       <span className="text-primary font-bold">{s.hours.toFixed(1)}h</span>
                       <span className="text-muted-foreground">({s.shifts}件)</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* PJ別稼働時間 */}
+            {staffHours.byProject.length > 0 && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">PJ別</span>
+                  {staffHours.byProject.map((p) => (
+                    <div key={p.name} className="flex items-center gap-1 text-xs">
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-emerald-600 font-bold">{p.hours.toFixed(1)}h</span>
+                      <span className="text-muted-foreground">({p.shifts}件)</span>
                     </div>
                   ))}
                 </div>

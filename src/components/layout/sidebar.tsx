@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -71,6 +70,7 @@ function ImpersonateBlock({ user, collapsed, onSignOut }: { user: NonNullable<Si
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [realId, setRealId] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open || users.length > 0) return
@@ -84,6 +84,15 @@ function ImpersonateBlock({ user, collapsed, onSignOut }: { user: NonNullable<Si
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [open, users.length])
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
 
   const handleSwitch = async (userId: string) => {
     await fetch('/api/dev/impersonate', {
@@ -101,17 +110,15 @@ function ImpersonateBlock({ user, collapsed, onSignOut }: { user: NonNullable<Si
   })
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            className={cn(
-              'flex items-center gap-2 flex-1 min-w-0 rounded-md px-1 py-1 hover:bg-white/10 transition text-left',
-              collapsed && 'justify-center'
-            )}
-            title="アカウント切替（開発者のみ）"
-          />
-        }
+    <div ref={wrapRef} className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-2 w-full min-w-0 rounded-md px-1 py-1 hover:bg-white/10 transition text-left',
+          collapsed && 'justify-center'
+        )}
+        title="アカウント切替（開発者のみ）"
       >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-medium text-white">
           {user.displayName.charAt(0).toUpperCase()}
@@ -125,61 +132,63 @@ function ImpersonateBlock({ user, collapsed, onSignOut }: { user: NonNullable<Si
             <p className="truncate text-[11px] text-slate-400">{user.email}</p>
           </div>
         )}
-      </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-72 p-2">
-        <div className="px-1 pb-2 text-[11px] text-muted-foreground">
-          開発者モード - アカウント切替
-        </div>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="名前・メールで検索"
-          className="w-full mb-2 rounded border px-2 py-1 text-xs bg-background"
-        />
-        {user.isImpersonating && realId && (
-          <button
-            onClick={() => handleSwitch(realId)}
-            className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted mb-1 border border-purple-300 bg-purple-50"
-          >
-            ← 自分のアカウントに戻る
-          </button>
-        )}
-        <div className="max-h-64 overflow-y-auto">
-          {loading ? (
-            <div className="text-xs text-muted-foreground px-2 py-4 text-center">読込中...</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-xs text-muted-foreground px-2 py-4 text-center">該当なし</div>
-          ) : (
-            filtered.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => handleSwitch(u.id)}
-                className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted flex items-center gap-2"
-              >
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium">
-                  {u.displayName.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-medium">{u.displayName}</div>
-                  <div className="truncate text-muted-foreground text-[10px]">{u.email}</div>
-                </div>
-                <span className="text-[9px] text-muted-foreground shrink-0">{u.role}</span>
-              </button>
-            ))
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 mb-2 w-72 rounded-md border bg-popover text-popover-foreground shadow-lg p-2 z-50">
+          <div className="px-1 pb-2 text-[11px] text-muted-foreground">
+            開発者モード - アカウント切替
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="名前・メールで検索"
+            className="w-full mb-2 rounded border px-2 py-1 text-xs bg-background"
+          />
+          {user.isImpersonating && realId && (
+            <button
+              onClick={() => handleSwitch(realId)}
+              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted mb-1 border border-purple-300 bg-purple-50"
+            >
+              ← 自分のアカウントに戻る
+            </button>
           )}
+          <div className="max-h-64 overflow-y-auto">
+            {loading ? (
+              <div className="text-xs text-muted-foreground px-2 py-4 text-center">読込中...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-xs text-muted-foreground px-2 py-4 text-center">該当なし</div>
+            ) : (
+              filtered.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => handleSwitch(u.id)}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted flex items-center gap-2"
+                >
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium">
+                    {u.displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate font-medium">{u.displayName}</div>
+                    <div className="truncate text-muted-foreground text-[10px]">{u.email}</div>
+                  </div>
+                  <span className="text-[9px] text-muted-foreground shrink-0">{u.role}</span>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="border-t mt-2 pt-2">
+            <button
+              onClick={onSignOut}
+              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted text-red-600 flex items-center gap-2"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              ログアウト
+            </button>
+          </div>
         </div>
-        <div className="border-t mt-2 pt-2">
-          <button
-            onClick={onSignOut}
-            className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted text-red-600 flex items-center gap-2"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            ログアウト
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   )
 }
 
