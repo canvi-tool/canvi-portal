@@ -62,8 +62,9 @@ CREATE POLICY acr_select ON public.attendance_correction_requests
   FOR SELECT USING (
     requested_by_user_id = auth.uid()
     OR EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.uid() AND u.role IN ('owner', 'admin')
+      SELECT 1 FROM public.user_roles ur
+      JOIN public.roles r ON r.id = ur.role_id
+      WHERE ur.user_id = auth.uid() AND r.name IN ('owner', 'admin')
     )
   );
 
@@ -75,7 +76,8 @@ DROP POLICY IF EXISTS acr_update ON public.attendance_correction_requests;
 CREATE POLICY acr_update ON public.attendance_correction_requests
   FOR UPDATE USING (
     EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.uid() AND u.role IN ('owner', 'admin')
+      SELECT 1 FROM public.user_roles ur
+      JOIN public.roles r ON r.id = ur.role_id
+      WHERE ur.user_id = auth.uid() AND r.name IN ('owner', 'admin')
     )
   );
