@@ -154,6 +154,9 @@ export async function GET(request: NextRequest) {
           .is('deleted_at', null)
           .not('google_calendar_event_id', 'is', null)
 
+        // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一
+        const toHHMM = (t: string) => t.slice(0, 5)
+
         const existingByEventId = new Map<string, {
           id: string
           shift_date: string
@@ -175,8 +178,8 @@ export async function GET(request: NextRequest) {
               existingByEventId.set(shift.google_calendar_event_id, {
                 id: shift.id,
                 shift_date: shift.shift_date,
-                start_time: shift.start_time,
-                end_time: shift.end_time,
+                start_time: toHHMM(shift.start_time),
+                end_time: toHHMM(shift.end_time),
               })
             }
             if (shift.notes?.startsWith('gcal:')) {
@@ -184,8 +187,8 @@ export async function GET(request: NextRequest) {
               existingByGcalNote.set(gcalId, {
                 id: shift.id,
                 shift_date: shift.shift_date,
-                start_time: shift.start_time,
-                end_time: shift.end_time,
+                start_time: toHHMM(shift.start_time),
+                end_time: toHHMM(shift.end_time),
               })
             }
           }

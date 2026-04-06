@@ -93,6 +93,9 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .not('google_calendar_event_id', 'is', null)
 
+    // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
+    const toHHMM = (t: string) => t.slice(0, 5)
+
     const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string }>()
     if (existingShifts) {
       for (const shift of existingShifts) {
@@ -100,8 +103,8 @@ export async function POST(request: NextRequest) {
           existingByEventId.set(shift.google_calendar_event_id, {
             id: shift.id,
             shift_date: shift.shift_date,
-            start_time: shift.start_time,
-            end_time: shift.end_time,
+            start_time: toHHMM(shift.start_time),
+            end_time: toHHMM(shift.end_time),
           })
         }
       }
@@ -162,8 +165,10 @@ export async function POST(request: NextRequest) {
         if (!shift.google_calendar_event_id) continue
         if (processedEventIds.has(shift.google_calendar_event_id)) continue
 
-        // Canviで作成してGCalに同期したシフトがGCalから削除された
+        // Canviで作成してGCalに同期したシフトがGCalから削除された → ソフト削除
         await admin.from('shifts').update({
+          status: 'REJECTED',
+          notes: `${shift.notes || ''} [GCalから削除検知]`.trim(),
           google_calendar_event_id: null,
           google_meet_url: null,
           google_calendar_synced: false,
