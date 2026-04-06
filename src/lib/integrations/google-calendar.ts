@@ -279,6 +279,7 @@ export class GoogleCalendarClient {
       calendarId,
       requestBody,
       conferenceDataVersion: withMeet ? 1 : 0,
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none',
     })
 
     return {
@@ -297,6 +298,7 @@ export class GoogleCalendarClient {
     startDateTime?: string
     endDateTime?: string
     timeZone?: string
+    attendees?: string[]
   }): Promise<void> {
     const {
       calendarId = 'primary',
@@ -306,6 +308,7 @@ export class GoogleCalendarClient {
       startDateTime,
       endDateTime,
       timeZone = 'Asia/Tokyo',
+      attendees,
     } = params
 
     const requestBody: calendar_v3.Schema$Event = {}
@@ -313,11 +316,15 @@ export class GoogleCalendarClient {
     if (description !== undefined) requestBody.description = description
     if (startDateTime) requestBody.start = { dateTime: startDateTime, timeZone }
     if (endDateTime) requestBody.end = { dateTime: endDateTime, timeZone }
+    if (attendees !== undefined) {
+      requestBody.attendees = attendees.map((email) => ({ email }))
+    }
 
     await this.calendar.events.patch({
       calendarId,
       eventId,
       requestBody,
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none',
     })
   }
 

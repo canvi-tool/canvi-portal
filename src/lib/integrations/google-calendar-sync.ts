@@ -15,7 +15,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       .from('shifts')
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
-        shift_type, notes, google_calendar_event_id,
+        shift_type, notes, attendees, google_calendar_event_id,
         staff!inner(user_id, last_name, first_name),
         projects!inner(name, custom_fields)
       `)
@@ -44,6 +44,9 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const calendarDisplayName = projectData.custom_fields?.calendar_display_name as string | undefined
     const summary = calendarDisplayName || `${projectData.name} シフト`
     const description = shift.notes || undefined
+    const attendeeEmails = Array.isArray(shift.attendees)
+      ? (shift.attendees as Array<{ email?: string }>).map(a => a?.email).filter((e): e is string => !!e)
+      : []
 
     if (shift.google_calendar_event_id) {
       // 既存イベント更新
@@ -53,6 +56,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         description,
         startDateTime,
         endDateTime,
+        attendees: attendeeEmails,
       })
 
       // 同期フラグを最新に保つ
@@ -67,6 +71,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         startDateTime,
         endDateTime,
         withMeet: true,
+        attendees: attendeeEmails,
       })
 
       // DB更新: event_id + meet_url保存

@@ -18,6 +18,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { SHIFT_TYPE_LABELS, type ShiftType, SHIFT_TYPES } from '@/lib/validations/shift'
+import { AttendeePicker, type Attendee } from './attendee-picker'
 import { toast } from 'sonner'
 import { CalendarPlus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -91,6 +92,7 @@ export function ShiftBulkDialog({
   const [notes, setNotes] = useState('')
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
+  const [attendees, setAttendees] = useState<Attendee[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   // 日付選択
@@ -239,6 +241,7 @@ export function ShiftBulkDialog({
           project_id: projectId,
           shift_type: shiftType,
           notes: notes || undefined,
+          attendees,
           entries,
         }),
       })
@@ -266,6 +269,7 @@ export function ShiftBulkDialog({
     setSelectedDates(new Set())
     setTimeOverrides({})
     setQuickDays([false, false, false, false, false, false, false])
+    setAttendees([])
   }
 
   return (
@@ -460,6 +464,9 @@ export function ShiftBulkDialog({
               />
             </div>
           </div>
+
+          {/* 招待者 */}
+          <AttendeePicker value={attendees} onChange={setAttendees} />
 
           {/* 選択済み日程プレビュー */}
           {sortedDates.length > 0 && (

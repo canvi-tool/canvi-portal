@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
       end_time: parsed.data.end_time,
       shift_type: parsed.data.shift_type || 'WORK',
       notes: parsed.data.notes || null,
+      attendees: parsed.data.attendees || [],
       created_by: user.id,
     }
 

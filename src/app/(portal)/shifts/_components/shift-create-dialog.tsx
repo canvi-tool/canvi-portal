@@ -19,6 +19,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { SHIFT_TYPE_LABELS, type ShiftType, SHIFT_TYPES } from '@/lib/validations/shift'
+import { AttendeePicker, type Attendee } from './attendee-picker'
 import { toast } from 'sonner'
 
 interface ProjectOption {
@@ -64,6 +65,7 @@ export function ShiftCreateDialog({
   const [endTime, setEndTime] = useState(initialEndTime)
   const [shiftType, setShiftType] = useState<ShiftType>('WORK')
   const [notes, setNotes] = useState('')
+  const [attendees, setAttendees] = useState<Attendee[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export function ShiftCreateDialog({
           end_time: endTime,
           shift_type: shiftType,
           notes: notes || undefined,
+          attendees,
         }),
       })
 
@@ -112,6 +115,7 @@ export function ShiftCreateDialog({
       // Reset
       setNotes('')
       setShiftType('WORK')
+      setAttendees([])
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'シフトの作成に失敗しました')
     } finally {
@@ -121,7 +125,7 @@ export function ShiftCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>シフト{isAutoApproval ? '登録' : '申請'}</DialogTitle>
         </DialogHeader>
@@ -228,6 +232,10 @@ export function ShiftCreateDialog({
               rows={2}
             />
           </div>
+
+          {/* 招待者 */}
+          <AttendeePicker value={attendees} onChange={setAttendees} />
+
 
           {/* 送信ボタン */}
           <div className="flex justify-end gap-2 pt-2">

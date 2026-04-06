@@ -145,6 +145,7 @@ export async function PUT(
       updateData.end_time = body.end_time
       updateData.shift_type = body.shift_type || 'WORK'
       updateData.notes = body.notes || null
+      if (Array.isArray(body.attendees)) updateData.attendees = body.attendees
     }
 
     const { data, error } = await supabase

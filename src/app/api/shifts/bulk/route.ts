@@ -9,6 +9,11 @@ const bulkShiftSchema = z.object({
   project_id: z.string().min(1),
   shift_type: z.enum(['WORK', 'ABSENCE']).default('WORK'),
   notes: z.string().optional(),
+  attendees: z.array(z.object({
+    email: z.string().email(),
+    name: z.string().optional(),
+    staff_id: z.string().optional(),
+  })).optional().default([]),
   entries: z.array(z.object({
     shift_date: z.string().min(1),
     start_time: z.string().min(1),
@@ -53,6 +58,7 @@ export async function POST(request: NextRequest) {
         end_time: entry.end_time,
         shift_type: parsed.data.shift_type,
         notes: parsed.data.notes || null,
+        attendees: parsed.data.attendees || [],
         created_by: user.id,
       }
 

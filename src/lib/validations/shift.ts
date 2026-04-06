@@ -8,6 +8,13 @@ export const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
   ABSENCE: '欠勤',
 }
 
+export const attendeeSchema = z.object({
+  email: z.string().email('有効なメールアドレスを入力してください'),
+  name: z.string().optional(),
+  staff_id: z.string().optional(),
+})
+export type Attendee = z.infer<typeof attendeeSchema>
+
 export const shiftFormSchema = z.object({
   staff_id: z.string().min(1, 'スタッフは必須です'),
   project_id: z.string().min(1, 'プロジェクトは必須です'),
@@ -16,6 +23,7 @@ export const shiftFormSchema = z.object({
   end_time: z.string().min(1, '終了時刻は必須です'),
   shift_type: z.enum(SHIFT_TYPES).default('WORK'),
   notes: z.string().optional(),
+  attendees: z.array(attendeeSchema).optional().default([]),
 }).refine((data) => data.start_time < data.end_time, {
   message: '終了時刻は開始時刻より後にしてください',
   path: ['end_time'],
