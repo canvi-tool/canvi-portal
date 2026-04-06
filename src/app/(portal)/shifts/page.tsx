@@ -755,7 +755,7 @@ export default function ShiftsPage() {
       {/* FullCalendar */}
       <ShiftFullCalendar
         shifts={shifts}
-        googleEvents={googleEvents}
+        googleEvents={filterProject === 'all' ? googleEvents : []}
         isManager={isManager}
         onShiftClick={handleShiftClick}
         onShiftDragUpdate={handleShiftDragUpdate}
