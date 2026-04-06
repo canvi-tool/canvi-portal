@@ -10,7 +10,7 @@ const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 const OWNER_EMAILS = (process.env.OWNER_EMAILS || 'yuji.okabayashi@canvi.co.jp,okabayashi@canvi.co.jp').split(',').map(e => e.trim()).filter(Boolean)
 
 /** 開発者メールアドレス（インパーソネーション許可） */
-export const DEV_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp']
+export const DEV_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp', 'yui.goto@canvi.co.jp']
 
 const DEMO_USERS: Record<string, UserWithRole> = {
   owner: {

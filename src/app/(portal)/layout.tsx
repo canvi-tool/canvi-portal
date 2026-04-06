@@ -8,7 +8,7 @@ import { PortalShell } from './portal-shell'
 import { getDemoAccountByRole, type DemoRole } from '@/lib/demo-accounts'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-const DEV_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp']
+const DEV_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp', 'yui.goto@canvi.co.jp']
 const ROLE_LABELS: Record<DemoRole, string> = { owner: 'オーナー', admin: '管理者', staff: 'メンバー' }
 
 export default async function PortalLayout({
