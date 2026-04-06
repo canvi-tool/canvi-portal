@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
-    const staffId = searchParams.get('staff_id')
+    const staffId = searchParams.get('staff_id') // supports comma-separated IDs
     const projectId = searchParams.get('project_id')
     const status = searchParams.get('status')
 
@@ -53,7 +53,12 @@ export async function GET(request: NextRequest) {
       query = query.lte('shift_date', endDate)
     }
     if (staffId) {
-      query = query.eq('staff_id', staffId)
+      const staffIds = staffId.split(',').filter(Boolean)
+      if (staffIds.length === 1) {
+        query = query.eq('staff_id', staffIds[0])
+      } else if (staffIds.length > 1) {
+        query = query.in('staff_id', staffIds)
+      }
     }
     if (projectId) {
       query = query.eq('project_id', projectId)

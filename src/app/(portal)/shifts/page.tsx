@@ -10,6 +10,8 @@ import {
   CalendarPlus,
   Plus,
   RefreshCw,
+  ChevronDown,
+  Users,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -22,6 +24,8 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
@@ -57,7 +61,7 @@ export default function ShiftsPage() {
   const [loading, setLoading] = useState(true)
 
   // Filters
-  const [filterStaff, setFilterStaff] = useState<string>('all')
+  const [filterStaffIds, setFilterStaffIds] = useState<string[]>([]) // empty = all
   const [filterProject, setFilterProject] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
@@ -151,7 +155,7 @@ export default function ShiftsPage() {
         end_date: dateRange.end,
       })
       if (filterProject !== 'all') params.set('project_id', filterProject)
-      if (filterStaff !== 'all') params.set('staff_id', filterStaff)
+      if (filterStaffIds.length > 0) params.set('staff_id', filterStaffIds.join(','))
       if (filterStatus !== 'all') params.set('status', filterStatus)
 
       const res = await fetch(`/api/shifts?${params}`)
@@ -187,7 +191,7 @@ export default function ShiftsPage() {
     } finally {
       setLoading(false)
     }
-  }, [dateRange, filterProject, filterStaff, filterStatus])
+  }, [dateRange, filterProject, filterStaffIds, filterStatus])
 
   // プロジェクトとスタッフ一覧を取得
   useEffect(() => {
@@ -229,12 +233,15 @@ export default function ShiftsPage() {
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // フィルター対象のGCalユーザーIDを算出
+  // フィルター対象のGCalユーザーIDを算出（複数選択時は自分のみ表示）
   const gcalTargetUserId = useMemo(() => {
-    if (filterStaff === 'all') return currentUserId
-    const staff = staffList.find(s => s.id === filterStaff)
-    return staff?.userId || currentUserId
-  }, [filterStaff, staffList, currentUserId])
+    if (filterStaffIds.length === 0) return currentUserId
+    if (filterStaffIds.length === 1) {
+      const staff = staffList.find(s => s.id === filterStaffIds[0])
+      return staff?.userId || currentUserId
+    }
+    return currentUserId // 複数選択時は自分のGCal
+  }, [filterStaffIds, staffList, currentUserId])
 
   // Googleカレンダー予定取得
   useEffect(() => {
@@ -735,17 +742,45 @@ export default function ShiftsPage() {
           </SelectContent>
         </Select>
 
-        <Select value={filterStaff} onValueChange={setFilterStaff}>
-          <SelectTrigger className="h-9 w-auto min-w-[100px] text-sm">
-            <SelectValueWithLabel value={filterStaff} labels={staffLabels} placeholder="全員" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全スタッフ</SelectItem>
-            {staffList.map(s => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover>
+          <PopoverTrigger
+            className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-input bg-background px-3 h-9 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+          >
+            <Users className="h-3.5 w-3.5" />
+            {filterStaffIds.length === 0
+              ? '全スタッフ'
+              : filterStaffIds.length === 1
+                ? staffList.find(s => s.id === filterStaffIds[0])?.name || '1名'
+                : `${filterStaffIds.length}名選択`}
+            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="start">
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted"
+                onClick={() => setFilterStaffIds([])}
+              >
+                <Checkbox checked={filterStaffIds.length === 0} />
+                全スタッフ
+              </button>
+              <div className="border-t my-1" />
+              {staffList.map(s => (
+                <button
+                  key={s.id}
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted"
+                  onClick={() => {
+                    setFilterStaffIds(prev =>
+                      prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                    )
+                  }}
+                >
+                  <Checkbox checked={filterStaffIds.includes(s.id)} />
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         {loading && (
           <span className="text-xs text-muted-foreground">読み込み中...</span>
