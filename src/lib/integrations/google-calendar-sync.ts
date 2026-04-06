@@ -74,6 +74,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         endDateTime,
         withMeet: true,
         attendees: attendeeEmails,
+        canviShiftId: shiftId,
       })
 
       // DB更新: event_id + meet_url保存

@@ -127,6 +127,13 @@ export default function ShiftsPage() {
     if (!dateRange.start || !dateRange.end) return
     setSyncing(true)
     try {
+      // Phase 1: 新取込パス (PJ未割当モデル)
+      await fetch('/api/shifts/gcal-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: dateRange.start, end_date: dateRange.end }),
+      }).catch(() => null)
+
       const res = await fetch('/api/shifts/sync-from-gcal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,7 +141,7 @@ export default function ShiftsPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        const changes = data.created + data.updated + data.deleted
+        const changes = (data.created || 0) + (data.updated || 0) + (data.deleted || 0)
         if (changes > 0) {
           toast.success(data.message)
         } else if (!silent) {
@@ -200,6 +207,8 @@ export default function ShiftsPage() {
           googleEventId: s.google_calendar_event_id,
           approvalMode: project.shift_approval_mode || 'AUTO',
           attendees: Array.isArray(s.attendees) ? s.attendees : [],
+          source: (s.source || 'manual') as 'manual' | 'google_calendar' | 'import',
+          needsProjectAssignment: !!s.needs_project_assignment,
         }
       })
 

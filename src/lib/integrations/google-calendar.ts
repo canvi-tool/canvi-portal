@@ -243,6 +243,7 @@ export class GoogleCalendarClient {
     timeZone?: string
     withMeet?: boolean
     attendees?: string[]
+    canviShiftId?: string
   }): Promise<{ eventId: string; meetUrl: string | null }> {
     const {
       calendarId = 'primary',
@@ -253,6 +254,7 @@ export class GoogleCalendarClient {
       timeZone = 'Asia/Tokyo',
       withMeet = false,
       attendees,
+      canviShiftId,
     } = params
 
     const requestBody: calendar_v3.Schema$Event = {
@@ -264,6 +266,12 @@ export class GoogleCalendarClient {
 
     if (attendees?.length) {
       requestBody.attendees = attendees.map((email) => ({ email }))
+    }
+
+    if (canviShiftId) {
+      requestBody.extendedProperties = {
+        private: { canviShiftId, canviSource: 'manual' },
+      }
     }
 
     if (withMeet) {
@@ -494,6 +502,64 @@ export class GoogleCalendarClient {
         location: e.location || undefined,
         meetUrl: e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || undefined,
       }))
+  }
+
+  /**
+   * Phase 1 取込用: extendedProperties を含む primary カレンダーのイベント一覧
+   * Canvi発のイベント（extendedProperties.private.canviShiftId が存在）を識別するため
+   */
+  async listEventsForImport(params: {
+    timeMin: string
+    timeMax: string
+  }): Promise<Array<{
+    id: string
+    summary: string
+    description?: string
+    start: string
+    end: string
+    isAllDay: boolean
+    updated?: string
+    canviShiftId?: string
+    organizerEmail?: string
+  }>> {
+    const { timeMin, timeMax } = params
+    const out: Array<{
+      id: string; summary: string; description?: string
+      start: string; end: string; isAllDay: boolean
+      updated?: string; canviShiftId?: string; organizerEmail?: string
+    }> = []
+    let pageToken: string | undefined
+    do {
+      const response = await this.calendar.events.list({
+        calendarId: 'primary',
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: 'startTime',
+        maxResults: 250,
+        pageToken,
+      })
+      const items = response.data.items || []
+      for (const e of items) {
+        if (!e.id || e.status === 'cancelled') continue
+        const start = e.start?.dateTime || e.start?.date
+        const end = e.end?.dateTime || e.end?.date
+        if (!start || !end) continue
+        out.push({
+          id: e.id,
+          summary: e.summary || '(タイトルなし)',
+          description: e.description || undefined,
+          start,
+          end,
+          isAllDay: !!e.start?.date,
+          updated: e.updated || undefined,
+          canviShiftId: (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
+          organizerEmail: e.organizer?.email || undefined,
+        })
+      }
+      pageToken = response.data.nextPageToken || undefined
+    } while (pageToken)
+    return out
   }
 
   static async getAuthUrl(): Promise<string> {

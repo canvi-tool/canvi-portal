@@ -134,7 +134,11 @@ export async function PUT(
       // インライン編集: 時間 + オプショナルなプロジェクト・備考
       updateData.start_time = body.start_time
       updateData.end_time = body.end_time
-      if (body.project_id) updateData.project_id = body.project_id
+      if (body.project_id) {
+        updateData.project_id = body.project_id
+        // PJが割り当てられた時点で未割当フラグを解除（GCal取込シフト対応）
+        updateData.needs_project_assignment = false
+      }
       if (body.notes !== undefined) updateData.notes = body.notes || null
       if (Array.isArray(body.attendees)) updateData.attendees = body.attendees
     } else {

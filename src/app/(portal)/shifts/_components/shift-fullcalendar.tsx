@@ -6,7 +6,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { EventApi, EventDropArg, EventContentArg, DatesSetArg, DateSelectArg } from '@fullcalendar/core'
-import type { EventResizeDoneArg } from '@fullcalendar/interaction'
+import type { EventResizeDoneArg, DateClickArg } from '@fullcalendar/interaction'
 import { toast } from 'sonner'
 import { getProjectColor, STATUS_COLORS, SHIFT_TYPE_COLORS } from './shift-colors'
 import { ShiftContextMenu, type ContextMenuAction } from './shift-context-menu'
@@ -32,6 +32,8 @@ export interface CalendarShift {
   attendees?: Array<{ email: string; name?: string; staff_id?: string }>
   isVirtualAttendee?: boolean
   ownerShiftId?: string
+  source?: 'manual' | 'google_calendar' | 'import'
+  needsProjectAssignment?: boolean
 }
 
 export interface GoogleCalendarEvent {
@@ -80,7 +82,11 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
         statusColor: STATUS_COLORS[s.status] || '#9ca3af',
         isGoogleEvent: false,
       },
-      editable: true,
+      // 仮想招待行（他人の予定の参照表示）は編集不可、かつ選択の邪魔にならないよう overlap 許可
+      editable: !s.isVirtualAttendee,
+      durationEditable: !s.isVirtualAttendee,
+      startEditable: !s.isVirtualAttendee,
+      overlap: true,
     }
   })
 }
@@ -298,12 +304,26 @@ export function ShiftFullCalendar({
     }
   }, [shifts, onShiftCopy, onShiftDelete, onShiftClick])
 
-  // 空スロット選択
+  // 空スロットドラッグ選択（長押し→伸縮→離すで作成ダイアログ）
   const handleSelect = useCallback((info: DateSelectArg) => {
     const date = formatDate(info.start)
     const startTime = formatTime(info.start)
     const endTime = formatTime(info.end)
     onSlotSelect(date, startTime, endTime)
+  }, [onSlotSelect])
+
+  // 単純クリック（ドラッグなし）→ 60分デフォルトで作成ダイアログ
+  const handleDateClick = useCallback((info: DateClickArg) => {
+    // 月ビューでは日単位クリックなので 09:00-18:00 をデフォルトに
+    if (info.view.type === 'dayGridMonth') {
+      const date = formatDate(info.date)
+      onSlotSelect(date, '09:00', '18:00')
+      return
+    }
+    // 週/日ビューでは クリックしたスロットから60分
+    const start = info.date
+    const end = new Date(start.getTime() + 60 * 60 * 1000)
+    onSlotSelect(formatDate(start), formatTime(start), formatTime(end))
   }, [onSlotSelect])
 
   // 表示範囲変更
@@ -408,6 +428,10 @@ export function ShiftFullCalendar({
           nowIndicator={true}
           selectable={true}
           selectMirror={true}
+          selectMinDistance={3}
+          selectOverlap={true}
+          unselectAuto={true}
+          dateClick={handleDateClick}
           editable={true}
           eventResizableFromStart={false}
           snapDuration="00:15:00"
