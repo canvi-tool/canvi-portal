@@ -57,6 +57,27 @@ async function createDailyReport(data: DailyReportFormValues): Promise<DailyRepo
   return res.json()
 }
 
+async function updateDailyReport(id: string, data: DailyReportFormValues): Promise<DailyReport> {
+  const res = await fetch(`/api/reports/daily/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '日報の更新に失敗しました')
+  }
+  return res.json()
+}
+
+async function deleteDailyReport(id: string): Promise<void> {
+  const res = await fetch(`/api/reports/daily/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '日報の削除に失敗しました')
+  }
+}
+
 async function approveDailyReport(id: string, data: WorkReportApprovalValues): Promise<DailyReport> {
   const res = await fetch(`/api/reports/daily/${id}`, {
     method: 'PATCH',
@@ -117,6 +138,27 @@ export function useCreateDailyReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createDailyReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dailyReportKeys.lists() })
+    },
+  })
+}
+
+export function useUpdateDailyReport(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: DailyReportFormValues) => updateDailyReport(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dailyReportKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: dailyReportKeys.detail(id) })
+    },
+  })
+}
+
+export function useDeleteDailyReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteDailyReport(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: dailyReportKeys.lists() })
     },

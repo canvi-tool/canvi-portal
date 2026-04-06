@@ -2,7 +2,20 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, FileText, CheckCircle, Clock, Filter, Eye } from 'lucide-react'
+import {
+  Plus,
+  FileText,
+  CheckCircle,
+  Clock,
+  Filter,
+  Eye,
+  Phone,
+  PhoneCall,
+  PhoneIncoming,
+  Target,
+  CheckSquare,
+  AlertTriangle,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,19 +87,49 @@ export default function WorkReportsPage() {
   // Data fetching
   const { data: reports = [], isLoading } = useDailyReports(queryParams)
 
-  // Stats (current month)
+  // Stats (based on currently filtered reports)
   const stats = useMemo(() => {
-    const now = new Date()
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const monthReports = reports.filter(
-      (r) => r.report_date && r.report_date.startsWith(currentMonth)
-    )
-    const totalCount = monthReports.length
-    const submittedCount = monthReports.filter((r) => r.status === 'submitted').length
-    const approvedCount = monthReports.filter((r) => r.status === 'approved').length
+    const totalCount = reports.length
+    const submittedCount = reports.filter((r) => r.status === 'submitted').length
+    const approvedCount = reports.filter((r) => r.status === 'approved').length
     const pendingCount = submittedCount // submitted but not yet approved
 
-    return { totalCount, submittedCount, approvedCount, pendingCount }
+    // Quantitative totals from custom_fields
+    const toNum = (v: unknown): number => {
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : 0
+      return Number.isFinite(n) ? n : 0
+    }
+    let callTotal = 0
+    let contactTotal = 0
+    let appointmentTotal = 0
+    let receivedTotal = 0
+    let completedTotal = 0
+    let escalationTotal = 0
+    for (const r of reports) {
+      const cf = (r.custom_fields || {}) as Record<string, unknown>
+      if (r.report_type === 'outbound') {
+        callTotal += toNum(cf.daily_call_count_actual)
+        contactTotal += toNum(cf.daily_contact_count)
+        appointmentTotal += toNum(cf.daily_appointment_count)
+      } else if (r.report_type === 'inbound') {
+        receivedTotal += toNum(cf.daily_received_count)
+        completedTotal += toNum(cf.daily_completed_count)
+        escalationTotal += toNum(cf.daily_escalation_count)
+      }
+    }
+
+    return {
+      totalCount,
+      submittedCount,
+      approvedCount,
+      pendingCount,
+      callTotal,
+      contactTotal,
+      appointmentTotal,
+      receivedTotal,
+      completedTotal,
+      escalationTotal,
+    }
   }, [reports])
 
   // Staff name helper
@@ -169,7 +212,7 @@ export default function WorkReportsPage() {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="日報管理"
+        title="日次報告"
         actions={
           <Button size="sm" onClick={() => router.push('/reports/work/new')}>
             <Plus className="h-4 w-4 mr-1" />
@@ -244,7 +287,7 @@ export default function WorkReportsPage() {
               <FileText className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">今月の日報数</p>
+              <p className="text-xs text-muted-foreground">日報数</p>
               <p className="text-xl font-bold">{stats.totalCount}</p>
             </div>
           </CardContent>
@@ -279,6 +322,76 @@ export default function WorkReportsPage() {
             <div>
               <p className="text-xs text-muted-foreground">未承認</p>
               <p className="text-xl font-bold">{stats.pendingCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quantitative stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10 shrink-0">
+              <Phone className="h-4 w-4 text-sky-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">架電数合計</p>
+              <p className="text-xl font-bold">{stats.callTotal}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 shrink-0">
+              <PhoneCall className="h-4 w-4 text-cyan-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">接続数合計</p>
+              <p className="text-xl font-bold">{stats.contactTotal}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 shrink-0">
+              <Target className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">アポ数合計</p>
+              <p className="text-xl font-bold">{stats.appointmentTotal}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 shrink-0">
+              <PhoneIncoming className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">受電数合計</p>
+              <p className="text-xl font-bold">{stats.receivedTotal}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-500/10 shrink-0">
+              <CheckSquare className="h-4 w-4 text-teal-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">対応完了合計</p>
+              <p className="text-xl font-bold">{stats.completedTotal}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3 px-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/10 shrink-0">
+              <AlertTriangle className="h-4 w-4 text-rose-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">エスカレ数合計</p>
+              <p className="text-xl font-bold">{stats.escalationTotal}</p>
             </div>
           </CardContent>
         </Card>

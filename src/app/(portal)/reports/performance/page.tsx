@@ -99,7 +99,7 @@ export default function PerformanceReportsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="業務実績"
+        title="月次報告"
         description="月次の業務実績レポートを管理します"
         actions={
           <Button size="sm" onClick={() => setShowGenerateDialog(true)}>

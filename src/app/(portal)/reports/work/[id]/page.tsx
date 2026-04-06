@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import {
   useDailyReport,
   useApproveDailyReport,
+  useDeleteDailyReport,
 } from '@/hooks/use-daily-reports'
 import {
   DAILY_REPORT_TYPE_LABELS,
@@ -325,6 +326,18 @@ export default function DailyReportDetailPage() {
 
   const { data: report, isLoading } = useDailyReport(id)
   const approveMutation = useApproveDailyReport(id)
+  const deleteMutation = useDeleteDailyReport()
+
+  const handleDelete = async () => {
+    if (typeof window !== 'undefined' && !window.confirm('この日報を削除しますか？')) return
+    try {
+      await deleteMutation.mutateAsync(id)
+      toast.success('日報を削除しました')
+      router.push('/reports/work')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '削除に失敗しました')
+    }
+  }
 
   const [approvalComment, setApprovalComment] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
@@ -386,14 +399,41 @@ export default function DailyReportDetailPage() {
       <PageHeader
         title="日報詳細"
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/reports/work')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            一覧に戻る
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/reports/work')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              一覧に戻る
+            </Button>
+            {(report.status === 'draft' || report.status === 'rejected') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/reports/work/${id}/edit`)}
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                編集
+              </Button>
+            )}
+            {report.status !== 'approved' && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                削除
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -437,7 +477,7 @@ export default function DailyReportDetailPage() {
 
       {/* Timestamps */}
       <Card>
-        <CardContent className="py-4">
+        <CardContent className="py-4 space-y-2">
           <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
             {report.submitted_at && (
               <span>
@@ -446,7 +486,8 @@ export default function DailyReportDetailPage() {
             )}
             {report.approved_at && (
               <span>
-                承認日: {new Date(report.approved_at).toLocaleString('ja-JP')}
+                {report.status === 'rejected' ? '差戻し日' : '承認日'}:{' '}
+                {new Date(report.approved_at).toLocaleString('ja-JP')}
               </span>
             )}
             <span>
@@ -456,6 +497,17 @@ export default function DailyReportDetailPage() {
               更新日: {new Date(report.updated_at).toLocaleString('ja-JP')}
             </span>
           </div>
+          {(report.status === 'approved' || report.status === 'rejected') &&
+            (report as unknown as { approval_comment?: string | null }).approval_comment && (
+              <div className="text-xs">
+                <span className="text-muted-foreground">
+                  {report.status === 'rejected' ? '差戻しコメント' : '承認コメント'}:
+                </span>{' '}
+                <span className="whitespace-pre-wrap">
+                  {(report as unknown as { approval_comment?: string | null }).approval_comment}
+                </span>
+              </div>
+            )}
         </CardContent>
       </Card>
 
