@@ -108,10 +108,12 @@ function renderEventContent(eventInfo: EventContentArg) {
     const summary = eventInfo.event.extendedProps.summary as string || '(予定)'
     const startStr = eventInfo.event.start ? formatTime(eventInfo.event.start) : ''
     const endStr = eventInfo.event.end ? formatTime(eventInfo.event.end) : ''
+    const hasMeet = !!eventInfo.event.extendedProps.gcalEvent?.meetUrl
     return (
       <div className="flex flex-col h-full p-0.5 overflow-hidden cursor-pointer">
-        <div className="text-[10px] text-blue-500">
+        <div className="text-[10px] text-blue-500 flex items-center gap-0.5">
           {startStr}-{endStr}
+          {hasMeet && <span title="Google Meet">📹</span>}
         </div>
         <div className="text-[10px] font-medium text-blue-700 truncate">{summary}</div>
       </div>
@@ -131,6 +133,7 @@ function renderEventContent(eventInfo: EventContentArg) {
         <span className="text-[10px] opacity-80">
           {shift.startTime}-{shift.endTime}
         </span>
+        {shift.googleMeetUrl && <span className="text-[10px]" title="Google Meet">📹</span>}
       </div>
       <div className="text-[11px] font-medium truncate">{shift.staffName}</div>
       <div className="text-[10px] opacity-75 truncate">{shift.projectName}</div>

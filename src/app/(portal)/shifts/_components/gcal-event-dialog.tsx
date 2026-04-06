@@ -201,34 +201,39 @@ export function GCalEventDialog({
 
           {/* Google Meet URL / 発行・削除 */}
           {meetUrl ? (
-            <div className="flex items-center gap-3 text-sm">
-              <Video className="h-4 w-4 text-blue-500 shrink-0" />
-              <a
-                href={meetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline truncate"
-              >
-                Google Meet に参加
-              </a>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(meetUrl)
-                  toast.success('URLをコピーしました')
-                }}
-                className="p-1 rounded hover:bg-muted"
-                title="URLをコピー"
-              >
-                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-              <button
-                onClick={handleMeetDelete}
-                disabled={meetLoading}
-                className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
-                title="Meet URLを削除"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-              </button>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 text-sm">
+                <Video className="h-4 w-4 text-blue-500 shrink-0" />
+                <a
+                  href={meetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  Google Meet に参加
+                </a>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(meetUrl)
+                    toast.success('URLをコピーしました')
+                  }}
+                  className="p-1 rounded hover:bg-muted"
+                  title="URLをコピー"
+                >
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={handleMeetDelete}
+                  disabled={meetLoading}
+                  className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                  title="Meet URLを削除"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="pl-7">
+                <span className="text-xs text-muted-foreground break-all select-all">{meetUrl}</span>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-3 text-sm">
