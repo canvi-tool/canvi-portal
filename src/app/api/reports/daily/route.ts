@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { dailyReportSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
+import { isOwner, isAdmin } from '@/lib/auth/rbac'
 import { sendProjectNotificationIfEnabled, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
 
 // ---- GET: 日報一覧取得 ----
@@ -20,12 +21,18 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
+    const scope = searchParams.get('scope') || 'self' // 'self' | 'manage'
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
     const staffIdParam = searchParams.get('staff_id')
     const projectId = searchParams.get('project_id')
     const status = searchParams.get('status')
     const reportType = searchParams.get('report_type')
+    // 複数選択 (CSV)
+    const projectIdsCsv = searchParams.get('project_ids')
+    const staffIdsCsv = searchParams.get('staff_ids')
+    const projectIds = projectIdsCsv ? projectIdsCsv.split(',').filter(Boolean) : []
+    const staffIds = staffIdsCsv ? staffIdsCsv.split(',').filter(Boolean) : []
 
     let query = supabase
       .from('work_reports')
@@ -34,32 +41,30 @@ export async function GET(request: NextRequest) {
       .order('report_date', { ascending: false })
       .order('created_at', { ascending: false })
 
-    // オーナー以外はアサイン済みプロジェクトの日報のみ
-    if (allowedProjectIds) {
-      // training日報はproject_idがnullの場合がある → 自分の日報も含める
-      query = query.or(
-        `project_id.in.(${allowedProjectIds.join(',')}),and(project_id.is.null,staff_id.eq.${staffId})`
-      )
+    if (scope === 'manage') {
+      if (!isOwner(user) && !isAdmin(user)) {
+        return NextResponse.json({ error: '管理権限が必要です' }, { status: 403 })
+      }
+      // admin: アサインPJのみ。owner: 全PJ
+      if (allowedProjectIds) {
+        query = query.in('project_id', allowedProjectIds)
+      }
+      // 自分の日報は除外
+      if (staffId) query = query.neq('staff_id', staffId)
+    } else {
+      // self: 自分の日報のみ
+      if (!staffId) return NextResponse.json([])
+      query = query.eq('staff_id', staffId)
     }
 
-    if (startDate) {
-      query = query.gte('report_date', startDate)
-    }
-    if (endDate) {
-      query = query.lte('report_date', endDate)
-    }
-    if (staffIdParam) {
-      query = query.eq('staff_id', staffIdParam)
-    }
-    if (projectId) {
-      query = query.eq('project_id', projectId)
-    }
-    if (status && status !== 'all') {
-      query = query.eq('status', status)
-    }
-    if (reportType && reportType !== 'all') {
-      query = query.eq('report_type', reportType)
-    }
+    if (startDate) query = query.gte('report_date', startDate)
+    if (endDate) query = query.lte('report_date', endDate)
+    if (staffIdParam) query = query.eq('staff_id', staffIdParam)
+    if (projectId) query = query.eq('project_id', projectId)
+    if (projectIds.length > 0) query = query.in('project_id', projectIds)
+    if (staffIds.length > 0) query = query.in('staff_id', staffIds)
+    if (status && status !== 'all') query = query.eq('status', status)
+    if (reportType && reportType !== 'all') query = query.eq('report_type', reportType)
 
     const { data, error } = await query
 
