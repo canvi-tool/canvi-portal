@@ -11,7 +11,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
   try {
     const admin = createAdminClient()
 
-    const { data: shift } = await admin
+    const { data: shiftRaw } = await admin
       .from('shifts')
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
@@ -22,7 +22,9 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       .eq('id', shiftId)
       .single()
 
-    if (!shift) return
+    if (!shiftRaw) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shift = shiftRaw as any
 
     const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
     const projectData = shift.projects as unknown as { name: string; custom_fields: Record<string, unknown> | null }
