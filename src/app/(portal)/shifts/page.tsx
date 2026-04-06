@@ -243,6 +243,24 @@ export default function ShiftsPage() {
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 30秒ごとに自動再取得 + ウィンドウフォーカス時に再取得（near-instant同期）
+  useEffect(() => {
+    if (!dateRange.start || !dateRange.end || !currentUserId) return
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      syncFromGcal(true)
+    }
+    const interval = setInterval(tick, 30_000)
+    const onFocus = () => tick()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // フィルター対象のGCalユーザーIDを算出（複数選択時は自分のみ表示）
   const gcalTargetUserId = useMemo(() => {
     if (filterStaffIds.length === 0) return currentUserId
@@ -361,18 +379,23 @@ export default function ShiftsPage() {
   }, [shifts, fetchShifts])
 
   const handleShiftDelete = useCallback(async (shiftId: string) => {
+    // 楽観的UI: ローカルstateからすぐに削除
+    const prev = shifts
+    setShifts(curr => curr.filter(s => s.id !== shiftId))
     try {
       const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
       if (res.ok) {
         toast.success('シフトを削除しました')
         fetchShifts()
       } else {
+        setShifts(prev)
         toast.error('シフトの削除に失敗しました')
       }
     } catch {
+      setShifts(prev)
       toast.error('シフトの削除に失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShifts, shifts])
 
   const handleSlotSelect = useCallback((date: string, startTime: string, endTime: string) => {
     setCreateInitial({ date, startTime, endTime })

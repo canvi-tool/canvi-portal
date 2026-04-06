@@ -143,10 +143,13 @@ export function ShiftEditDialog({
   const canEdit = isManager || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
   const canApprove = shift.status === 'SUBMITTED'
 
+  // gcal: プレフィックスは内部用なので表示時は除外
+  const cleanNotes = (shift.notes || '').startsWith('gcal:') ? '' : (shift.notes || '')
+
   const handleStartEdit = () => {
     setEditStartTime(shift.startTime)
     setEditEndTime(shift.endTime)
-    setEditNotes(shift.notes || '')
+    setEditNotes(cleanNotes)
     setEditProjectId(shift.projectId)
     setIsEditing(true)
   }
@@ -278,20 +281,20 @@ export function ShiftEditDialog({
           {/* Notes - editable */}
           {isEditing ? (
             <div className="space-y-2">
-              <Label className="text-sm pl-7">備考</Label>
+              <Label className="text-sm pl-7">説明</Label>
               <textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="備考を入力..."
+                placeholder="説明を入力..."
                 className="w-full ml-7 rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 rows={2}
                 style={{ width: 'calc(100% - 28px)' }}
               />
             </div>
-          ) : shift.notes ? (
+          ) : cleanNotes ? (
             <div className="flex items-start gap-3 text-sm">
               <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="text-muted-foreground">{shift.notes}</span>
+              <span className="text-muted-foreground whitespace-pre-wrap">{cleanNotes}</span>
             </div>
           ) : null}
 

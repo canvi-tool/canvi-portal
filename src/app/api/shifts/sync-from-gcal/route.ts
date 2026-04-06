@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
     const jstOffset = 9 * 60 * 60 * 1000
     const jstNow = new Date(Date.now() + jstOffset)
     const today = body.start_date || jstNow.toISOString().split('T')[0]
-    const twoWeeksLater = new Date(jstNow.getTime() + 14 * 24 * 60 * 60 * 1000)
-    const endDate = body.end_date || twoWeeksLater.toISOString().split('T')[0]
+    const thirtyDaysLater = new Date(jstNow.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const endDate = body.end_date || thirtyDaysLater.toISOString().split('T')[0]
 
     const timeMin = `${today}T00:00:00+09:00`
     const timeMax = `${endDate}T23:59:59+09:00`
@@ -75,18 +75,13 @@ export async function POST(request: NextRequest) {
       if (assignments.length > 0) defaultProjectId = assignments[0].project_id
     }
 
-    // シフト関連イベントのみフィルタリング
+    // 全イベントを同期対象に（時刻指定のあるイベントのみ）
+    // calendarDisplayNames はプロジェクトマッチング用に保持
+    void calendarDisplayNames
     const shiftEvents = events.filter((event) => {
+      // 終日イベントは除外
       if (!event.start.includes('T') || !event.end.includes('T')) return false
-      const summary = (event.summary || '').toLowerCase()
-      if (summary.includes('シフト')) return true
-      for (const [projectName] of projectMap) {
-        if (summary.includes(projectName)) return true
-      }
-      for (const displayName of calendarDisplayNames) {
-        if (summary.includes(displayName)) return true
-      }
-      return false
+      return true
     })
 
     // 既存シフト（google_calendar_event_idあり）を取得
@@ -102,7 +97,7 @@ export async function POST(request: NextRequest) {
     // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
     const toHHMM = (t: string) => t.slice(0, 5)
 
-    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null }>()
+    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null; notes: string | null }>()
     if (existingShifts) {
       for (const shift of existingShifts) {
         if (shift.google_calendar_event_id) {
@@ -112,6 +107,7 @@ export async function POST(request: NextRequest) {
             start_time: toHHMM(shift.start_time),
             end_time: toHHMM(shift.end_time),
             google_meet_url: shift.google_meet_url || null,
+            notes: shift.notes || null,
           })
         }
       }
@@ -135,15 +131,25 @@ export async function POST(request: NextRequest) {
 
       const existing = existingByEventId.get(event.id)
 
+      const newDescription = event.description || null
+      const newMeetUrl = event.meetUrl || null
+
       if (existing) {
-        // GCal側で時刻またはMeet URLが変更された場合、Canviシフトを更新
-        const newMeetUrl = event.meetUrl || null
-        if (existing.shift_date !== shiftDate || existing.start_time !== startTime || existing.end_time !== endTime || existing.google_meet_url !== newMeetUrl) {
+        // GCal側で時刻/Meet URL/説明が変更された場合、Canviシフトを更新
+        const cleanExistingNotes = existing.notes && existing.notes.startsWith('gcal:') ? null : existing.notes
+        if (
+          existing.shift_date !== shiftDate ||
+          existing.start_time !== startTime ||
+          existing.end_time !== endTime ||
+          existing.google_meet_url !== newMeetUrl ||
+          cleanExistingNotes !== newDescription
+        ) {
           await admin.from('shifts').update({
             shift_date: shiftDate,
             start_time: startTime,
             end_time: endTime,
             google_meet_url: newMeetUrl,
+            notes: newDescription,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),
           }).eq('id', existing.id)
@@ -161,11 +167,14 @@ export async function POST(request: NextRequest) {
           shift_type: 'WORK',
           google_calendar_event_id: event.id,
           google_calendar_synced: true,
-          google_meet_url: event.meetUrl || null,
-          notes: `gcal:${event.id}`,
+          google_meet_url: newMeetUrl,
+          notes: newDescription,
           created_by: user.id,
         })
         created++
+      } else {
+        // デフォルトプロジェクトがない → ログだけ残してスキップ
+        console.warn(`[sync-from-gcal] No default project for staff ${staffRecord.id}, skipping event ${event.id}`)
       }
     }
 

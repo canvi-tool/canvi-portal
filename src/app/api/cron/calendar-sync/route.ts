@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
     const jstNow = new Date(now.getTime() + jstOffset)
     const today = jstNow.toISOString().split('T')[0]
 
-    // 検索範囲: 今日の00:00 JST ～ 2週間後の00:00 JST
+    // 検索範囲: 今日の00:00 JST ～ 30日後の00:00 JST
     const timeMin = `${today}T00:00:00+09:00`
-    const twoWeeksLater = new Date(jstNow.getTime() + 14 * 24 * 60 * 60 * 1000)
+    const twoWeeksLater = new Date(jstNow.getTime() + 30 * 24 * 60 * 60 * 1000)
     const twoWeeksLaterStr = twoWeeksLater.toISOString().split('T')[0]
     const timeMax = `${twoWeeksLaterStr}T00:00:00+09:00`
 
@@ -132,22 +132,13 @@ export async function GET(request: NextRequest) {
         // プライマリカレンダーからイベントを取得
         const events = await client.getEvents('primary', timeMin, timeMax)
 
-        // シフト関連イベントのみフィルタリング
+        // 全イベントを同期対象に（時刻指定のあるイベントのみ、終日除外）
+        void calendarDisplayNames
         const shiftEvents = events.filter((event) => {
-          // 終日イベントを除外（dateTime ではなく date 形式のもの）
           if (!event.start.includes('T') || !event.end.includes('T')) {
             return false
           }
-          // "シフト" を含む、またはアサイン済みプロジェクト名/カレンダー表記名を含むイベントのみ
-          const summary = (event.summary || '').toLowerCase()
-          if (summary.includes('シフト')) return true
-          for (const [projectName] of projectMap) {
-            if (summary.includes(projectName)) return true
-          }
-          for (const displayName of calendarDisplayNames) {
-            if (summary.includes(displayName)) return true
-          }
-          return false
+          return true
         })
 
         // このスタッフの今日〜2週間の既存シフト（google_calendar_event_idあり）を取得
@@ -169,32 +160,20 @@ export async function GET(request: NextRequest) {
           start_time: string
           end_time: string
           google_meet_url: string | null
-        }>()
-
-        // notes に gcal: プレフィックスがあるシフトもマッピング
-        const existingByGcalNote = new Map<string, {
-          id: string
-          shift_date: string
-          start_time: string
-          end_time: string
-          google_meet_url: string | null
+          notes: string | null
         }>()
 
         if (existingShifts) {
           for (const shift of existingShifts) {
-            const shiftData = {
-              id: shift.id,
-              shift_date: shift.shift_date,
-              start_time: toHHMM(shift.start_time),
-              end_time: toHHMM(shift.end_time),
-              google_meet_url: shift.google_meet_url || null,
-            }
             if (shift.google_calendar_event_id) {
-              existingByEventId.set(shift.google_calendar_event_id, shiftData)
-            }
-            if (shift.notes?.startsWith('gcal:')) {
-              const gcalId = shift.notes.slice(5)
-              existingByGcalNote.set(gcalId, shiftData)
+              existingByEventId.set(shift.google_calendar_event_id, {
+                id: shift.id,
+                shift_date: shift.shift_date,
+                start_time: toHHMM(shift.start_time),
+                end_time: toHHMM(shift.end_time),
+                google_meet_url: shift.google_meet_url || null,
+                notes: shift.notes || null,
+              })
             }
           }
         }
@@ -224,18 +203,19 @@ export async function GET(request: NextRequest) {
           // イベントIDに対応するプロジェクトを特定
           const projectId = matchProjectFromSummary(event.summary, projectMap) || defaultProjectId
 
-          // 既存シフトとのマッチング
-          const existingShift =
-            existingByEventId.get(event.id) || existingByGcalNote.get(event.id)
+          // 既存シフトとのマッチング (google_calendar_event_id のみ)
+          const existingShift = existingByEventId.get(event.id)
+          const newMeetUrl = event.meetUrl || null
+          const newDescription = event.description || null
 
           if (existingShift) {
-            // 更新チェック: 時間またはMeet URLが変わっていれば更新
-            const newMeetUrl = event.meetUrl || null
+            const cleanExistingNotes = existingShift.notes && existingShift.notes.startsWith('gcal:') ? null : existingShift.notes
             if (
               existingShift.shift_date !== shiftDate ||
               existingShift.start_time !== startTime ||
               existingShift.end_time !== endTime ||
-              existingShift.google_meet_url !== newMeetUrl
+              existingShift.google_meet_url !== newMeetUrl ||
+              cleanExistingNotes !== newDescription
             ) {
               const { error: updateError } = await admin
                 .from('shifts')
@@ -245,6 +225,7 @@ export async function GET(request: NextRequest) {
                   end_time: endTime,
                   project_id: projectId,
                   google_meet_url: newMeetUrl,
+                  notes: newDescription,
                   google_calendar_synced: true,
                   updated_at: new Date().toISOString(),
                 })
@@ -272,8 +253,8 @@ export async function GET(request: NextRequest) {
               shift_type: 'WORK',
               google_calendar_event_id: event.id,
               google_calendar_synced: true,
-              google_meet_url: event.meetUrl || null,
-              notes: `gcal:${event.id}`,
+              google_meet_url: newMeetUrl,
+              notes: newDescription,
               created_by: user.id,
             })
 
@@ -293,12 +274,6 @@ export async function GET(request: NextRequest) {
             const eventId = shift.google_calendar_event_id
             if (!eventId) continue
             if (processedEventIds.has(eventId)) continue
-
-            // gcal: notes のイベントIDもチェック
-            const noteEventId = shift.notes?.startsWith('gcal:')
-              ? shift.notes.slice(5)
-              : null
-            if (noteEventId && processedEventIds.has(noteEventId)) continue
 
             // イベントが消えた → シフトをソフト削除
             const nowIso = new Date().toISOString()
