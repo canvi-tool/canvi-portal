@@ -34,7 +34,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         id, staff_id, project_id, shift_date, start_time, end_time,
         notes, google_calendar_event_id, google_meet_url,
         staff!inner(user_id, last_name, first_name),
-        projects!inner(name)
+        projects!inner(name, calendar_display_name)
       `)
       .eq('id', shiftId)
       .is('deleted_at', null)
@@ -50,7 +50,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
-    const projectData = shift.projects as unknown as { name: string }
+    const projectData = shift.projects as unknown as { name: string; calendar_display_name: string | null }
 
     const token = await getValidTokenForUser(user.id)
     if (!token) {
@@ -73,7 +73,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       // カレンダーイベントがない場合: 新規作成 + Meet URL発行
       const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
       const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
-      const summary = `${projectData.name} シフト - ${staffData.last_name} ${staffData.first_name}`
+      const calendarName = projectData.calendar_display_name || projectData.name
+      const summary = `${calendarName} シフト - ${staffData.last_name} ${staffData.first_name}`
 
       const result = await client.createEvent({
         summary,

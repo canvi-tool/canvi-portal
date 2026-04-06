@@ -17,7 +17,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         id, staff_id, project_id, shift_date, start_time, end_time,
         shift_type, notes, google_calendar_event_id,
         staff!inner(user_id, last_name, first_name),
-        projects!inner(name)
+        projects!inner(name, calendar_display_name)
       `)
       .eq('id', shiftId)
       .single()
@@ -25,7 +25,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     if (!shift) return
 
     const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
-    const projectData = shift.projects as unknown as { name: string }
+    const projectData = shift.projects as unknown as { name: string; calendar_display_name: string | null }
     const userId = staffData.user_id
     if (!userId) return
 
@@ -41,7 +41,8 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const normalizeTime = (t: string) => t.length === 5 ? `${t}:00` : t.slice(0, 8)
     const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
     const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
-    const summary = `${projectData.name} シフト`
+    const calendarName = projectData.calendar_display_name || projectData.name
+    const summary = `${calendarName} シフト`
     const description = shift.notes || undefined
 
     if (shift.google_calendar_event_id) {

@@ -56,6 +56,11 @@ export const projectFormSchema = z.object({
   shift_approval_mode: z
     .enum(['AUTO', 'APPROVAL'])
     .optional(),
+  calendar_display_name: z
+    .string()
+    .max(200, 'カレンダー表記名は200文字以内で入力してください')
+    .optional()
+    .or(z.literal('')),
 })
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>

@@ -70,6 +70,7 @@ export function ProjectForm({
       slack_channel_id: '',
       slack_channel_name: '',
       shift_approval_mode: 'AUTO',
+      calendar_display_name: '',
       ...defaultValues,
     },
   })
@@ -379,6 +380,19 @@ export function ProjectForm({
             </Select>
           )}
         />
+      </div>
+
+      {/* カレンダー表記名 */}
+      <div className="space-y-2">
+        <Label htmlFor="calendar_display_name">カレンダー表記名</Label>
+        <Input
+          id="calendar_display_name"
+          placeholder="例: レオン矯正（IS）受付業務"
+          {...register('calendar_display_name')}
+        />
+        <p className="text-xs text-muted-foreground">
+          Googleカレンダーに登録する際の表示名。未入力の場合はPJ名が使用されます。
+        </p>
       </div>
 
       {/* Google Calendar ID */}
