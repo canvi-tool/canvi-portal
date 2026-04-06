@@ -189,8 +189,12 @@ export function ShiftEditDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Status badge */}
-          <div className="flex items-center gap-2">
+          {/* Source + Status badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-orange-50 border-orange-300 text-orange-700">
+              <Calendar className="h-3.5 w-3.5" />
+              Canviカレンダー
+            </span>
             <span className={cn(
               'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border',
               statusConfig.bgColor, statusConfig.color
