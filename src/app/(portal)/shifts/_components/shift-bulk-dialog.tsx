@@ -42,6 +42,16 @@ interface ShiftBulkDialogProps {
   isManager: boolean
   userRoles: string[]
   onCreated: () => void
+  prefill?: {
+    staffId?: string
+    projectId?: string
+    startTime?: string
+    endTime?: string
+    shiftType?: ShiftType
+    notes?: string
+    attendees?: Attendee[]
+    title?: string
+  } | null
 }
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] as const
@@ -82,6 +92,7 @@ export function ShiftBulkDialog({
   isManager,
   userRoles,
   onCreated,
+  prefill,
 }: ShiftBulkDialogProps) {
   const isOwner = userRoles.includes('owner')
 
@@ -114,6 +125,18 @@ export function ShiftBulkDialog({
     if (!currentStaffId) return
     setStaffId(currentStaffId)
   }, [currentStaffId])
+
+  // prefill適用（複製時）: ダイアログが開いたときに初期値セット
+  useEffect(() => {
+    if (!open || !prefill) return
+    if (prefill.staffId) setStaffId(prefill.staffId)
+    if (prefill.projectId) setProjectId(prefill.projectId)
+    if (prefill.startTime) setStartTime(prefill.startTime)
+    if (prefill.endTime) setEndTime(prefill.endTime)
+    if (prefill.shiftType) setShiftType(prefill.shiftType)
+    if (prefill.notes !== undefined) setNotes(prefill.notes)
+    if (prefill.attendees) setAttendees(prefill.attendees)
+  }, [open, prefill])
 
   // プロジェクト選択時、アサインされたスタッフを取得（管理者用）
   useEffect(() => {
@@ -278,7 +301,7 @@ export function ShiftBulkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5" />
-            シフト一括{isAutoApproval ? '登録' : '申請'}
+            {prefill ? 'シフト複製' : `シフト一括${isAutoApproval ? '登録' : '申請'}`}
           </DialogTitle>
         </DialogHeader>
 

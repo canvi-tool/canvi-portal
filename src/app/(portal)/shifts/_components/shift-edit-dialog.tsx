@@ -54,6 +54,7 @@ interface ShiftEditDialogProps {
   onApprove?: (shiftId: string) => void
   onReject?: (shiftId: string) => void
   onSyncCalendar?: (shiftId: string) => void
+  onDuplicate?: (shift: ShiftItem) => void
   isManager?: boolean
   projects?: ProjectOption[]
 }
@@ -80,6 +81,7 @@ export function ShiftEditDialog({
   onApprove,
   onReject,
   onSyncCalendar,
+  onDuplicate,
   isManager = false,
   projects = [],
 }: ShiftEditDialogProps) {
@@ -406,6 +408,19 @@ export function ShiftEditDialog({
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                   承認
+                </Button>
+              )}
+              {onDuplicate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onDuplicate(shift)
+                    onOpenChange(false)
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1" />
+                  複製
                 </Button>
               )}
               {canEdit && (

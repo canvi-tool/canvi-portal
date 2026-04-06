@@ -72,6 +72,14 @@ export default function ShiftsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  // 複製プリフィル（Bulkダイアログで使用）
+  const [duplicatePrefill, setDuplicatePrefill] = useState<{
+    staffId?: string
+    projectId?: string
+    startTime?: string
+    endTime?: string
+    notes?: string
+  } | null>(null)
 
   // Edit dialog
   const [editingShift, setEditingShift] = useState<{
@@ -894,13 +902,14 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
       {/* Bulk Dialog */}
       <ShiftBulkDialog
         open={bulkDialogOpen}
-        onOpenChange={setBulkDialogOpen}
+        onOpenChange={(o) => { setBulkDialogOpen(o); if (!o) setDuplicatePrefill(null) }}
         projects={projects}
         staffList={staffList}
         currentStaffId={currentStaffId}
         isManager={isManager}
         userRoles={userRoles}
         onCreated={fetchShifts}
+        prefill={duplicatePrefill}
       />
 
       {/* Edit Dialog */}
@@ -913,6 +922,16 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         onApprove={handleShiftApprove}
         onReject={handleShiftReject}
         onSyncCalendar={() => fetchShifts()}
+        onDuplicate={(s) => {
+          setDuplicatePrefill({
+            staffId: s.staffId,
+            projectId: s.projectId,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            notes: s.notes,
+          })
+          setBulkDialogOpen(true)
+        }}
         isManager={isManager}
         projects={projects}
       />
