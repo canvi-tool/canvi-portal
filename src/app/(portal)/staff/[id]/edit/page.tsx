@@ -11,9 +11,6 @@ import { useStaff, useUpdateStaff } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
 import {
   READONLY_FIELDS,
-  IDENTITY_FIELDS,
-  ADDRESS_FIELDS,
-  BANK_HOLDER_FIELD,
   computeAttachmentRequirement,
   needsAnyAttachment,
 } from '@/lib/profile/change-request-policy'
