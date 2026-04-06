@@ -84,11 +84,17 @@ export async function syncFromGoogleCalendarForStaff(params: {
     // gcal_pending_events に既存があるか
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pendingList } = await (admin as any).from('gcal_pending_events')
-      .select('id, event_date, start_time, end_time')
+      .select('id, event_date, start_time, end_time, excluded')
       .eq('staff_id', staffId)
       .eq('external_event_id', ev.id)
-      .limit(1) as { data: { id: string; event_date: string; start_time: string; end_time: string }[] | null }
+      .limit(1) as { data: { id: string; event_date: string; start_time: string; end_time: string; excluded: boolean }[] | null }
     const pending = pendingList && pendingList[0] ? pendingList[0] : null
+
+    // 永続除外されているものは触らない
+    if (pending?.excluded) {
+      result.skipped += 1
+      continue
+    }
 
     if (pending) {
       const changed =

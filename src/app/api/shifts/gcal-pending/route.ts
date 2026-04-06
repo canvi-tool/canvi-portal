@@ -32,7 +32,12 @@ export async function GET(request: NextRequest) {
     const isManager = roleNames.some((n) => ['admin', 'owner', 'manager'].includes(n))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query: any = (admin as any).from('gcal_pending_events').select('*')
+    const staffIdsParam = searchParams.get('staff_id')
+    let query: any = (admin as any).from('gcal_pending_events').select('*').eq('excluded', false)
+    if (staffIdsParam) {
+      const ids = staffIdsParam.split(',').filter(Boolean)
+      if (ids.length > 0) query = query.in('staff_id', ids)
+    }
     if (!isManager) {
       const { data: staffRec } = await admin
         .from('staff')

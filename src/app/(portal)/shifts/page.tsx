@@ -249,7 +249,9 @@ export default function ShiftsPage() {
       }
       // PJ未割当のGCal取込イベントを取得し、仮想シフトとして追加
       try {
-        const pendingRes = await fetch(`/api/shifts/gcal-pending?start_date=${dateRange.start}&end_date=${dateRange.end}`)
+        const pendingParams = new URLSearchParams({ start_date: dateRange.start, end_date: dateRange.end })
+        if (filterStaffIds.length > 0) pendingParams.set('staff_id', filterStaffIds.join(','))
+        const pendingRes = await fetch(`/api/shifts/gcal-pending?${pendingParams}`)
         if (pendingRes.ok) {
           const pending = await pendingRes.json()
           if (Array.isArray(pending)) {
@@ -1148,19 +1150,19 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
               variant="outline"
               onClick={async () => {
                 if (!pendingAssign) return
-                if (!confirm('このGCal予定をCanviから削除（スキップ）しますか？')) return
+                if (!confirm('この予定は業務PJではないとしてCanviから除外しますか？（次回同期でも再取込されません）')) return
                 try {
-                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'DELETE' })
+                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'PATCH' })
                   if (!res.ok) throw new Error()
-                  toast.success('スキップしました')
+                  toast.success('PJ対象外に設定しました')
                   setPendingAssign(null)
                   fetchShifts()
                 } catch {
-                  toast.error('削除に失敗しました')
+                  toast.error('更新に失敗しました')
                 }
               }}
             >
-              スキップ
+              PJではない
             </Button>
             <Button variant="outline" onClick={() => setPendingAssign(null)}>キャンセル</Button>
             <Button
