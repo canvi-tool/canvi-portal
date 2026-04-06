@@ -39,6 +39,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // shifts へINSERT (source=google_calendar, 紐付け情報を引き継ぐ)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const insertPayload: any = {
+      created_by: user.id,
       staff_id: pending.staff_id,
       project_id: projectId,
       shift_date: pending.event_date,
