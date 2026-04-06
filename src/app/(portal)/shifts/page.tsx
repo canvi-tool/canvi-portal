@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CalendarPlus,
   Plus,
+  RefreshCw,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -80,6 +81,8 @@ export default function ShiftsPage() {
   const [currentStaffId, setCurrentStaffId] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
   const [userRoles, setUserRoles] = useState<string[]>([])
+  const [syncing, setSyncing] = useState(false)
+  const [lastSynced, setLastSynced] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/user/current')
@@ -92,6 +95,39 @@ export default function ShiftsPage() {
       })
       .catch(() => {})
   }, [])
+
+  // GCal→Canvi オンデマンド同期
+  const syncFromGcal = useCallback(async (silent = false) => {
+    if (!dateRange.start || !dateRange.end) return
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/shifts/sync-from-gcal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: dateRange.start, end_date: dateRange.end }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const changes = data.created + data.updated + data.deleted
+        if (changes > 0) {
+          toast.success(data.message)
+          fetchShifts()
+        } else if (!silent) {
+          toast.info('Googleカレンダーとの差分はありません')
+        }
+        setLastSynced(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
+      } else if (!silent) {
+        const err = await res.json().catch(() => ({}))
+        if (err.error !== 'Googleカレンダーが未連携です') {
+          toast.error(err.error || '同期に失敗しました')
+        }
+      }
+    } catch {
+      if (!silent) toast.error('同期に失敗しました')
+    } finally {
+      setSyncing(false)
+    }
+  }, [dateRange.start, dateRange.end]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // シフトデータ取得
   const fetchShifts = useCallback(async () => {
@@ -172,6 +208,13 @@ export default function ShiftsPage() {
   useEffect(() => {
     fetchShifts()
   }, [fetchShifts])
+
+  // ページ表示時にGCal→Canvi自動同期（サイレント）
+  useEffect(() => {
+    if (dateRange.start && dateRange.end && currentUserId) {
+      syncFromGcal(true)
+    }
+  }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Googleカレンダー予定取得
   useEffect(() => {
@@ -410,6 +453,16 @@ export default function ShiftsPage() {
         description="ドラッグ&リサイズでシフトを直感的に管理"
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncFromGcal(false)}
+              disabled={syncing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? '同期中...' : 'GCal同期'}
+              {lastSynced && <span className="ml-1 text-[10px] text-muted-foreground">{lastSynced}</span>}
+            </Button>
             <Button
               size="sm"
               onClick={() => {

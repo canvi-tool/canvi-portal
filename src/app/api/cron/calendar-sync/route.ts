@@ -30,20 +30,17 @@ export async function GET(request: NextRequest) {
   }> = []
 
   try {
-    // JSTで今日と明日の日付を計算
+    // JSTで今日から2週間の日付を計算
     const now = new Date()
     const jstOffset = 9 * 60 * 60 * 1000
     const jstNow = new Date(now.getTime() + jstOffset)
     const today = jstNow.toISOString().split('T')[0]
 
-    const jstTomorrow = new Date(jstNow.getTime() + 24 * 60 * 60 * 1000)
-    const tomorrow = jstTomorrow.toISOString().split('T')[0]
-
-    // 検索範囲: 今日の00:00 JST ～ 明後日の00:00 JST
+    // 検索範囲: 今日の00:00 JST ～ 2週間後の00:00 JST
     const timeMin = `${today}T00:00:00+09:00`
-    const dayAfterTomorrow = new Date(jstNow.getTime() + 2 * 24 * 60 * 60 * 1000)
-    const dayAfterTomorrowStr = dayAfterTomorrow.toISOString().split('T')[0]
-    const timeMax = `${dayAfterTomorrowStr}T00:00:00+09:00`
+    const twoWeeksLater = new Date(jstNow.getTime() + 14 * 24 * 60 * 60 * 1000)
+    const twoWeeksLaterStr = twoWeeksLater.toISOString().split('T')[0]
+    const timeMax = `${twoWeeksLaterStr}T00:00:00+09:00`
 
     // google_refresh_token を持つユーザー一覧を取得
     const { data: usersWithGoogle, error: usersError } = await admin
@@ -147,12 +144,14 @@ export async function GET(request: NextRequest) {
           return false
         })
 
-        // このスタッフの今日・明日の既存シフト（google_calendar_event_idあり）を取得
+        // このスタッフの今日〜2週間の既存シフト（google_calendar_event_idあり）を取得
         const { data: existingShifts } = await admin
           .from('shifts')
-          .select('id, shift_date, start_time, end_time, google_calendar_event_id, notes')
+          .select('id, shift_date, start_time, end_time, google_calendar_event_id, notes, status')
           .eq('staff_id', staffRecord.id)
-          .in('shift_date', [today, tomorrow])
+          .gte('shift_date', today)
+          .lte('shift_date', twoWeeksLaterStr)
+          .is('deleted_at', null)
           .not('google_calendar_event_id', 'is', null)
 
         const existingByEventId = new Map<string, {
