@@ -62,30 +62,39 @@ interface ShiftFullCalendarProps {
 
 function toFullCalendarEvents(shifts: CalendarShift[]) {
   return shifts.map((s) => {
+    const isPending = !!s.needsProjectAssignment && s.id.startsWith('gcal_pending__')
     const isLeave = s.shiftType !== 'WORK'
-    const bgColor = isLeave
+    const bgColor = isPending
+      ? 'rgba(156, 163, 175, 0.25)' // gray-400 15%
+      : isLeave
       ? SHIFT_TYPE_COLORS[s.shiftType] || '#6366f1'
       : getProjectColor(s.projectId)
+    const borderColor = isPending ? '#6b7280' : bgColor
+    const textColor = isPending ? '#374151' : '#fff'
 
     return {
       id: s.id,
-      title: isLeave
+      title: isPending
+        ? `【PJ未割当】${s.notes || 'GCal'}`
+        : isLeave
         ? `${s.staffName} - 欠勤`
         : `${s.staffName} - ${s.projectName}`,
       start: `${s.date}T${s.startTime}:00`,
       end: `${s.date}T${s.endTime}:00`,
       backgroundColor: bgColor,
-      borderColor: bgColor,
-      textColor: '#fff',
+      borderColor,
+      textColor,
+      classNames: isPending ? ['gcal-pending-event'] : [],
       extendedProps: {
         shift: s,
         statusColor: STATUS_COLORS[s.status] || '#9ca3af',
         isGoogleEvent: false,
+        isPending,
       },
-      // 仮想招待行（他人の予定の参照表示）は編集不可、かつ選択の邪魔にならないよう overlap 許可
-      editable: !s.isVirtualAttendee,
-      durationEditable: !s.isVirtualAttendee,
-      startEditable: !s.isVirtualAttendee,
+      // 仮想招待行 / pending は編集不可
+      editable: !s.isVirtualAttendee && !isPending,
+      durationEditable: !s.isVirtualAttendee && !isPending,
+      startEditable: !s.isVirtualAttendee && !isPending,
       overlap: true,
     }
   })

@@ -195,3 +195,13 @@
   background: hsl(var(--border));
   margin: 4px 0;
 }
+
+/* GCal pending (PJ未割当) イベント: 破線枠 + 薄グレー */
+.fc-event.gcal-pending-event {
+  border-style: dashed !important;
+  border-width: 1.5px !important;
+  opacity: 0.85;
+}
+.fc-event.gcal-pending-event:hover {
+  opacity: 1;
+}

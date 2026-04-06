@@ -133,11 +133,18 @@ export default function ShiftsPage() {
     setSyncing(true)
     try {
       // Phase 1: 新取込パス (PJ未割当モデル)
-      await fetch('/api/shifts/gcal-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_date: dateRange.start, end_date: dateRange.end }),
-      }).catch(() => null)
+      let pendingCreated = 0
+      try {
+        const importRes = await fetch('/api/shifts/gcal-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_date: dateRange.start, end_date: dateRange.end }),
+        })
+        if (importRes.ok) {
+          const importData = await importRes.json()
+          pendingCreated = importData.created || 0
+        }
+      } catch { /* noop */ }
 
       const res = await fetch('/api/shifts/sync-from-gcal', {
         method: 'POST',
@@ -147,8 +154,9 @@ export default function ShiftsPage() {
       if (res.ok) {
         const data = await res.json()
         const changes = (data.created || 0) + (data.updated || 0) + (data.deleted || 0)
-        if (changes > 0) {
-          toast.success(data.message)
+        const pendingMsg = pendingCreated > 0 ? ` / PJ未割当 ${pendingCreated}件 追加` : ''
+        if (changes > 0 || pendingCreated > 0) {
+          toast.success(`${data.message || '同期完了'}${pendingMsg}`)
         } else if (!silent) {
           toast.info('Googleカレンダーとの差分はありません')
         }
@@ -1136,6 +1144,24 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             </div>
           )}
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!pendingAssign) return
+                if (!confirm('このGCal予定をCanviから削除（スキップ）しますか？')) return
+                try {
+                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'DELETE' })
+                  if (!res.ok) throw new Error()
+                  toast.success('スキップしました')
+                  setPendingAssign(null)
+                  fetchShifts()
+                } catch {
+                  toast.error('削除に失敗しました')
+                }
+              }}
+            >
+              スキップ
+            </Button>
             <Button variant="outline" onClick={() => setPendingAssign(null)}>キャンセル</Button>
             <Button
               disabled={!pendingAssign?.projectId || pendingAssigning}
