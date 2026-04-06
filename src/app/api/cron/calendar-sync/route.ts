@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
         // スタッフのアクティブなプロジェクトアサインメントを取得
         const { data: assignments } = await admin
           .from('project_assignments')
-          .select('project_id, projects!inner(id, name)')
+          .select('project_id, projects!inner(id, name, custom_fields)')
           .eq('staff_id', staffRecord.id)
           .in('status', ['active', 'confirmed'])
 
@@ -118,11 +118,14 @@ export async function GET(request: NextRequest) {
 
         // プロジェクト名→IDマッピングを構築
         const projectMap = new Map<string, string>()
+        const calendarDisplayNames = new Set<string>()
         for (const a of assignments) {
-          const project = a.projects as unknown as { id: string; name: string }
+          const project = a.projects as unknown as { id: string; name: string; custom_fields?: Record<string, unknown> | null }
           if (project?.name) {
             projectMap.set(project.name.toLowerCase(), project.id)
           }
+          const displayName = project?.custom_fields?.calendar_display_name as string | undefined
+          if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
         }
         const defaultProjectId = assignments[0].project_id
 
@@ -135,11 +138,14 @@ export async function GET(request: NextRequest) {
           if (!event.start.includes('T') || !event.end.includes('T')) {
             return false
           }
-          // "シフト" を含む、またはアサイン済みプロジェクト名を含むイベントのみ
+          // "シフト" を含む、またはアサイン済みプロジェクト名/カレンダー表記名を含むイベントのみ
           const summary = (event.summary || '').toLowerCase()
           if (summary.includes('シフト')) return true
           for (const [projectName] of projectMap) {
             if (summary.includes(projectName)) return true
+          }
+          for (const displayName of calendarDisplayNames) {
+            if (summary.includes(displayName)) return true
           }
           return false
         })

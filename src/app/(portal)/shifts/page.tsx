@@ -27,6 +27,7 @@ import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from 
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
 import { ShiftBulkDialog } from './_components/shift-bulk-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
+import { GCalEventDialog, type GCalEventItem } from './_components/gcal-event-dialog'
 import { toast } from 'sonner'
 
 // --- Types ---
@@ -76,6 +77,10 @@ export default function ShiftsPage() {
     googleMeetUrl?: string | null;
   } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+
+  // GCal event dialog
+  const [gcalEvent, setGcalEvent] = useState<GCalEventItem | null>(null)
+  const [gcalDialogOpen, setGcalDialogOpen] = useState(false)
 
   const [isManager, setIsManager] = useState(false)
   const [currentStaffId, setCurrentStaffId] = useState('')
@@ -232,13 +237,14 @@ export default function ShiftsPage() {
         const member = data.members[0]
         const gcEvents: GoogleCalendarEvent[] = (member.busy || [])
           .filter((b: { source: string }) => b.source === 'google')
-          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string }) => ({
+          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }) => ({
             id: b.eventId || `gcal-${b.start}`,
             summary: b.summary || '(予定)',
             start: b.start,
             end: b.end,
             description: b.description,
             location: b.location,
+            meetUrl: b.meetUrl || null,
           }))
         setGoogleEvents(gcEvents)
       })
@@ -398,6 +404,143 @@ export default function ShiftsPage() {
       toast.error('シフトの却下に失敗しました')
     }
   }, [fetchShifts])
+
+  // --- Google Calendar event handlers ---
+
+  const handleGoogleEventClick = useCallback((event: GoogleCalendarEvent) => {
+    setGcalEvent({
+      id: event.id,
+      summary: event.summary,
+      start: event.start,
+      end: event.end,
+      description: event.description,
+      location: event.location,
+      meetUrl: event.meetUrl,
+    })
+    setGcalDialogOpen(true)
+  }, [])
+
+  const handleGoogleEventDragUpdate = useCallback(async (
+    eventId: string, startDateTime: string, endDateTime: string
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDateTime, endDateTime }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Googleカレンダーの更新に失敗しました')
+        return false
+      }
+      toast.success('Googleカレンダーの予定を移動しました')
+      // GCal予定を再取得
+      refreshGoogleEvents()
+      return true
+    } catch {
+      toast.error('Googleカレンダーの更新に失敗しました')
+      return false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGcalEventTimeUpdate = useCallback(async (
+    eventId: string, startDateTime: string, endDateTime: string
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDateTime, endDateTime }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Googleカレンダーの更新に失敗しました')
+        return false
+      }
+      toast.success('Googleカレンダーの予定を更新しました')
+      refreshGoogleEvents()
+      return true
+    } catch {
+      toast.error('Googleカレンダーの更新に失敗しました')
+      return false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGcalEventDelete = useCallback(async (eventId: string) => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('Googleカレンダーの予定を削除しました')
+        refreshGoogleEvents()
+      } else {
+        toast.error('Googleカレンダーの予定の削除に失敗しました')
+      }
+    } catch {
+      toast.error('Googleカレンダーの予定の削除に失敗しました')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGcalMeetCreate = useCallback(async (eventId: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}/meet`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Meet URLの発行に失敗しました')
+        return null
+      }
+      const data = await res.json()
+      toast.success('Google Meet URLを発行しました')
+      refreshGoogleEvents()
+      return data.meetUrl
+    } catch {
+      toast.error('Meet URLの発行に失敗しました')
+      return null
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGcalMeetDelete = useCallback(async (eventId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}/meet`, { method: 'DELETE' })
+      if (!res.ok) {
+        toast.error('Meet URLの削除に失敗しました')
+        return false
+      }
+      toast.success('Google Meet URLを削除しました')
+      refreshGoogleEvents()
+      return true
+    } catch {
+      toast.error('Meet URLの削除に失敗しました')
+      return false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // GCal予定を再取得するヘルパー
+  const refreshGoogleEvents = useCallback(() => {
+    if (!currentUserId || !dateRange.start || !dateRange.end) return
+    const timeMin = `${dateRange.start}T00:00:00+09:00`
+    const timeMax = `${dateRange.end}T23:59:59+09:00`
+    const params = new URLSearchParams({ user_ids: currentUserId, time_min: timeMin, time_max: timeMax })
+    fetch(`/api/calendar/availability?${params}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.members?.length) { setGoogleEvents([]); return }
+        const member = data.members[0]
+        const gcEvents: GoogleCalendarEvent[] = (member.busy || [])
+          .filter((b: { source: string }) => b.source === 'google')
+          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }) => ({
+            id: b.eventId || `gcal-${b.start}`,
+            summary: b.summary || '(予定)',
+            start: b.start,
+            end: b.end,
+            description: b.description,
+            location: b.location,
+            meetUrl: b.meetUrl || null,
+          }))
+        setGoogleEvents(gcEvents)
+      })
+      .catch(() => {})
+  }, [currentUserId, dateRange.start, dateRange.end])
 
   // Stats
   const totalShifts = shifts.length
@@ -601,6 +744,8 @@ export default function ShiftsPage() {
         onShiftDelete={handleShiftDelete}
         onSlotSelect={handleSlotSelect}
         onDateRangeChange={handleDateRangeChange}
+        onGoogleEventClick={handleGoogleEventClick}
+        onGoogleEventDragUpdate={handleGoogleEventDragUpdate}
       />
 
       {/* Create Dialog */}
@@ -641,6 +786,17 @@ export default function ShiftsPage() {
         onSyncCalendar={() => fetchShifts()}
         isManager={isManager}
         projects={projects}
+      />
+
+      {/* GCal Event Dialog */}
+      <GCalEventDialog
+        event={gcalEvent}
+        open={gcalDialogOpen}
+        onOpenChange={setGcalDialogOpen}
+        onTimeUpdate={handleGcalEventTimeUpdate}
+        onDelete={handleGcalEventDelete}
+        onMeetCreate={handleGcalMeetCreate}
+        onMeetDelete={handleGcalMeetDelete}
       />
     </div>
   )

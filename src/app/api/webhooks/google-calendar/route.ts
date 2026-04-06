@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     // プロジェクトアサインメントを取得
     const { data: assignments } = await admin
       .from('project_assignments')
-      .select('project_id, projects!inner(id, name)')
+      .select('project_id, projects!inner(id, name, custom_fields)')
       .eq('staff_id', staffRecord.id)
       .in('status', ['active', 'confirmed'])
 
@@ -91,11 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     const projectMap = new Map<string, string>()
+    const calendarDisplayNames = new Set<string>()
     for (const a of assignments) {
-      const project = a.projects as unknown as { id: string; name: string }
+      const project = a.projects as unknown as { id: string; name: string; custom_fields?: Record<string, unknown> | null }
       if (project?.name) {
         projectMap.set(project.name.toLowerCase(), project.id)
       }
+      const displayName = project?.custom_fields?.calendar_display_name as string | undefined
+      if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
     }
     const defaultProjectId = assignments[0].project_id
 
@@ -119,6 +122,9 @@ export async function POST(request: NextRequest) {
       if (summary.includes('シフト')) return true
       for (const [projectName] of projectMap) {
         if (summary.includes(projectName)) return true
+      }
+      for (const displayName of calendarDisplayNames) {
+        if (summary.includes(displayName)) return true
       }
       return false
     })

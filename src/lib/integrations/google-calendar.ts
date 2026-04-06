@@ -461,7 +461,7 @@ export class GoogleCalendarClient {
     timeMin: string
     timeMax: string
     timeZone?: string
-  }): Promise<Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string }>> {
+  }): Promise<Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }>> {
     const { timeMin, timeMax } = params
 
     const response = await this.calendar.events.list({
@@ -483,6 +483,7 @@ export class GoogleCalendarClient {
         eventId: e.id || undefined,
         description: e.description || undefined,
         location: e.location || undefined,
+        meetUrl: e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || undefined,
       }))
   }
 

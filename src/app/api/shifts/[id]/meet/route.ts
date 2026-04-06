@@ -73,8 +73,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       // カレンダーイベントがない場合: 新規作成 + Meet URL発行
       const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
       const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
-      const calendarName = (projectData.custom_fields?.calendar_display_name as string) || projectData.name
-      const summary = `${calendarName} シフト - ${staffData.last_name} ${staffData.first_name}`
+      const calendarDisplayName = projectData.custom_fields?.calendar_display_name as string | undefined
+      const baseName = calendarDisplayName || `${projectData.name} シフト`
+      const summary = `${baseName} - ${staffData.last_name} ${staffData.first_name}`
 
       const result = await client.createEvent({
         summary,

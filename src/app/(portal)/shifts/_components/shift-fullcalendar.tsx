@@ -37,6 +37,7 @@ export interface GoogleCalendarEvent {
   end: string
   description?: string
   location?: string
+  meetUrl?: string | null
 }
 
 interface ShiftFullCalendarProps {
@@ -49,6 +50,8 @@ interface ShiftFullCalendarProps {
   onShiftDelete: (shiftId: string) => void
   onSlotSelect: (date: string, startTime: string, endTime: string) => void
   onDateRangeChange: (start: string, end: string) => void
+  onGoogleEventClick?: (event: GoogleCalendarEvent) => void
+  onGoogleEventDragUpdate?: (eventId: string, startDateTime: string, endDateTime: string) => Promise<boolean>
 }
 
 function toFullCalendarEvents(shifts: CalendarShift[]) {
@@ -84,12 +87,13 @@ function toGoogleCalendarFCEvents(events: GoogleCalendarEvent[]) {
     title: e.summary || '(予定)',
     start: e.start,
     end: e.end,
-    backgroundColor: 'rgba(148, 163, 184, 0.25)',
-    borderColor: '#94a3b8',
-    textColor: '#475569',
-    editable: false,
+    backgroundColor: 'rgba(66, 133, 244, 0.15)',
+    borderColor: '#4285f4',
+    textColor: '#1a73e8',
+    editable: true,
     extendedProps: {
       isGoogleEvent: true,
+      gcalEvent: e,
       summary: e.summary,
       description: e.description,
       location: e.location,
@@ -105,11 +109,11 @@ function renderEventContent(eventInfo: EventContentArg) {
     const startStr = eventInfo.event.start ? formatTime(eventInfo.event.start) : ''
     const endStr = eventInfo.event.end ? formatTime(eventInfo.event.end) : ''
     return (
-      <div className="flex flex-col h-full p-0.5 overflow-hidden opacity-70">
-        <div className="text-[10px] text-slate-500">
+      <div className="flex flex-col h-full p-0.5 overflow-hidden cursor-pointer">
+        <div className="text-[10px] text-blue-500">
           {startStr}-{endStr}
         </div>
-        <div className="text-[10px] font-medium text-slate-600 truncate">{summary}</div>
+        <div className="text-[10px] font-medium text-blue-700 truncate">{summary}</div>
       </div>
     )
   }
@@ -144,6 +148,8 @@ export function ShiftFullCalendar({
   onShiftDelete,
   onSlotSelect,
   onDateRangeChange,
+  onGoogleEventClick,
+  onGoogleEventDragUpdate,
 }: ShiftFullCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -161,7 +167,17 @@ export function ShiftFullCalendar({
 
   // イベントドラッグ完了（移動）
   const handleEventDrop = useCallback(async (info: EventDropArg) => {
-    if (info.event.extendedProps.isGoogleEvent) { info.revert(); return }
+    if (info.event.extendedProps.isGoogleEvent) {
+      if (!onGoogleEventDragUpdate) { info.revert(); return }
+      const newStart = info.event.start!
+      const newEnd = info.event.end!
+      const startDateTime = toISOWithTZ(newStart)
+      const endDateTime = toISOWithTZ(newEnd)
+      const gcalEvent = info.event.extendedProps.gcalEvent as GoogleCalendarEvent
+      const success = await onGoogleEventDragUpdate(gcalEvent.id, startDateTime, endDateTime)
+      if (!success) info.revert()
+      return
+    }
     const shift = info.event.extendedProps.shift as CalendarShift
 
     if (!isManager && shift.status === 'APPROVED') {
@@ -180,11 +196,21 @@ export function ShiftFullCalendar({
     if (!success) {
       info.revert()
     }
-  }, [isManager, onShiftDragUpdate])
+  }, [isManager, onShiftDragUpdate, onGoogleEventDragUpdate])
 
   // イベントリサイズ完了
   const handleEventResize = useCallback(async (info: EventResizeDoneArg) => {
-    if (info.event.extendedProps.isGoogleEvent) { info.revert(); return }
+    if (info.event.extendedProps.isGoogleEvent) {
+      if (!onGoogleEventDragUpdate) { info.revert(); return }
+      const newStart = info.event.start!
+      const newEnd = info.event.end!
+      const startDateTime = toISOWithTZ(newStart)
+      const endDateTime = toISOWithTZ(newEnd)
+      const gcalEvent = info.event.extendedProps.gcalEvent as GoogleCalendarEvent
+      const success = await onGoogleEventDragUpdate(gcalEvent.id, startDateTime, endDateTime)
+      if (!success) info.revert()
+      return
+    }
     const shift = info.event.extendedProps.shift as CalendarShift
 
     if (!isManager && shift.status === 'APPROVED') {
@@ -203,22 +229,22 @@ export function ShiftFullCalendar({
     if (!success) {
       info.revert()
     }
-  }, [isManager, onShiftDragUpdate])
+  }, [isManager, onShiftDragUpdate, onGoogleEventDragUpdate])
 
   // イベントクリック
   const handleEventClick = useCallback((info: { event: EventApi; jsEvent: MouseEvent }) => {
-    // Googleカレンダーイベントはクリック無効
-    if (info.event.extendedProps.isGoogleEvent) return
-
-    const shift = info.event.extendedProps.shift as CalendarShift
-
     // 右クリック → コンテキストメニュー
-    if (info.jsEvent.button === 2) {
+    if (info.jsEvent.button === 2) return
+
+    if (info.event.extendedProps.isGoogleEvent) {
+      const gcalEvent = info.event.extendedProps.gcalEvent as GoogleCalendarEvent
+      onGoogleEventClick?.(gcalEvent)
       return
     }
 
+    const shift = info.event.extendedProps.shift as CalendarShift
     onShiftClick(shift)
-  }, [onShiftClick])
+  }, [onShiftClick, onGoogleEventClick])
 
   // 右クリック
   useEffect(() => {
@@ -433,4 +459,10 @@ function formatDate(d: Date): string {
 
 function formatTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function toISOWithTZ(d: Date): string {
+  const date = formatDate(d)
+  const time = formatTime(d)
+  return `${date}T${time}:00+09:00`
 }
