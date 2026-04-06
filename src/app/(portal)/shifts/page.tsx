@@ -146,7 +146,11 @@ export default function ShiftsPage() {
   }
 
   // シフトデータ取得
+  const fetchShiftsRef = useRef<() => Promise<void>>(async () => {})
   const fetchShifts = useCallback(async () => {
+    await fetchShiftsRef.current()
+  }, [])
+  const fetchShiftsImpl = useCallback(async () => {
     if (!dateRange.start || !dateRange.end) return
     setLoading(true)
     try {
@@ -193,6 +197,11 @@ export default function ShiftsPage() {
     }
   }, [dateRange, filterProject, filterStaffIds, filterStatus])
 
+  // 最新のfetchShiftsImplをrefに同期（stale closure対策）
+  useEffect(() => {
+    fetchShiftsRef.current = fetchShiftsImpl
+  }, [fetchShiftsImpl])
+
   // プロジェクトとスタッフ一覧を取得
   useEffect(() => {
     fetch('/api/projects?limit=100')
@@ -223,8 +232,8 @@ export default function ShiftsPage() {
   }, [])
 
   useEffect(() => {
-    fetchShifts()
-  }, [fetchShifts])
+    fetchShiftsImpl()
+  }, [fetchShiftsImpl])
 
   // ページ表示時にGCal→Canvi自動同期（サイレント）
   useEffect(() => {
