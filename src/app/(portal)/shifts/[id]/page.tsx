@@ -10,7 +10,6 @@ import {
   CalendarDays,
   Briefcase,
   User,
-  FileText,
   CheckCircle2,
   XCircle,
   AlertTriangle,
