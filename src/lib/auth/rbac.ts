@@ -66,8 +66,14 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
   // ── 開発者インパーソネーション ──
   // DEV_EMAILSに含まれるユーザーが dev_user_override cookie をセットしている場合、
   // その対象ユーザーとして全APIが振る舞う
+  // また dev_role_override cookie があれば、自分のロールを指定ロールに強制する
+  let devRoleOverride: RoleName | null = null
   if (user.email && DEV_EMAILS.includes(user.email)) {
     const cookieStore = await cookies()
+    const roleOv = cookieStore.get('dev_role_override')?.value
+    if (roleOv && ['owner', 'admin', 'staff'].includes(roleOv)) {
+      devRoleOverride = roleOv as RoleName
+    }
     const impersonateId = cookieStore.get('dev_user_override')?.value
     if (impersonateId && impersonateId !== user.id) {
       const adminClient = createAdminClient()
@@ -220,6 +226,11 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
     .select('id')
     .eq('user_id', user.id)
     .maybeSingle()
+
+  // 開発者ロール上書き: dev_role_override があればロールを単一ロールに置換
+  if (devRoleOverride) {
+    roles = [devRoleOverride]
+  }
 
   return {
     id: userData.id,
