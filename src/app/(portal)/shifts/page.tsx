@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Clock,
@@ -515,8 +515,12 @@ export default function ShiftsPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // GCal予定を再取得するヘルパー
+  // GCal予定を再取得するヘルパー（refで最新状態を参照）
+  const refreshGoogleEventsRef = useRef<() => void>(() => {})
   const refreshGoogleEvents = useCallback(() => {
+    refreshGoogleEventsRef.current()
+  }, [])
+  refreshGoogleEventsRef.current = () => {
     if (!currentUserId || !dateRange.start || !dateRange.end) return
     const timeMin = `${dateRange.start}T00:00:00+09:00`
     const timeMax = `${dateRange.end}T23:59:59+09:00`
@@ -540,7 +544,7 @@ export default function ShiftsPage() {
         setGoogleEvents(gcEvents)
       })
       .catch(() => {})
-  }, [currentUserId, dateRange.start, dateRange.end])
+  }
 
   // Stats
   const totalShifts = shifts.length
