@@ -1865,7 +1865,6 @@ export interface Database {
           leave_requested: boolean
           member_assigned: boolean
           member_removed: boolean
-          general_alert: boolean
           attendance_missing_delay_minutes: number
           attendance_missing_repeat_interval_minutes: number
           attendance_missing_max_repeats: number
@@ -1894,7 +1893,6 @@ export interface Database {
           leave_requested?: boolean
           member_assigned?: boolean
           member_removed?: boolean
-          general_alert?: boolean
           attendance_missing_delay_minutes?: number
           attendance_missing_repeat_interval_minutes?: number
           attendance_missing_max_repeats?: number
@@ -1923,7 +1921,6 @@ export interface Database {
           leave_requested?: boolean
           member_assigned?: boolean
           member_removed?: boolean
-          general_alert?: boolean
           attendance_missing_delay_minutes?: number
           attendance_missing_repeat_interval_minutes?: number
           attendance_missing_max_repeats?: number

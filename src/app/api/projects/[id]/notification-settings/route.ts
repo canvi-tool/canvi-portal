@@ -17,7 +17,6 @@ const BOOLEAN_FIELDS = [
   'leave_requested',
   'member_assigned',
   'member_removed',
-  'general_alert',
 ] as const
 
 // 数値パラメータフィールド（min, max バリデーション付き）
@@ -52,7 +51,6 @@ const DEFAULT_SETTINGS: Record<string, boolean | number> = {
   leave_requested: true,
   member_assigned: true,
   member_removed: true,
-  general_alert: true,
   // タイミングパラメータ
   attendance_missing_delay_minutes: 5,
   attendance_missing_repeat_interval_minutes: 5,

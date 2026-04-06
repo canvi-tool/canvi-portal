@@ -22,7 +22,6 @@ export interface ProjectNotificationSettings {
   leave_requested: boolean
   member_assigned: boolean
   member_removed: boolean
-  general_alert: boolean
 
   // 打刻漏れアラートのタイミング
   attendance_missing_delay_minutes: number
@@ -53,7 +52,6 @@ export type ToggleSettingKey = Extract<keyof ProjectNotificationSettings,
   | 'report_submitted' | 'report_overdue'
   | 'overtime_warning' | 'leave_requested'
   | 'member_assigned' | 'member_removed'
-  | 'general_alert'
 >
 
 // 数値パラメータのキー
@@ -263,18 +261,6 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
         key: 'member_removed',
         label: 'メンバー解除通知',
         description: 'メンバーのアサインが解除された際に通知',
-      },
-    ],
-  },
-  {
-    key: 'general',
-    label: 'その他',
-    icon: '🔔',
-    items: [
-      {
-        key: 'general_alert',
-        label: '汎用アラート',
-        description: 'その他の重要な通知',
       },
     ],
   },

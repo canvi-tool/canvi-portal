@@ -23,7 +23,6 @@ export type NotificationToggleKey =
   | 'leave_requested'
   | 'member_assigned'
   | 'member_removed'
-  | 'general_alert'
 
 // デフォルト通知設定（settings未作成の場合）
 // 出退勤はスレッド化のため必ずON（thread_ts取得に必要）
@@ -36,13 +35,12 @@ const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
   shift_submitted: false,
   shift_approved: false,
   shift_rejected: true,
-  report_submitted: false,
+  report_submitted: true,
   report_overdue: true,
   overtime_warning: true,
   leave_requested: true,
   member_assigned: true,
   member_removed: true,
-  general_alert: true,
 }
 
 /**
@@ -147,7 +145,6 @@ export type SlackEventType =
   | 'payment_anomaly'
   | 'leave_requested'
   | 'overtime_warning'
-  | 'general_alert'
 
 // Bot Token
 function getBotToken(): string | null {
