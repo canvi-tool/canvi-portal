@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth/rbac'
 
 export async function GET() {
   try {
     await requireAdmin()
 
-    const supabase = await createServerSupabaseClient()
+    // 権限チェック済み → RLSをバイパスする admin clientで全ユーザーを取得
+    const supabase = createAdminClient()
 
     // ユーザー一覧をロール付きで取得
     const { data: users, error } = await supabase
