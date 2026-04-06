@@ -41,6 +41,7 @@ interface ProjectOption {
 interface StaffOption {
   id: string
   name: string
+  userId?: string
 }
 
 // --- Component ---
@@ -205,6 +206,7 @@ export default function ShiftsPage() {
         setStaffList(list.map((s: any) => ({
           id: s.id,
           name: `${s.last_name || ''} ${s.first_name || ''}`.trim(),
+          userId: s.user_id || undefined,
         })))
       })
       .catch(() => {})
@@ -221,15 +223,22 @@ export default function ShiftsPage() {
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // フィルター対象のGCalユーザーIDを算出
+  const gcalTargetUserId = useMemo(() => {
+    if (filterStaff === 'all') return currentUserId
+    const staff = staffList.find(s => s.id === filterStaff)
+    return staff?.userId || currentUserId
+  }, [filterStaff, staffList, currentUserId])
+
   // Googleカレンダー予定取得
   useEffect(() => {
-    if (!currentUserId || !dateRange.start || !dateRange.end) {
+    if (!gcalTargetUserId || !dateRange.start || !dateRange.end) {
       setGoogleEvents([])
       return
     }
     const timeMin = `${dateRange.start}T00:00:00+09:00`
     const timeMax = `${dateRange.end}T23:59:59+09:00`
-    const params = new URLSearchParams({ user_ids: currentUserId, time_min: timeMin, time_max: timeMax })
+    const params = new URLSearchParams({ user_ids: gcalTargetUserId, time_min: timeMin, time_max: timeMax })
     fetch(`/api/calendar/availability?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -249,7 +258,7 @@ export default function ShiftsPage() {
         setGoogleEvents(gcEvents)
       })
       .catch(() => setGoogleEvents([]))
-  }, [currentUserId, dateRange.start, dateRange.end])
+  }, [gcalTargetUserId, dateRange.start, dateRange.end])
 
   // FullCalendar handlers
 
@@ -521,10 +530,10 @@ export default function ShiftsPage() {
     refreshGoogleEventsRef.current()
   }, [])
   refreshGoogleEventsRef.current = () => {
-    if (!currentUserId || !dateRange.start || !dateRange.end) return
+    if (!gcalTargetUserId || !dateRange.start || !dateRange.end) return
     const timeMin = `${dateRange.start}T00:00:00+09:00`
     const timeMax = `${dateRange.end}T23:59:59+09:00`
-    const params = new URLSearchParams({ user_ids: currentUserId, time_min: timeMin, time_max: timeMax })
+    const params = new URLSearchParams({ user_ids: gcalTargetUserId, time_min: timeMin, time_max: timeMax })
     fetch(`/api/calendar/availability?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
