@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/select'
 import { LogIn, LogOut, Coffee, Play, Timer } from 'lucide-react'
 import { useProjects } from '@/hooks/use-projects'
+import { useMyProjects } from '@/hooks/use-attendance'
+import { ProjectClockControls } from './project-clock-controls'
 import { toast } from 'sonner'
 
 function formatTime(dateStr: string) {
@@ -47,6 +49,7 @@ export function ClockWidgetCompact() {
   const bulkBreakStartMutation = useBulkBreakStart()
   const bulkBreakEndMutation = useBulkBreakEnd()
   const { data: projects } = useProjects()
+  const { data: myProjects } = useMyProjects()
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [currentTime, setCurrentTime] = useState('')
   const [elapsed, setElapsed] = useState('')
@@ -261,6 +264,23 @@ export function ClockWidgetCompact() {
                   (残業 {Math.floor(record.overtime_minutes / 60)}h {record.overtime_minutes % 60}m)
                 </span>
               )}
+            </div>
+          )}
+
+          {/* PJ別の現在の勤務状況 */}
+          {myProjects && myProjects.length > 0 && (
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5 px-1">PJごとの勤怠</p>
+              <div className="max-h-60 overflow-y-auto -mx-1">
+                {myProjects.map((p) => (
+                  <ProjectClockControls
+                    key={p.id}
+                    projectId={p.id}
+                    projectName={p.name}
+                    variant="inline"
+                  />
+                ))}
+              </div>
             </div>
           )}
 

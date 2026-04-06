@@ -36,6 +36,7 @@ import {
 import { useAuth } from '@/components/providers/auth-provider'
 import { AssignmentTable } from '../_components/assignment-table'
 import { SlackChannelCombobox } from '../_components/slack-channel-combobox'
+import { ProjectClockControls } from '@/components/shared/project-clock-controls'
 import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
 import { ASSIGNMENT_STATUS_LABELS } from '@/lib/validations/assignment'
 import { useQueryClient } from '@tanstack/react-query'
@@ -71,6 +72,7 @@ import {
   Hash,
   Link2,
   Link2Off,
+  Timer,
 } from 'lucide-react'
 
 interface PageProps {
@@ -361,6 +363,20 @@ export default function ProjectDetailPage({ params }: PageProps) {
               <p className="text-sm whitespace-pre-wrap">{project.description}</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* My Attendance for this Project */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Timer className="h-4 w-4" />
+            このPJの勤怠（自分）
+          </CardTitle>
+          <CardDescription>このプロジェクト単体での出退勤・休憩を操作できます</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProjectClockControls projectId={id} projectName={project.name} variant="card" />
         </CardContent>
       </Card>
 
