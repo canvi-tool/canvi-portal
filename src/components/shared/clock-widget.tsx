@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd, useBulkBreakStart, useBulkBreakEnd } from '@/hooks/use-attendance'
+import { useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd, useBulkBreakStart, useBulkBreakEnd, useBulkClockIn, useBulkClockOut } from '@/hooks/use-attendance'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -48,6 +48,8 @@ export function ClockWidgetCompact() {
   const breakEndMutation = useBreakEnd()
   const bulkBreakStartMutation = useBulkBreakStart()
   const bulkBreakEndMutation = useBulkBreakEnd()
+  const bulkClockInMutation = useBulkClockIn()
+  const bulkClockOutMutation = useBulkClockOut()
   const { data: projects } = useProjects()
   const { data: myProjects } = useMyProjects()
   const [selectedProject, setSelectedProject] = useState<string>('')
@@ -136,6 +138,26 @@ export function ClockWidgetCompact() {
     }
   }, [bulkBreakEndMutation])
 
+  const handleBulkClockIn = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const res = await bulkClockInMutation.mutateAsync()
+      toast.success(`${res.count}件のPJで出勤しました`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }, [bulkClockInMutation])
+
+  const handleBulkClockOut = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const res = await bulkClockOutMutation.mutateAsync()
+      toast.success(`${res.count}件のPJで退勤しました`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }, [bulkClockOutMutation])
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -162,11 +184,39 @@ export function ClockWidgetCompact() {
   const records = todayData?.records || []
   const activeRecords = records.filter(r => r.status === 'clocked_in')
   const onBreakRecords = records.filter(r => r.status === 'on_break')
-  const showBulkBreakStart = activeRecords.length >= 1 && onBreakRecords.length === 0
+  // 一括ボタンは状態混在でも独立して表示する
+  const showBulkBreakStart = activeRecords.length >= 1
   const showBulkBreakEnd = onBreakRecords.length >= 1
+  const workingCount = activeRecords.length + onBreakRecords.length
+  const showBulkClockOut = workingCount >= 2
+  const showBulkClockIn = (myProjects?.length || 0) >= 2 && workingCount === 0 && status === 'not_clocked_in'
 
   return (
     <div className="flex items-center gap-1">
+      {showBulkClockIn && (
+        <Button
+          size="sm"
+          className="h-8 px-2 text-xs bg-green-600 hover:bg-green-700"
+          onClick={handleBulkClockIn}
+          disabled={bulkClockInMutation.isPending}
+          title="アサイン全PJで一括出勤"
+        >
+          <LogIn className="h-3.5 w-3.5 mr-1" />
+          一括出勤
+        </Button>
+      )}
+      {showBulkClockOut && (
+        <Button
+          size="sm"
+          className="h-8 px-2 text-xs bg-red-600 hover:bg-red-700"
+          onClick={handleBulkClockOut}
+          disabled={bulkClockOutMutation.isPending}
+          title={`${workingCount}件のPJで一括退勤`}
+        >
+          <LogOut className="h-3.5 w-3.5 mr-1" />
+          一括退勤({workingCount})
+        </Button>
+      )}
       {showBulkBreakStart && (
         <Button
           size="sm"

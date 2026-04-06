@@ -128,10 +128,11 @@ export function ProjectClockControls({ projectId, projectName, variant = 'card' 
           </div>
         </div>
         <div className="flex gap-1">
-          {status === 'not_clocked_in' && (
+          {(status === 'not_clocked_in' || status === 'clocked_out' || status === 'modified' || status === 'approved') && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
               onClick={handleClockIn} disabled={clockIn.isPending}>
-              <LogIn className="h-3 w-3 mr-0.5" />出勤
+              <LogIn className="h-3 w-3 mr-0.5" />
+              {status === 'not_clocked_in' ? '出勤' : '再出勤'}
             </Button>
           )}
           {status === 'clocked_in' && (
@@ -217,9 +218,11 @@ export function ProjectClockControls({ projectId, projectName, variant = 'card' 
           </Button>
         )}
         {(status === 'clocked_out' || status === 'modified' || status === 'approved') && (
-          <div className="flex-1 text-center text-sm text-muted-foreground py-2">
-            本日のこのPJの勤怠は記録済みです
-          </div>
+          <Button className="flex-1 bg-green-600 hover:bg-green-700"
+            onClick={handleClockIn} disabled={clockIn.isPending}>
+            <LogIn className="h-4 w-4 mr-2" />
+            {clockIn.isPending ? '処理中...' : 'このPJで再出勤'}
+          </Button>
         )}
       </div>
     </div>

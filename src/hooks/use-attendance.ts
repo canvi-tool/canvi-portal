@@ -246,6 +246,41 @@ export function useBulkBreakStart() {
   })
 }
 
+async function bulkAction(action: 'clock_in' | 'clock_out'): Promise<{ count: number }> {
+  const res = await fetch('/api/attendance/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '一括打刻操作に失敗しました')
+  }
+  return res.json()
+}
+
+export function useBulkClockIn() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => bulkAction('clock_in'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.today() })
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    },
+  })
+}
+
+export function useBulkClockOut() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => bulkAction('clock_out'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.today() })
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    },
+  })
+}
+
 export function useBulkBreakEnd() {
   const queryClient = useQueryClient()
   return useMutation({
