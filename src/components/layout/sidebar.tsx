@@ -53,7 +53,7 @@ const iconMap: Record<string, LucideIcon> = {
 }
 
 export interface SidebarProps {
-  user?: { displayName: string; email: string; avatarUrl?: string; role?: DemoRole; roleLabelJa?: string } | null
+  user?: { displayName: string; email: string; avatarUrl?: string; role?: DemoRole; roleLabelJa?: string; canSwitchRole?: boolean } | null
   onSignOut?: () => void
 }
 
@@ -119,14 +119,34 @@ function SidebarContent({
       {/* Role badge */}
       {user?.roleLabelJa && !collapsed && (
         <div className="px-4 pb-1">
-          <span className={cn(
-            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-            user.role === 'owner' && 'bg-amber-500/20 text-amber-300',
-            user.role === 'admin' && 'bg-blue-500/20 text-blue-300',
-            user.role === 'staff' && 'bg-emerald-500/20 text-emerald-300',
-          )}>
-            {user.roleLabelJa}
-          </span>
+          {user.canSwitchRole ? (
+            <button
+              onClick={() => {
+                const order: DemoRole[] = ['owner', 'admin', 'staff']
+                const next = order[(order.indexOf((user.role || 'owner') as DemoRole) + 1) % order.length]
+                document.cookie = `dev_role_override=${next};path=/;max-age=${60 * 60 * 24 * 30}`
+                window.location.reload()
+              }}
+              title="クリックでロール切替（開発者のみ）"
+              className={cn(
+                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium cursor-pointer hover:opacity-80 transition',
+                user.role === 'owner' && 'bg-amber-500/20 text-amber-300',
+                user.role === 'admin' && 'bg-blue-500/20 text-blue-300',
+                user.role === 'staff' && 'bg-emerald-500/20 text-emerald-300',
+              )}
+            >
+              {user.roleLabelJa} ⇄
+            </button>
+          ) : (
+            <span className={cn(
+              'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+              user.role === 'owner' && 'bg-amber-500/20 text-amber-300',
+              user.role === 'admin' && 'bg-blue-500/20 text-blue-300',
+              user.role === 'staff' && 'bg-emerald-500/20 text-emerald-300',
+            )}>
+              {user.roleLabelJa}
+            </span>
+          )}
         </div>
       )}
 
