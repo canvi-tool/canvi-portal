@@ -177,7 +177,7 @@ export function ShiftEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setIsEditing(false) }}>
-      <DialogContent className="sm:max-w-md overflow-hidden max-w-[calc(100vw-2rem)]">
+      <DialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader className="min-w-0">
           <DialogTitle className="flex items-center gap-2 min-w-0">
             <Briefcase className="h-4 w-4 shrink-0" />
@@ -298,7 +298,7 @@ export function ShiftEditDialog({
           ) : cleanNotes ? (
             <div className="flex items-start gap-3 text-sm min-w-0">
               <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all line-clamp-4">{cleanNotes}</span>
+              <span className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all">{cleanNotes}</span>
             </div>
           ) : null}
 
@@ -335,7 +335,7 @@ export function ShiftEditDialog({
                 </button>
               </div>
               <div className="pl-7 min-w-0">
-                <span className="text-xs text-muted-foreground break-all select-all line-clamp-2 block">{meetUrl}</span>
+                <span className="text-xs text-muted-foreground break-all select-all block">{meetUrl}</span>
               </div>
             </div>
           ) : (

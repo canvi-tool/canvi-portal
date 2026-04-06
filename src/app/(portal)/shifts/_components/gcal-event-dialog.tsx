@@ -37,6 +37,48 @@ interface GCalEventDialogProps {
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
+const URL_REGEX = /(https?:\/\/[^\s<>"']+)/g
+const URL_TEST = /^https?:\/\//
+
+function renderWithLinks(text: string) {
+  const parts = text.split(URL_REGEX)
+  return parts.map((part, i) => {
+    if (URL_TEST.test(part)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline [overflow-wrap:anywhere] break-all"
+        >
+          {part}
+        </a>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+function stripHtmlKeepLinks(html: string): string {
+  // <a href="X">label</a> → "label (X)" if different, else just X
+  return html
+    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+      const cleanLabel = label.replace(/<[^>]+>/g, '').trim()
+      if (!cleanLabel || cleanLabel === href) return href
+      return `${cleanLabel} (${href})`
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim()
+}
+
 function parseDateTime(isoStr: string) {
   const d = new Date(isoStr)
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -124,7 +166,7 @@ export function GCalEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setIsEditing(false); setCurrentMeetUrl(null) }}>
-      <DialogContent className="sm:max-w-md overflow-hidden max-w-[calc(100vw-2rem)]">
+      <DialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader className="min-w-0">
           <DialogTitle className="flex items-center gap-2 min-w-0">
             <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
@@ -185,9 +227,11 @@ export function GCalEventDialog({
 
           {/* Location */}
           {event.location && (
-            <div className="flex items-center gap-3 text-sm min-w-0">
-              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground min-w-0 flex-1 truncate [overflow-wrap:anywhere]">{event.location}</span>
+            <div className="flex items-start gap-3 text-sm min-w-0">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="text-muted-foreground min-w-0 flex-1 [overflow-wrap:anywhere] break-all whitespace-pre-wrap">
+                {renderWithLinks(event.location)}
+              </div>
             </div>
           )}
 
@@ -195,9 +239,9 @@ export function GCalEventDialog({
           {event.description && (
             <div className="flex items-start gap-3 text-sm min-w-0">
               <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="text-muted-foreground whitespace-pre-wrap line-clamp-4 min-w-0 flex-1 [overflow-wrap:anywhere] break-all">
-                {event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
-              </span>
+              <div className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all">
+                {renderWithLinks(stripHtmlKeepLinks(event.description))}
+              </div>
             </div>
           )}
 
@@ -234,7 +278,7 @@ export function GCalEventDialog({
                 </button>
               </div>
               <div className="pl-7 min-w-0">
-                <span className="text-xs text-muted-foreground break-all select-all line-clamp-2 block">{meetUrl}</span>
+                <span className="text-xs text-muted-foreground break-all select-all block">{meetUrl}</span>
               </div>
             </div>
           ) : (
