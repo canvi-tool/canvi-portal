@@ -109,10 +109,9 @@ async function fetchDashboardData(): Promise<DashboardData & { isOwner?: boolean
 // --- Components ---
 
 const SHIFT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: '下書き', color: 'bg-gray-400' },
   SUBMITTED: { label: '申請中', color: 'bg-amber-400' },
   APPROVED: { label: '承認済', color: 'bg-green-400' },
-  REJECTED: { label: '却下', color: 'bg-red-400' },
+  NEEDS_REVISION: { label: '修正依頼', color: 'bg-orange-400' },
 }
 
 function KpiCard({
@@ -382,7 +381,7 @@ export default function DashboardPage() {
                     const endMin = eh * 60 + em
                     const isActive = currentMinutes >= startMin && currentMinutes < endMin
                     const isPast = currentMinutes >= endMin
-                    const statusCfg = SHIFT_STATUS_CONFIG[shift.status] || SHIFT_STATUS_CONFIG.DRAFT
+                    const statusCfg = SHIFT_STATUS_CONFIG[shift.status] || SHIFT_STATUS_CONFIG.SUBMITTED
 
                     return (
                       <div

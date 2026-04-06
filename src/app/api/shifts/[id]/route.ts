@@ -162,9 +162,9 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // APPROVED状態のシフトが変更された場合、Googleカレンダーも同期
+    // APPROVED または SUBMITTED 状態のシフトが変更された場合、Googleカレンダーも同期
     // google_calendar_event_id がある場合は更新、ない場合は新規作成（syncShiftToCalendar内で判定）
-    if (data?.status === 'APPROVED' && data?.id) {
+    if ((data?.status === 'APPROVED' || data?.status === 'SUBMITTED') && data?.id) {
       try {
         await syncShiftToCalendar(data.id)
       } catch (e) {

@@ -624,10 +624,8 @@ export default function ShiftsPage() {
   ), [projects])
 const statusLabels = useMemo<Record<string, string>>(() => ({
     all: '全ステータス',
-    DRAFT: '下書き',
     SUBMITTED: '申請中',
     APPROVED: '承認済',
-    REJECTED: '却下',
     NEEDS_REVISION: '修正依頼',
   }), [])
 

@@ -152,14 +152,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // AUTO承認時はGoogleカレンダー同期
-    if (isAutoApproval && data?.id) {
+    // シフト作成時は常にGoogleカレンダーへ同期（SUBMITTED でも APPROVED でも）
+    if (data?.id) {
       try {
         await syncShiftToCalendar(data.id)
       } catch (e) {
         console.error('Calendar sync failed on create:', e)
       }
+    }
 
+    // AUTO承認時はSlack通知も送信
+    if (isAutoApproval && data?.id) {
       // AUTO承認時のSlack通知（登録完了通知）
       if (project?.slack_channel_id) {
         const staffName = (() => {
