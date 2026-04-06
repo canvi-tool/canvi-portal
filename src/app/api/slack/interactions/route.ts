@@ -240,22 +240,72 @@ function getSupabase() {
 }
 
 // ---- Slackユーザーの権限チェック ----
-async function checkSlackUserPermission(slackUserId: string): Promise<{ approverUserId: string | null; isAuthorized: boolean }> {
-  const supabase = getSupabase()
+async function fetchSlackUserEmail(slackUserId: string): Promise<string | null> {
+  const token = process.env.SLACK_BOT_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    if (!json.ok) {
+      console.error('[checkSlackUserPermission] users.info failed:', json.error)
+      return null
+    }
+    return (json.user?.profile?.email as string) || null
+  } catch (e) {
+    console.error('[checkSlackUserPermission] users.info exception:', e)
+    return null
+  }
+}
 
-  // Find the staff record for the Slack user
+async function checkSlackUserPermission(slackUserId: string): Promise<{ approverUserId: string | null; isAuthorized: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = getSupabase() as any
+
+  let approverUserId: string | null = null
+
+  // (1) staff.custom_fields.slack_user_id で検索
   const { data: approverStaff } = await supabase
     .from('staff')
     .select('user_id')
     .or(`custom_fields->slack_user_id.eq.${slackUserId},custom_fields->>slack_user_id.eq.${slackUserId}`)
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  if (!approverStaff?.user_id) {
-    return { approverUserId: null, isAuthorized: false }
+  if (approverStaff?.user_id) {
+    approverUserId = approverStaff.user_id
+  } else {
+    // (2) フォールバック: Slack API users.info → email → users.email で検索
+    const email = await fetchSlackUserEmail(slackUserId)
+    if (email) {
+      const { data: userByEmail } = await supabase
+        .from('users')
+        .select('id')
+        .ilike('email', email)
+        .limit(1)
+        .maybeSingle()
+      if (userByEmail?.id) {
+        approverUserId = userByEmail.id
+        // staff側にもslack_user_idを書き戻す（既存custom_fieldsを保持してmerge）
+        const { data: existingStaff } = await supabase
+          .from('staff')
+          .select('id, custom_fields')
+          .eq('user_id', approverUserId)
+          .maybeSingle()
+        if (existingStaff?.id) {
+          const merged = { ...(existingStaff.custom_fields || {}), slack_user_id: slackUserId }
+          await supabase.from('staff').update({ custom_fields: merged }).eq('id', existingStaff.id)
+        }
+      } else {
+        console.error('[checkSlackUserPermission] no user matched email:', email)
+      }
+    }
   }
 
-  const approverUserId = approverStaff.user_id
+  if (!approverUserId) {
+    return { approverUserId: null, isAuthorized: false }
+  }
 
   // Check admin/owner role
   const { data: userRoles } = await supabase
