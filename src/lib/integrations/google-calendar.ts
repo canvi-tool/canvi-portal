@@ -319,6 +319,60 @@ export class GoogleCalendarClient {
     })
   }
 
+  /**
+   * 既存イベントにGoogle Meetを追加する（イベントを削除せずpatchで追加）
+   */
+  async addMeetToEvent(params: {
+    calendarId?: string
+    eventId: string
+  }): Promise<{ meetUrl: string | null }> {
+    const { calendarId = 'primary', eventId } = params
+
+    const response = await this.calendar.events.patch({
+      calendarId,
+      eventId,
+      conferenceDataVersion: 1,
+      requestBody: {
+        conferenceData: {
+          createRequest: {
+            requestId: `canvi-meet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+      },
+    })
+
+    const meetUrl = response.data.conferenceData?.entryPoints?.find(
+      (ep) => ep.entryPointType === 'video'
+    )?.uri || null
+
+    return { meetUrl }
+  }
+
+  /**
+   * 既存イベントからGoogle Meetを削除する（イベント自体は残す）
+   */
+  async removeMeetFromEvent(params: {
+    calendarId?: string
+    eventId: string
+  }): Promise<void> {
+    const { calendarId = 'primary', eventId } = params
+
+    // Get current event to check if it has conferenceData
+    const current = await this.calendar.events.get({ calendarId, eventId })
+    if (!current.data.conferenceData) return
+
+    // Remove conferenceData by setting it to empty
+    await this.calendar.events.patch({
+      calendarId,
+      eventId,
+      conferenceDataVersion: 1,
+      requestBody: {
+        conferenceData: null as unknown as calendar_v3.Schema$ConferenceData,
+      },
+    })
+  }
+
   async deleteEvent(calendarId: string = 'primary', eventId: string): Promise<void> {
     await this.calendar.events.delete({
       calendarId,

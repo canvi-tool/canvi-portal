@@ -8,10 +8,13 @@ interface RouteParams {
   params: Promise<{ id: string }>
 }
 
+// start_time is "HH:MM" or "HH:MM:SS" from DB — normalize to HH:MM:SS
+const normalizeTime = (t: string) => t.length === 5 ? `${t}:00` : t.slice(0, 8)
+
 /**
  * POST /api/shifts/[id]/meet
  * シフトにGoogle Meet URLを発行する
- * - google_calendar_event_idがある場合: 既存イベントにMeetを追加
+ * - google_calendar_event_idがある場合: 既存イベントにMeetをpatchで追加
  * - ない場合: 新規イベント作成 + Meet URL発行
  */
 export async function POST(_request: NextRequest, { params }: RouteParams) {
@@ -58,28 +61,30 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-    const startDateTime = `${shift.shift_date}T${shift.start_time}:00+09:00`
-    const endDateTime = `${shift.shift_date}T${shift.end_time}:00+09:00`
-    const summary = `[${projectData.name}] シフト - ${staffData.last_name} ${staffData.first_name}`
 
-    if (shift.google_calendar_event_id) {
-      // 既存イベントにMeetを追加するため、イベントを再作成（patch不可のため）
-      // まず既存イベントを削除して、Meetありで再作成
-      try {
-        await client.deleteEvent('primary', shift.google_calendar_event_id)
-      } catch {
-        // 削除できなくても続行
-      }
+    let eventId = shift.google_calendar_event_id
+    let meetUrl: string | null = null
+
+    if (eventId) {
+      // 既存イベントにMeetをpatchで追加（イベントを削除しない）
+      const result = await client.addMeetToEvent({ eventId })
+      meetUrl = result.meetUrl
+    } else {
+      // カレンダーイベントがない場合: 新規作成 + Meet URL発行
+      const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
+      const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
+      const summary = `${projectData.name} シフト - ${staffData.last_name} ${staffData.first_name}`
+
+      const result = await client.createEvent({
+        summary,
+        description: shift.notes || undefined,
+        startDateTime,
+        endDateTime,
+        withMeet: true,
+      })
+      eventId = result.eventId
+      meetUrl = result.meetUrl
     }
-
-    // Meet付きで新規作成
-    const { eventId, meetUrl } = await client.createEvent({
-      summary,
-      description: shift.notes || undefined,
-      startDateTime,
-      endDateTime,
-      withMeet: true,
-    })
 
     // DB更新
     await admin.from('shifts').update({
@@ -113,12 +118,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     const { data: shift } = await admin
       .from('shifts')
-      .select(`
-        id, staff_id, project_id, shift_date, start_time, end_time,
-        notes, google_calendar_event_id, google_meet_url,
-        staff!inner(user_id, last_name, first_name),
-        projects!inner(name)
-      `)
+      .select('id, google_calendar_event_id, google_meet_url, staff!inner(user_id)')
       .eq('id', shiftId)
       .is('deleted_at', null)
       .single()
@@ -131,42 +131,24 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: true })
     }
 
-    const token = await getValidTokenForUser(user.id)
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Googleカレンダーの認証が必要です。' },
-        { status: 401 }
-      )
-    }
-
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-    const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
-    const projectData = shift.projects as unknown as { name: string }
-
-    // Meetなしでイベントを再作成
+    // GCalイベントからMeetだけ削除（イベント自体は残す）
     if (shift.google_calendar_event_id) {
-      try {
-        await client.deleteEvent('primary', shift.google_calendar_event_id)
-      } catch {
-        // 削除できなくても続行
+      const staffData = shift.staff as unknown as { user_id: string }
+      const token = await getValidTokenForUser(staffData.user_id)
+
+      if (token) {
+        const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+        try {
+          await client.removeMeetFromEvent({ eventId: shift.google_calendar_event_id })
+        } catch (e) {
+          // Meet削除に失敗してもDB側はクリアする
+          console.warn('Failed to remove Meet from GCal event:', e)
+        }
       }
     }
 
-    const startDateTime = `${shift.shift_date}T${shift.start_time}:00+09:00`
-    const endDateTime = `${shift.shift_date}T${shift.end_time}:00+09:00`
-    const summary = `[${projectData.name}] シフト - ${staffData.last_name} ${staffData.first_name}`
-
-    const { eventId } = await client.createEvent({
-      summary,
-      description: shift.notes || undefined,
-      startDateTime,
-      endDateTime,
-      withMeet: false,
-    })
-
-    // DB更新: Meet URLをクリア
+    // DB更新: Meet URLのみクリア（イベントIDは維持）
     await admin.from('shifts').update({
-      google_calendar_event_id: eventId,
       google_meet_url: null,
     }).eq('id', shiftId)
 
