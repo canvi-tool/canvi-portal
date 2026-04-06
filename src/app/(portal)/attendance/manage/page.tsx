@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table'
 import { Calendar, Clock, ArrowLeft, Filter } from 'lucide-react'
 import { ATTENDANCE_STATUS_LABELS } from '@/lib/validations/attendance'
+import { CorrectionRequestsSection } from './_components/correction-requests-section'
 
 function formatTime(dateStr: string | null | undefined) {
   if (!dateStr) return '-'
@@ -167,6 +168,9 @@ export default function AttendanceManagePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 修正申請 承認待ち */}
+      <CorrectionRequestsSection />
 
       {/* フィルター */}
       <Card>

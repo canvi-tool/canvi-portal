@@ -44,7 +44,11 @@ import {
   ArrowLeft,
   RotateCw,
   Users,
+  Pencil,
 } from 'lucide-react'
+import { CorrectionRequestDialog } from './_components/correction-request-dialog'
+import { useQueryClient } from '@tanstack/react-query'
+import { attendanceKeys } from '@/hooks/use-attendance'
 
 function formatTime(dateStr: string | null) {
   if (!dateStr) return '-'
@@ -418,6 +422,9 @@ export default function AttendancePage() {
   const todayRecords = useMemo(() => todayData?.records || [], [todayData])
   const records = useMemo(() => recordsData?.data || [], [recordsData])
 
+  const queryClient = useQueryClient()
+  const [correctionTarget, setCorrectionTarget] = useState<AttendanceRecord | null>(null)
+
   // 管理権限の取得（admin/ownerのみ「管理用」ボタン表示）
   const [canManage, setCanManage] = useState(false)
   useEffect(() => {
@@ -644,6 +651,7 @@ export default function AttendancePage() {
                     <TableHead>残業</TableHead>
                     <TableHead>場所</TableHead>
                     <TableHead>ステータス</TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -693,6 +701,17 @@ export default function AttendancePage() {
                           {ATTENDANCE_STATUS_LABELS[record.status] || record.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => setCorrectionTarget(record)}
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          修正
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -701,6 +720,13 @@ export default function AttendancePage() {
           )}
         </CardContent>
       </Card>
+
+      <CorrectionRequestDialog
+        record={correctionTarget}
+        open={!!correctionTarget}
+        onOpenChange={(v) => { if (!v) setCorrectionTarget(null) }}
+        onSubmitted={() => queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { getProjectAccess } from '@/lib/auth/project-access'
 import { clockInSchema } from '@/lib/validations/attendance'
 import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
 import { embedSlackThreadTs } from '@/lib/utils/slack-thread'
@@ -44,6 +45,14 @@ export async function GET(request: NextRequest) {
       // 管理ビュー: admin/owner のみ
       if (!isOwner(user) && !isAdmin(user)) {
         return NextResponse.json({ error: '管理権限が必要です' }, { status: 403 })
+      }
+      // 管理者(admin)はアサインPJのみ。オーナーは全PJ。
+      const { allowedProjectIds } = await getProjectAccess()
+      if (allowedProjectIds !== null) {
+        if (allowedProjectIds.length === 0) {
+          return NextResponse.json({ data: [], total: 0 })
+        }
+        query = query.in('project_id', allowedProjectIds)
       }
       // オプションフィルタ (PJ / スタッフ)
       if (staffId) query = query.eq('staff_id', staffId)
