@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/attendance-check",
-      "schedule": "* * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/shift-reminder",

@@ -5,7 +5,6 @@ import {
   sendSlackDM,
   resolveStaffSlackUserId,
   buildClockOutMissingDMNotification,
-  buildMissingClockNotification,
   buildOvertimeWarningNotification,
 } from '@/lib/integrations/slack'
 
@@ -14,8 +13,10 @@ import {
  *
  * チェック項目:
  * 1. 退勤漏れ — clocked_in のまま shift.end_time + 30分 超過
- * 2. 打刻漏れ — シフトあるが attendance_records なし
- * 3. 残業超過 — work_minutes > 600 (10時間)
+ * 2. 残業超過 — work_minutes > 600 (10時間)
+ *
+ * ※ 打刻漏れは /api/cron/attendance-check で処理（project_notification_settings の
+ *   interval/max_repeats 設定を参照 + attendance_alert_log で重複防止）
  *
  * 通知先: 本人DM + プロジェクトチャンネル
  */
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest) {
 
   const results = {
     clock_out_missing: { checked: 0, alerted: 0, errors: 0, names: [] as string[] },
-    no_attendance: { checked: 0, alerted: 0, errors: 0, names: [] as string[] },
     overtime: { checked: 0, alerted: 0, errors: 0, names: [] as string[] },
   }
 
@@ -147,116 +147,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================
-    // 2. 打刻漏れ: シフトあるが attendance_records なし
-    // ========================================
-    try {
-      // 今日のAPPROVEDシフト（開始時刻 + 30分 が過ぎているもの）
-      const { data: todayShifts } = await admin
-        .from('shifts')
-        .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(id, last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
-        .eq('shift_date', today)
-        .is('deleted_at', null)
-        .in('status', ['APPROVED', 'SUBMITTED'])
-
-      if (todayShifts && todayShifts.length > 0) {
-        // 今日の打刻済みuser_idを取得
-        const { data: todayAttendance } = await admin
-          .from('attendance_records')
-          .select('user_id, project_id')
-          .eq('date', today)
-          .is('deleted_at', null)
-          .not('clock_in', 'is', null)
-
-        const clockedKeys = new Set(
-          (todayAttendance || []).map(a => `${a.user_id}__${a.project_id || ''}`)
-        )
-
-        // プロジェクト別にグループ化
-        const alertsByProject = new Map<string, {
-          projectName: string
-          slackChannelId: string | null
-          entries: { staffId: string; staffName: string }[]
-        }>()
-
-        for (const shift of todayShifts) {
-          results.no_attendance.checked++
-          const staff = shift.staff as unknown as { id: string; last_name: string; first_name: string; user_id: string } | null
-          const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
-
-          if (!staff?.user_id || !shift.start_time) continue
-
-          // 開始時刻 + 30分が過ぎているかチェック
-          const [h, m] = shift.start_time.split(':').map(Number)
-          const startPlusThreshold = h * 60 + m + 30
-          if (nowMinutesSinceMidnight < startPlusThreshold) continue
-
-          // 打刻済みかチェック
-          const key = `${staff.user_id}__${shift.project_id || ''}`
-          if (clockedKeys.has(key)) continue
-
-          const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
-          results.no_attendance.alerted++
-          results.no_attendance.names.push(staffName)
-
-          const projectId = project?.id || '__no_project__'
-          const existing = alertsByProject.get(projectId) || {
-            projectName: project?.name || '未割当',
-            slackChannelId: project?.slack_channel_id || null,
-            entries: [],
-          }
-          existing.entries.push({ staffId: shift.staff_id!, staffName })
-          alertsByProject.set(projectId, existing)
-        }
-
-        // プロジェクト別に通知
-        for (const [projectId, info] of alertsByProject) {
-          try {
-            const staffNames = info.entries.map(e => e.staffName)
-            const staffIds = info.entries.map(e => e.staffId)
-            const notification = buildMissingClockNotification(staffNames, today)
-
-            if (info.slackChannelId) {
-              await sendProjectNotification(notification, info.slackChannelId, {
-                projectId: projectId !== '__no_project__' ? projectId : null,
-                staffId: staffIds,
-              })
-            }
-
-            // 個別DM送信
-            for (const entry of info.entries) {
-              try {
-                const slackUserId = await resolveStaffSlackUserId(entry.staffId)
-                if (slackUserId) {
-                  await sendSlackDM(slackUserId, {
-                    text: `【打刻漏れ】${entry.staffName}さん、${today}の出勤打刻がされていません`,
-                    blocks: [
-                      {
-                        type: 'section',
-                        text: {
-                          type: 'mrkdwn',
-                          text: `:bell: *打刻漏れのお知らせ*\n${entry.staffName}さん、本日(${today})の出勤打刻がされていません。\nシフトが登録されていますので、打刻をお願いします。`,
-                        },
-                      },
-                    ],
-                  })
-                }
-              } catch (err) {
-                console.error(`[attendance-alerts] DM error for ${entry.staffName}:`, err)
-                results.no_attendance.errors++
-              }
-            }
-          } catch (err) {
-            console.error(`[attendance-alerts] no_attendance project notification error:`, err)
-            results.no_attendance.errors++
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[attendance-alerts] no_attendance check error:', err)
-    }
-
-    // ========================================
-    // 3. 残業超過: work_minutes > 600 (10時間)
+    // 2. 残業超過: work_minutes > 600 (10時間)
     // ========================================
     try {
       const { data: overtimeRecords } = await admin
