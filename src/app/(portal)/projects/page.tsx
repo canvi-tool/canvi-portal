@@ -40,8 +40,8 @@ const PROJECT_TYPE_TABS = [
 
 export default function ProjectsPage() {
   const router = useRouter()
-  const { demoAccount } = useAuth()
-  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
+  useAuth()
+  const [isOwner, setIsOwner] = useState(false)
   const [search, setSearch] = useState('')
 
   useEffect(() => {

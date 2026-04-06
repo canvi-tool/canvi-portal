@@ -1,40 +1,17 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME, ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
-import { DEMO_ACCOUNTS, setDemoRoleCookie, type DemoRole } from '@/lib/demo-accounts'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, Crown, Shield, User, ChevronRight, Lock } from 'lucide-react'
-
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+import { Loader2 } from 'lucide-react'
 
 /** メールドメインが許可リストに含まれるか */
 function isAllowedDomain(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase()
   return ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')
-}
-
-const ROLE_ICONS: Record<DemoRole, typeof Crown> = {
-  owner: Crown,
-  admin: Shield,
-  staff: User,
-}
-
-const ROLE_COLORS: Record<DemoRole, string> = {
-  owner: 'bg-amber-500',
-  admin: 'bg-blue-500',
-  staff: 'bg-emerald-500',
-}
-
-const ROLE_BORDER_COLORS: Record<DemoRole, string> = {
-  owner: 'hover:border-amber-400 focus-visible:border-amber-400',
-  admin: 'hover:border-blue-400 focus-visible:border-blue-400',
-  staff: 'hover:border-emerald-400 focus-visible:border-emerald-400',
 }
 
 export default function LoginPage() {
@@ -46,10 +23,8 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(() => {
@@ -88,117 +63,6 @@ function LoginPageInner() {
       console.error('ログインエラー:', error)
       setIsLoading(false)
     }
-  }
-
-  // デモモードログイン
-  const handleDemoLogin = (role: DemoRole) => {
-    setSelectedRole(role)
-    setDemoRoleCookie(role)
-    setTimeout(() => {
-      router.push('/dashboard')
-    }, 400)
-  }
-
-  // デモモード: ロール選択画面
-  if (DEMO_MODE) {
-    return (
-      <div className="w-full max-w-2xl space-y-6">
-        {/* ヘッダー */}
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-600 text-2xl font-bold text-white shadow-lg">
-            C
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{APP_NAME}</h1>
-          <p className="mt-2 text-slate-500 dark:text-slate-400">
-            テストアカウントを選択してログインしてください
-          </p>
-          <Badge variant="outline" className="mt-3 text-xs">
-            <Lock className="h-3 w-3 mr-1" />
-            デモモード
-          </Badge>
-        </div>
-
-        {/* アカウント選択カード */}
-        <div className="grid gap-4">
-          {DEMO_ACCOUNTS.map((account) => {
-            const RoleIcon = ROLE_ICONS[account.role]
-            const isSelected = selectedRole === account.role
-            return (
-              <button
-                key={account.id}
-                onClick={() => handleDemoLogin(account.role)}
-                disabled={!!selectedRole}
-                className={`
-                  w-full text-left rounded-xl border-2 bg-white dark:bg-slate-900 p-5
-                  transition-all duration-200 outline-none
-                  ${isSelected
-                    ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-800 scale-[0.98]'
-                    : `border-slate-200 dark:border-slate-700 ${ROLE_BORDER_COLORS[account.role]}`
-                  }
-                  ${selectedRole && !isSelected ? 'opacity-40' : ''}
-                  disabled:cursor-wait
-                `}
-              >
-                <div className="flex items-start gap-4">
-                  {/* アバター */}
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${ROLE_COLORS[account.role]} text-white text-lg font-bold shadow-sm`}>
-                    {account.avatarInitial}
-                  </div>
-
-                  {/* 情報 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {account.name}
-                      </h3>
-                      <Badge
-                        variant="secondary"
-                        className="text-xs"
-                      >
-                        <RoleIcon className="h-3 w-3 mr-1" />
-                        {account.roleLabelJa}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                      {account.email}
-                    </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-1.5">
-                      {account.description}
-                    </p>
-
-                    {/* 権限リスト */}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {account.permissions.map((perm) => (
-                        <span
-                          key={perm}
-                          className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-400"
-                        >
-                          {perm}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 矢印 / ローディング */}
-                  <div className="shrink-0 mt-1">
-                    {isSelected ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-slate-400" />
-                    )}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* フッター */}
-        <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-          デモモードではデータは保存されません。本番環境ではGoogleアカウントでログインします。
-        </p>
-      </div>
-    )
   }
 
   const handleEmailLogin = async (e: React.FormEvent) => {

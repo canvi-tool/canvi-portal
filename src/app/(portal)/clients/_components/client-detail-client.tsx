@@ -41,8 +41,8 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 
 export function ClientDetailClient({ client }: ClientDetailClientProps) {
   const router = useRouter()
-  const { demoAccount } = useAuth()
-  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
+  useAuth()
+  const [isOwner, setIsOwner] = useState(false)
 
   useEffect(() => {
     fetch('/api/user/current')

@@ -270,11 +270,11 @@ function AttendanceSummaryCard() {
 // --- Main Page ---
 
 export default function DashboardPage() {
-  const { user, demoAccount } = useAuth()
+  const { user } = useAuth()
   const [data, setData] = useState<(DashboardData & { isOwner?: boolean }) | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const displayName = demoAccount?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ユーザー'
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ユーザー'
 
   useEffect(() => {
     fetchDashboardData()

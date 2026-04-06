@@ -9,19 +9,13 @@ import {
   type ReactNode,
 } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getDemoAccountFromCookie, type DemoAccount, type DemoRole } from '@/lib/demo-accounts'
 import type { User, Session } from '@supabase/supabase-js'
-
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 interface AuthContextValue {
   user: User | null
   session: Session | null
   isLoading: boolean
   signOut: () => Promise<void>
-  // デモモード用
-  demoAccount: DemoAccount | null
-  demoRole: DemoRole | null
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -29,43 +23,14 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   isLoading: true,
   signOut: async () => {},
-  demoAccount: null,
-  demoRole: null,
 })
-
-function createDemoUser(account: DemoAccount): User {
-  return {
-    id: account.id,
-    email: account.email,
-    user_metadata: {
-      full_name: account.name,
-      avatar_url: null,
-    },
-    app_metadata: { role: account.role },
-    aud: 'authenticated',
-    created_at: new Date().toISOString(),
-  } as unknown as User
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [demoAccount, setDemoAccount] = useState<DemoAccount | null>(null)
-  const [demoRole, setDemoRole] = useState<DemoRole | null>(null)
 
   useEffect(() => {
-    if (DEMO_MODE) {
-      const account = getDemoAccountFromCookie()
-      if (account) {
-        setDemoAccount(account)
-        setDemoRole(account.role)
-        setUser(createDemoUser(account))
-      }
-      setIsLoading(false)
-      return
-    }
-
     const supabase = createClient()
 
     const getInitialSession = async () => {
@@ -142,24 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    if (DEMO_MODE) {
-      document.cookie = 'demo_role=;path=/;max-age=0'
-      setDemoAccount(null)
-      setDemoRole(null)
-    } else {
-      try {
-        const supabase = createClient()
-        await supabase.auth.signOut()
-      } catch (err) {
-        console.error('サインアウトエラー:', err)
-      }
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('サインアウトエラー:', err)
     }
     setUser(null)
     setSession(null)
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut, demoAccount, demoRole }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signOut }}>
       {children}
     </AuthContext.Provider>
   )

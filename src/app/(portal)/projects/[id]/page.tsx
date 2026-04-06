@@ -87,8 +87,8 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const deleteAssignment = useDeleteAssignment(id)
   const deleteProject = useDeleteProject()
 
-  const { demoAccount } = useAuth()
-  const [isOwner, setIsOwner] = useState(demoAccount?.role === 'owner')
+  useAuth()
+  const [isOwner, setIsOwner] = useState(false)
 
   useEffect(() => {
     fetch('/api/user/current')

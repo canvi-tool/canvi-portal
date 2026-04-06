@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_SECTIONS, APP_NAME, type NavItem } from '@/lib/constants'
-import { canAccessRoute, type DemoRole } from '@/lib/demo-accounts'
+import { canAccessRoute, type Role } from '@/lib/auth/roles'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -53,7 +53,7 @@ const iconMap: Record<string, LucideIcon> = {
 }
 
 export interface SidebarProps {
-  user?: { displayName: string; email: string; avatarUrl?: string; role?: DemoRole; roleLabelJa?: string; canSwitchRole?: boolean; isImpersonating?: boolean } | null
+  user?: { displayName: string; email: string; avatarUrl?: string; role?: Role; roleLabelJa?: string; canSwitchRole?: boolean; isImpersonating?: boolean } | null
   onSignOut?: () => void
 }
 
@@ -257,8 +257,8 @@ function SidebarContent({
           {user.canSwitchRole ? (
             <button
               onClick={() => {
-                const order: DemoRole[] = ['owner', 'admin', 'staff']
-                const next = order[(order.indexOf((user.role || 'owner') as DemoRole) + 1) % order.length]
+                const order: Role[] = ['owner', 'admin', 'staff']
+                const next = order[(order.indexOf((user.role || 'owner') as Role) + 1) % order.length]
                 document.cookie = `dev_role_override=${next};path=/;max-age=${60 * 60 * 24 * 30}`
                 window.location.reload()
               }}

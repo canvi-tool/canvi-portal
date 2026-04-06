@@ -3,14 +3,14 @@
 import { DesktopSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { createClient } from '@/lib/supabase/client'
-import type { DemoRole } from '@/lib/demo-accounts'
+import type { Role } from '@/lib/auth/roles'
 
 interface PortalShellProps {
   user: {
     displayName: string
     email: string
     avatarUrl?: string
-    role?: DemoRole
+    role?: Role
     roleLabelJa?: string
     canSwitchRole?: boolean
     isImpersonating?: boolean
