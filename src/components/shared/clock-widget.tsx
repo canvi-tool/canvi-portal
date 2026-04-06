@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd, useBulkBreakStart, useBulkBreakEnd, useBulkClockIn, useBulkClockOut } from '@/hooks/use-attendance'
+import { useTodayAttendance, useBulkBreakStart, useBulkBreakEnd, useBulkClockIn, useBulkClockOut, useMyProjects } from '@/hooks/use-attendance'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -9,16 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { LogIn, LogOut, Coffee, Play, Timer } from 'lucide-react'
-import { useProjects } from '@/hooks/use-projects'
-import { useMyProjects } from '@/hooks/use-attendance'
 import { ProjectClockControls } from './project-clock-controls'
 import { toast } from 'sonner'
 
@@ -42,17 +33,11 @@ function formatElapsedTime(startStr: string, breakMinutes: number = 0) {
 // ヘッダー用コンパクトウィジェット
 export function ClockWidgetCompact() {
   const { data: todayData, isLoading } = useTodayAttendance()
-  const clockInMutation = useClockIn()
-  const clockOutMutation = useClockOut()
-  const breakStartMutation = useBreakStart()
-  const breakEndMutation = useBreakEnd()
   const bulkBreakStartMutation = useBulkBreakStart()
   const bulkBreakEndMutation = useBulkBreakEnd()
   const bulkClockInMutation = useBulkClockIn()
   const bulkClockOutMutation = useBulkClockOut()
-  const { data: projects } = useProjects()
   const { data: myProjects } = useMyProjects()
-  const [selectedProject, setSelectedProject] = useState<string>('')
   const [currentTime, setCurrentTime] = useState('')
   const [elapsed, setElapsed] = useState('')
 
@@ -75,48 +60,6 @@ export function ClockWidgetCompact() {
     const interval = setInterval(update, 1000)
     return () => clearInterval(interval)
   }, [todayData])
-
-  const handleClockIn = useCallback(async () => {
-    try {
-      await clockInMutation.mutateAsync({
-        project_id: selectedProject || undefined,
-        location_type: 'remote',
-      })
-      toast.success('出勤しました')
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }, [clockInMutation, selectedProject])
-
-  const handleClockOut = useCallback(async () => {
-    if (!todayData?.record?.id) return
-    try {
-      await clockOutMutation.mutateAsync(todayData.record.id)
-      toast.success(`退勤しました（勤務時間: ${elapsed}）`)
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }, [clockOutMutation, todayData, elapsed])
-
-  const handleBreakStart = useCallback(async () => {
-    if (!todayData?.record?.id) return
-    try {
-      await breakStartMutation.mutateAsync(todayData.record.id)
-      toast.success('休憩開始')
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }, [breakStartMutation, todayData])
-
-  const handleBreakEnd = useCallback(async () => {
-    if (!todayData?.record?.id) return
-    try {
-      await breakEndMutation.mutateAsync(todayData.record.id)
-      toast.success('休憩終了')
-    } catch (err) {
-      toast.error((err as Error).message)
-    }
-  }, [breakEndMutation, todayData])
 
   const handleBulkBreakStart = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -332,74 +275,6 @@ export function ClockWidgetCompact() {
             </div>
           )}
 
-          {/* PJ選択（未出勤時のみ） */}
-          {status === 'not_clocked_in' && projects && projects.length > 0 && (
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger>
-                <SelectValue placeholder="プロジェクトを選択（任意）" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.filter(p => p.status === 'active').map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.project_code} - {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* アクションボタン */}
-          <div className="flex gap-2">
-            {status === 'not_clocked_in' && (
-              <Button
-                className="flex-1 bg-green-600 hover:bg-green-700"
-                onClick={handleClockIn}
-                disabled={clockInMutation.isPending}
-              >
-                <LogIn className="h-4 w-4 mr-2" />
-                {clockInMutation.isPending ? '処理中...' : '出勤'}
-              </Button>
-            )}
-
-            {status === 'clocked_in' && (
-              <>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={handleBreakStart}
-                  disabled={breakStartMutation.isPending}
-                >
-                  <Coffee className="h-4 w-4 mr-2" />
-                  休憩
-                </Button>
-                <Button
-                  className="flex-1 bg-red-600 hover:bg-red-700"
-                  onClick={handleClockOut}
-                  disabled={clockOutMutation.isPending}
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  退勤
-                </Button>
-              </>
-            )}
-
-            {status === 'on_break' && (
-              <Button
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-                onClick={handleBreakEnd}
-                disabled={breakEndMutation.isPending}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                休憩終了
-              </Button>
-            )}
-
-            {(status === 'clocked_out' || status === 'modified' || status === 'approved') && (
-              <div className="flex-1 text-center text-sm text-muted-foreground py-2">
-                本日の勤怠は記録済みです
-              </div>
-            )}
-          </div>
         </div>
       </PopoverContent>
     </Popover>
