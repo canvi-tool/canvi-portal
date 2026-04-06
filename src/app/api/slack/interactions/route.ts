@@ -974,14 +974,18 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
         },
       },
     ]
-    // 差戻しの場合は注意書きを付与（再申請はポータルから）
-    if (!isApprove) {
+    // 差戻しの場合は再申請ボタン付与（送信成功時にchat.updateで除去される）
+    if (!isApprove && r.attendance_record_id) {
       threadBlocks.push({
-        type: 'context',
+        type: 'actions',
+        block_id: 'correction_resubmit_actions',
         elements: [
           {
-            type: 'mrkdwn',
-            text: ':information_source: 再申請はポータルの打刻記録ページから行ってください',
+            type: 'button',
+            style: 'primary',
+            text: { type: 'plain_text', text: '再申請する' },
+            action_id: 'correction_resubmit',
+            value: r.attendance_record_id,
           },
         ],
       } as unknown as SlackBlock)
@@ -1010,13 +1014,17 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
       const dmBlocks: unknown[] = [
         { type: 'section', text: { type: 'mrkdwn', text: dmText } },
       ]
-      if (!isApprove) {
+      if (!isApprove && r.attendance_record_id) {
         dmBlocks.push({
-          type: 'context',
+          type: 'actions',
+          block_id: 'correction_resubmit_actions',
           elements: [
             {
-              type: 'mrkdwn',
-              text: ':information_source: 再申請はポータルの打刻記録ページから行ってください',
+              type: 'button',
+              style: 'primary',
+              text: { type: 'plain_text', text: '再申請する' },
+              action_id: 'correction_resubmit',
+              value: r.attendance_record_id,
             },
           ],
         })
@@ -1090,6 +1098,16 @@ async function openCorrectionSubmitModal(
     return jst.toISOString().slice(11, 16)
   }
 
+  // 親メッセージ（再申請ボタンが置かれているメッセージ）の情報を保存
+  // 送信成功時にchat.updateでボタンを除去するため
+  const parentChannel = payload.channel as Record<string, string> | undefined
+  const parentContainer = payload.container as Record<string, string> | undefined
+  const parentMessage = payload.message as Record<string, unknown> | undefined
+  const sourceChannelId = parentChannel?.id || parentContainer?.channel_id || ''
+  const sourceMessageTs =
+    (parentMessage?.ts as string) || parentContainer?.message_ts || ''
+  const sourceText = (parentMessage?.text as string) || ''
+
   await fetch('https://slack.com/api/views.open', {
     method: 'POST',
     headers: { Authorization: `Bearer ${botToken}`, 'Content-Type': 'application/json' },
@@ -1098,7 +1116,13 @@ async function openCorrectionSubmitModal(
       view: {
         type: 'modal',
         callback_id: 'correction_submit_modal',
-        private_metadata: JSON.stringify({ attendanceRecordId, date: r.date }),
+        private_metadata: JSON.stringify({
+          attendanceRecordId,
+          date: r.date,
+          sourceChannelId,
+          sourceMessageTs,
+          sourceText,
+        }),
         title: { type: 'plain_text', text: '打刻修正申請' },
         submit: { type: 'plain_text', text: '送信' },
         close: { type: 'plain_text', text: 'キャンセル' },
@@ -1182,7 +1206,12 @@ async function openCorrectionSubmitModal(
 async function handleCorrectionSubmit(payload: Record<string, unknown>) {
   const view = payload.view as Record<string, unknown>
   const metadata = JSON.parse((view?.private_metadata as string) || '{}')
-  const { attendanceRecordId } = metadata
+  const { attendanceRecordId, sourceChannelId, sourceMessageTs, sourceText } = metadata as {
+    attendanceRecordId: string
+    sourceChannelId?: string
+    sourceMessageTs?: string
+    sourceText?: string
+  }
   const user = payload.user as Record<string, string>
   const slackUserId = user?.id
 
@@ -1323,6 +1352,46 @@ async function handleCorrectionSubmit(payload: Record<string, unknown>) {
     }
   } catch (e) {
     console.error('correction submit notify error:', e)
+  }
+
+  // 親メッセージ（再申請ボタンが置かれていたメッセージ）からボタンを除去
+  // → 同じ差戻し通知から二重申請されるのを防止
+  if (sourceChannelId && sourceMessageTs) {
+    try {
+      const botToken = process.env.SLACK_BOT_TOKEN
+      if (botToken) {
+        const updatedBlocks: Record<string, unknown>[] = [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: sourceText || ':no_entry: 打刻修正申請が差戻されました',
+            },
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `:repeat: 再申請済み | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+              },
+            ],
+          },
+        ]
+        await fetch('https://slack.com/api/chat.update', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${botToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: sourceChannelId,
+            ts: sourceMessageTs,
+            text: sourceText || '打刻修正申請が差戻されました',
+            blocks: updatedBlocks,
+          }),
+        })
+      }
+    } catch (e) {
+      console.error('correction submit chat.update error:', e)
+    }
   }
 
   return new Response('', { status: 200 })
