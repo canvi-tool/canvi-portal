@@ -696,18 +696,56 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
 async function resolveSlackUser(
   slackUserId: string
 ): Promise<{ userId: string | null; staffId: string | null; displayName: string | null }> {
-  const supabase = getSupabase()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = getSupabase() as any
+
+  // (1) staff.custom_fields.slack_user_id で検索
   const { data } = await supabase
     .from('staff')
     .select('id, user_id, last_name, first_name')
     .or(`custom_fields->slack_user_id.eq.${slackUserId},custom_fields->>slack_user_id.eq.${slackUserId}`)
     .limit(1)
-    .single()
-  if (!data) return { userId: null, staffId: null, displayName: null }
+    .maybeSingle()
+
+  if (data?.user_id) {
+    return {
+      userId: data.user_id,
+      staffId: data.id,
+      displayName: `${data.last_name || ''} ${data.first_name || ''}`.trim(),
+    }
+  }
+
+  // (2) フォールバック: Slack users.info → email → users → staff
+  const email = await fetchSlackUserEmail(slackUserId)
+  if (!email) return { userId: null, staffId: null, displayName: null }
+
+  const { data: userByEmail } = await supabase
+    .from('users')
+    .select('id, display_name')
+    .ilike('email', email)
+    .limit(1)
+    .maybeSingle()
+
+  if (!userByEmail?.id) return { userId: null, staffId: null, displayName: null }
+
+  const { data: staffByUser } = await supabase
+    .from('staff')
+    .select('id, last_name, first_name, custom_fields')
+    .eq('user_id', userByEmail.id)
+    .maybeSingle()
+
+  // 次回以降高速化のためslack_user_idを書き戻す
+  if (staffByUser?.id) {
+    const merged = { ...(staffByUser.custom_fields || {}), slack_user_id: slackUserId }
+    await supabase.from('staff').update({ custom_fields: merged }).eq('id', staffByUser.id)
+  }
+
   return {
-    userId: (data as { user_id: string | null }).user_id || null,
-    staffId: (data as { id: string }).id,
-    displayName: `${(data as { last_name?: string }).last_name || ''} ${(data as { first_name?: string }).first_name || ''}`.trim(),
+    userId: userByEmail.id,
+    staffId: staffByUser?.id || null,
+    displayName: staffByUser
+      ? `${staffByUser.last_name || ''} ${staffByUser.first_name || ''}`.trim()
+      : userByEmail.display_name || null,
   }
 }
 
