@@ -1161,6 +1161,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 onChange={(e) => setBulkAssignProjectId(e.target.value)}
               >
                 <option value="">選択してください</option>
+                <option value="__EXCLUDE__">― PJではない（除外する）―</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -1196,9 +1197,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                     const pid = s.id.replace('gcal_pending__', '')
                     const checked = bulkAssignSelected.has(pid)
                     return (
-                      <li key={pid} className="flex items-center gap-2 px-3 py-2 text-sm">
+                      <li key={pid} className="flex items-center gap-2 px-3 py-2 text-sm min-w-0">
                         <input
                           type="checkbox"
+                          className="shrink-0"
                           checked={checked}
                           onChange={(e) => {
                             const next = new Set(bulkAssignSelected)
@@ -1207,10 +1209,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                             setBulkAssignSelected(next)
                           }}
                         />
-                        <span className="font-mono text-xs text-muted-foreground w-28 shrink-0">
-                          {s.date} {s.startTime}-{s.endTime}
+                        <span className="font-mono text-[11px] leading-tight text-muted-foreground w-20 shrink-0 whitespace-normal break-words">
+                          {s.date}<br/>{s.startTime}-{s.endTime}
                         </span>
-                        <span className="truncate flex-1">
+                        <span className="flex-1 min-w-0 truncate block" title={`${s.staffName}${s.notes ? ' / ' + s.notes : ''}`}>
                           <span className="text-muted-foreground">{s.staffName}</span>
                           {s.notes && <span className="ml-2">{s.notes}</span>}
                         </span>
@@ -1229,32 +1231,54 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 if (!bulkAssignProjectId || bulkAssignSelected.size === 0) return
                 setBulkAssigning(true)
                 try {
-                  const res = await fetch('/api/shifts/gcal-pending/bulk-assign', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      ids: Array.from(bulkAssignSelected),
-                      project_id: bulkAssignProjectId,
-                    }),
-                  })
-                  if (!res.ok) {
-                    const err = await res.json().catch(() => ({}))
-                    toast.error(err.error || '一括割当に失敗しました')
-                    return
+                  if (bulkAssignProjectId === '__EXCLUDE__') {
+                    // 「PJではない」= 一括除外
+                    const ids = Array.from(bulkAssignSelected)
+                    const results = await Promise.all(
+                      ids.map((id) =>
+                        fetch(`/api/shifts/gcal-pending/${id}`, { method: 'PATCH' })
+                          .then((r) => r.ok)
+                          .catch(() => false)
+                      )
+                    )
+                    const okCount = results.filter(Boolean).length
+                    if (okCount === 0) {
+                      toast.error('除外に失敗しました')
+                      return
+                    }
+                    toast.success(`${okCount}件をPJ対象外として除外しました`)
+                  } else {
+                    const res = await fetch('/api/shifts/gcal-pending/bulk-assign', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ids: Array.from(bulkAssignSelected),
+                        project_id: bulkAssignProjectId,
+                      }),
+                    })
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}))
+                      toast.error(err.error || '一括割当に失敗しました')
+                      return
+                    }
+                    const data = await res.json()
+                    toast.success(`${data.count || 0}件にPJを割り当てました`)
                   }
-                  const data = await res.json()
-                  toast.success(`${data.count || 0}件にPJを割り当てました`)
                   setBulkAssignOpen(false)
                   setBulkAssignSelected(new Set())
                   fetchShifts()
                 } catch {
-                  toast.error('一括割当に失敗しました')
+                  toast.error('一括処理に失敗しました')
                 } finally {
                   setBulkAssigning(false)
                 }
               }}
             >
-              {bulkAssigning ? '処理中...' : `${bulkAssignSelected.size}件に割り当てる`}
+              {bulkAssigning
+                ? '処理中...'
+                : bulkAssignProjectId === '__EXCLUDE__'
+                  ? `${bulkAssignSelected.size}件を除外する`
+                  : `${bulkAssignSelected.size}件に割り当てる`}
             </Button>
           </DialogFooter>
         </DialogContent>

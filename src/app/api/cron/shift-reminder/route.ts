@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildShiftOverdueNotification, sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
 
 /**
  * シフト未提出リマインダー
@@ -90,9 +91,47 @@ export async function GET(request: NextRequest) {
       alertedCount++
     }
 
+    // Slack通知: 未提出スタッフを所属PJごとにまとめて通知
+    // gatedキー: report_overdue（期限超過系トグル）を流用
+    const deadline = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-25`
+    let slackSent = 0
+    try {
+      const unreportedIds = unreported.map(s => s.id)
+      if (unreportedIds.length > 0) {
+        const { data: assignments } = await supabase
+          .from('project_assignments')
+          .select('staff_id, project:project_id(id, name, slack_channel_id)')
+          .in('staff_id', unreportedIds)
+          .is('unassigned_at', null)
+
+        // project_id -> { name, channel, staffNames[] }
+        const byProject = new Map<string, { name: string; channel: string | null; names: string[] }>()
+        const staffNameMap = new Map(unreported.map(s => [s.id, `${s.last_name || ''} ${s.first_name || ''}`.trim()]))
+
+        for (const a of (assignments || []) as Array<{ staff_id: string; project: { id: string; name: string; slack_channel_id: string | null } | null }>) {
+          const p = a.project
+          if (!p) continue
+          const entry = byProject.get(p.id) || { name: p.name, channel: p.slack_channel_id, names: [] }
+          const nm = staffNameMap.get(a.staff_id)
+          if (nm && !entry.names.includes(nm)) entry.names.push(nm)
+          byProject.set(p.id, entry)
+        }
+
+        for (const [projectId, info] of byProject.entries()) {
+          if (!info.channel || info.names.length === 0) continue
+          const msg = buildShiftOverdueNotification(info.names, deadline, info.name)
+          const res = await sendProjectNotificationIfEnabled(msg, projectId, info.channel, 'report_overdue', { noMention: true })
+          if (res.success && !res.skipped) slackSent++
+        }
+      }
+    } catch (slackErr) {
+      console.error('Shift reminder Slack error:', slackErr)
+    }
+
     return NextResponse.json({
       message: `Shift reminder completed`,
       alerted: alertedCount,
+      slackSent,
       totalUnreported: unreported.length,
       period: alertMonth,
     })

@@ -1755,6 +1755,9 @@ export interface Database {
           date: string
           clock_in: string | null
           clock_out: string | null
+          clock_in_rounded: string | null
+          clock_out_rounded: string | null
+          rounding_applied: boolean
           break_start: string | null
           break_end: string | null
           break_minutes: number
@@ -1778,6 +1781,9 @@ export interface Database {
           date: string
           clock_in?: string | null
           clock_out?: string | null
+          clock_in_rounded?: string | null
+          clock_out_rounded?: string | null
+          rounding_applied?: boolean
           break_start?: string | null
           break_end?: string | null
           break_minutes?: number
@@ -1801,6 +1807,9 @@ export interface Database {
           date?: string
           clock_in?: string | null
           clock_out?: string | null
+          clock_in_rounded?: string | null
+          clock_out_rounded?: string | null
+          rounding_applied?: boolean
           break_start?: string | null
           break_end?: string | null
           break_minutes?: number

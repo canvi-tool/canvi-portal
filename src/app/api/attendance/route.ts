@@ -5,6 +5,7 @@ import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { clockInSchema } from '@/lib/validations/attendance'
 import { sendProjectNotification, buildClockInNotification } from '@/lib/integrations/slack'
 import { embedSlackThreadTs } from '@/lib/utils/slack-thread'
+import { applyShiftRounding } from '@/lib/attendance/rounding'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
@@ -136,6 +137,28 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .single()
 
+    // シフト時刻を取得して打刻を丸める (Phase 3)
+    let clockInRounded: string = now
+    let roundingApplied = false
+    if (staffRecord?.id) {
+      const shiftQuery = supabase
+        .from('shifts')
+        .select('start_time')
+        .eq('staff_id', staffRecord.id)
+        .eq('shift_date', today)
+        .is('deleted_at', null)
+        .in('status', ['APPROVED', 'SUBMITTED'])
+        .limit(1)
+      const { data: shiftRow } = parsed.data.project_id
+        ? await shiftQuery.eq('project_id', parsed.data.project_id).maybeSingle()
+        : await shiftQuery.maybeSingle()
+      if (shiftRow?.start_time) {
+        const res = applyShiftRounding(now, today, shiftRow.start_time)
+        clockInRounded = res.rounded
+        roundingApplied = res.applied
+      }
+    }
+
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
@@ -144,6 +167,8 @@ export async function POST(request: NextRequest) {
         project_id: parsed.data.project_id || null,
         date: today,
         clock_in: now,
+        clock_in_rounded: clockInRounded,
+        rounding_applied: roundingApplied,
         status: 'clocked_in',
         location_type: parsed.data.location_type || null,
         note: parsed.data.note || null,

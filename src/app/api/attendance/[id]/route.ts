@@ -10,6 +10,7 @@ import {
   isNotificationEnabled,
 } from '@/lib/integrations/slack'
 import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
+import { applyShiftRounding } from '@/lib/attendance/rounding'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -55,10 +56,32 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: '既に退勤済みです' }, { status: 409 })
         }
 
-        // 勤務時間計算
-        const clockIn = new Date(record.clock_in!)
-        const clockOut = new Date(now)
-        const totalMinutes = Math.round((clockOut.getTime() - clockIn.getTime()) / 60000)
+        // シフト時刻取得→退勤打刻を丸める (Phase 3)
+        let clockOutRoundedIso: string = now
+        let roundingAppliedOut = record.rounding_applied || false
+        if (record.staff_id && record.date) {
+          const shiftQ = supabase
+            .from('shifts')
+            .select('start_time, end_time')
+            .eq('staff_id', record.staff_id)
+            .eq('shift_date', record.date)
+            .is('deleted_at', null)
+            .in('status', ['APPROVED', 'SUBMITTED'])
+            .limit(1)
+          const { data: shiftRow } = record.project_id
+            ? await shiftQ.eq('project_id', record.project_id).maybeSingle()
+            : await shiftQ.maybeSingle()
+          if (shiftRow?.end_time) {
+            const res = applyShiftRounding(now, record.date, shiftRow.end_time)
+            clockOutRoundedIso = res.rounded
+            if (res.applied) roundingAppliedOut = true
+          }
+        }
+
+        // 勤務時間計算: 丸め後の値を正として使用
+        const clockInForCalc = new Date(record.clock_in_rounded || record.clock_in!)
+        const clockOutForCalc = new Date(clockOutRoundedIso)
+        const totalMinutes = Math.round((clockOutForCalc.getTime() - clockInForCalc.getTime()) / 60000)
         const breakMinutes = record.break_minutes || 0
         const workMinutes = Math.max(0, totalMinutes - breakMinutes)
 
@@ -69,6 +92,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           .from('attendance_records')
           .update({
             clock_out: now,
+            clock_out_rounded: clockOutRoundedIso,
+            rounding_applied: roundingAppliedOut,
             work_minutes: workMinutes,
             overtime_minutes: overtimeMinutes,
             status: 'clocked_out',

@@ -98,14 +98,16 @@ export function Header({ user, onSignOut, notificationCount = 0 }: HeaderProps) 
               <User className="h-4 w-4" />
               プロフィール
             </Link>
-            <Link
-              href="/settings"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-            >
-              <Settings className="h-4 w-4" />
-              設定
-            </Link>
+            {user?.role === 'owner' && (
+              <Link
+                href="/settings"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                設定
+              </Link>
+            )}
             <div className="my-1 h-px bg-border" />
             <button
               onClick={handleLogout}

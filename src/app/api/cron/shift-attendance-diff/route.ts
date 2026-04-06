@@ -6,10 +6,12 @@ import {
 } from '@/lib/integrations/slack'
 
 /**
- * シフトvs打刻の乖離チェック Cron Job
+ * シフトvs打刻の乖離チェック Cron Job (Phase 3)
  *
- * 平日 22:00 JST に実行
- * シフト時刻と実際の打刻時刻を比較し、30分以上の乖離をプロジェクトチャンネルに通知
+ * 毎日 20:00 JST に実行 (vercel.json: "0 11 * * *" = UTC 11:00 = JST 20:00)
+ * 丸め後 (clock_in_rounded / clock_out_rounded) の打刻と シフト時刻を比較し、
+ * 1分以上の乖離をプロジェクトチャンネルに通知。
+ * 丸め適用範囲 (±10分) を超えた打刻のみが通知対象となる。
  */
 export async function GET(request: NextRequest) {
   // Cron認証
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
   const jstNow = new Date(now.getTime() + jstOffset)
   const today = jstNow.toISOString().split('T')[0]
 
-  const DIFF_THRESHOLD_MINUTES = 30
+  const DIFF_THRESHOLD_MINUTES = 1
 
   const results = {
     checked: 0,
@@ -53,20 +55,31 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 今日の打刻を取得
+    // 今日の打刻を取得 (丸め後の値を優先して使用)
     const { data: todayAttendance } = await admin
       .from('attendance_records')
-      .select('user_id, staff_id, project_id, clock_in, clock_out')
+      .select('user_id, staff_id, project_id, clock_in, clock_out, clock_in_rounded, clock_out_rounded')
       .eq('date', today)
       .is('deleted_at', null)
       .not('clock_in', 'is', null)
 
     // staff_id + project_id -> attendance マップ
+    // 比較は丸め後の値で行う (fallback: 生値)
     const attendanceMap = new Map<string, { clock_in: string; clock_out: string | null }>()
-    for (const att of todayAttendance || []) {
+    for (const att of (todayAttendance || []) as Array<{
+      staff_id: string | null
+      project_id: string | null
+      clock_in: string
+      clock_out: string | null
+      clock_in_rounded: string | null
+      clock_out_rounded: string | null
+    }>) {
       if (!att.clock_in) continue
       const key = `${att.staff_id}__${att.project_id || ''}`
-      attendanceMap.set(key, { clock_in: att.clock_in, clock_out: att.clock_out })
+      attendanceMap.set(key, {
+        clock_in: att.clock_in_rounded || att.clock_in,
+        clock_out: att.clock_out_rounded || att.clock_out,
+      })
     }
 
     // プロジェクト別にグループ化

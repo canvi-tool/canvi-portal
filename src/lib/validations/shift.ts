@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
-export const SHIFT_TYPES = ['WORK', 'ABSENCE'] as const
+export const SHIFT_TYPES = ['WORK', 'PAID_LEAVE', 'HALF_DAY_LEAVE', 'SPECIAL_LEAVE', 'ABSENCE'] as const
 export type ShiftType = typeof SHIFT_TYPES[number]
 
 export const SHIFT_TYPE_LABELS: Record<ShiftType, string> = {
   WORK: '通常勤務',
+  PAID_LEAVE: '有給休暇',
+  HALF_DAY_LEAVE: '半休',
+  SPECIAL_LEAVE: '特別休暇',
   ABSENCE: '欠勤',
 }
 
