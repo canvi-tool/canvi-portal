@@ -1148,11 +1148,11 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
 
       {/* GCal Pending Bulk Assign Dialog */}
       <Dialog open={bulkAssignOpen} onOpenChange={(o) => { if (!o) setBulkAssignOpen(false) }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] overflow-hidden">
           <DialogHeader>
             <DialogTitle>PJ未割当イベントを一括でPJに割当</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <div>
               <label className="text-sm font-medium">割当先プロジェクト</label>
               <select
@@ -1188,11 +1188,11 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 </button>
               </div>
             </div>
-            <div className="max-h-80 overflow-y-auto rounded border">
+            <div className="max-h-80 overflow-y-auto overflow-x-hidden rounded border min-w-0">
               {gcalPendingShifts.length === 0 ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">未割当のイベントはありません</div>
               ) : (
-                <ul className="divide-y">
+                <ul className="divide-y min-w-0">
                   {gcalPendingShifts.map((s) => {
                     const pid = s.id.replace('gcal_pending__', '')
                     const checked = bulkAssignSelected.has(pid)
@@ -1212,10 +1212,9 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                         <span className="font-mono text-[11px] leading-tight text-muted-foreground w-20 shrink-0 whitespace-normal break-words">
                           {s.date}<br/>{s.startTime}-{s.endTime}
                         </span>
-                        <span className="flex-1 min-w-0 truncate block" title={`${s.staffName}${s.notes ? ' / ' + s.notes : ''}`}>
-                          <span className="text-muted-foreground">{s.staffName}</span>
-                          {s.notes && <span className="ml-2">{s.notes}</span>}
-                        </span>
+                        <div className="flex-1 min-w-0 truncate text-muted-foreground" title={`${s.staffName}${s.notes ? ' / ' + s.notes : ''}`}>
+                          {s.staffName}{s.notes ? `  ${s.notes}` : ''}
+                        </div>
                       </li>
                     )
                   })}
