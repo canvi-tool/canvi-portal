@@ -102,8 +102,12 @@ export default function ShiftsPage() {
       .catch(() => {})
   }, [])
 
-  // GCal→Canvi オンデマンド同期
+  // GCal→Canvi オンデマンド同期（refで最新のfetchShifts/refreshGoogleEventsを参照）
+  const syncFromGcalRef = useRef<(silent: boolean) => Promise<void>>(async () => {})
   const syncFromGcal = useCallback(async (silent = false) => {
+    await syncFromGcalRef.current(silent)
+  }, [])
+  syncFromGcalRef.current = async (silent: boolean) => {
     if (!dateRange.start || !dateRange.end) return
     setSyncing(true)
     try {
@@ -117,10 +121,12 @@ export default function ShiftsPage() {
         const changes = data.created + data.updated + data.deleted
         if (changes > 0) {
           toast.success(data.message)
-          fetchShifts()
         } else if (!silent) {
           toast.info('Googleカレンダーとの差分はありません')
         }
+        // 常にシフトとGCalイベントの両方を再取得
+        fetchShifts()
+        refreshGoogleEvents()
         setLastSynced(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
       } else if (!silent) {
         const err = await res.json().catch(() => ({}))
@@ -133,7 +139,7 @@ export default function ShiftsPage() {
     } finally {
       setSyncing(false)
     }
-  }, [dateRange.start, dateRange.end]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // シフトデータ取得
   const fetchShifts = useCallback(async () => {
