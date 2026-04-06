@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
@@ -9,6 +9,14 @@ import { StaffForm } from '../../_components/staff-form'
 import { ConfirmChangesDialog, type FieldChange } from '../../_components/confirm-changes-dialog'
 import { useStaff, useUpdateStaff } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
+import {
+  READONLY_FIELDS,
+  IDENTITY_FIELDS,
+  ADDRESS_FIELDS,
+  BANK_HOLDER_FIELD,
+  computeAttachmentRequirement,
+  needsAnyAttachment,
+} from '@/lib/profile/change-request-policy'
 
 /** フィールドラベルマッピング */
 const FIELD_LABELS: Record<string, string> = {
@@ -81,9 +89,24 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
 
   const [showConfirm, setShowConfirm] = useState(false)
   const [changes, setChanges] = useState<FieldChange[]>([])
+  const [isOwner, setIsOwner] = useState(false)
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
+  const [attachmentRequirement, setAttachmentRequirement] = useState({
+    requiresIdentityDoc: false,
+    requiresAddressDoc: false,
+    requiresBankHolderDoc: false,
+  })
   const pendingSubmitRef = useRef<{
     data: StaffFormValues
+    changedKeys: string[]
   } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then(r => r.json())
+      .then(d => setIsOwner(Array.isArray(d.roles) && d.roles.includes('owner')))
+      .catch(() => {})
+  }, [])
 
   // Build original values from staff record
   function getOriginalValues(): Record<string, unknown> {
@@ -139,35 +162,114 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
     return result
   }
 
+  function computeChangedKeys(newData: StaffFormValues): string[] {
+    const original = getOriginalValues()
+    const keys: string[] = []
+    for (const [key, newVal] of Object.entries(newData)) {
+      const oldStr = formatValue(key, original[key])
+      const newStr = formatValue(key, newVal)
+      if (oldStr !== newStr) keys.push(key)
+    }
+    return keys
+  }
+
   async function handleSubmit(data: StaffFormValues) {
     const detectedChanges = computeChanges(data)
+    const changedKeys = computeChangedKeys(data)
 
     if (detectedChanges.length === 0) {
       toast.info('変更はありません')
       return
     }
 
-    pendingSubmitRef.current = { data }
+    // 編集不可フィールドが含まれている場合は警告
+    const readonlyChanged = changedKeys.filter(k => READONLY_FIELDS.has(k))
+    if (readonlyChanged.length > 0) {
+      toast.error(`雇用形態・報酬関連はこの画面から変更できません: ${readonlyChanged.join(', ')}`)
+      return
+    }
+
+    pendingSubmitRef.current = { data, changedKeys }
     setChanges(detectedChanges)
+    setAttachmentRequirement(computeAttachmentRequirement(changedKeys))
+    setAttachmentUrls([])
     setShowConfirm(true)
   }
 
   async function handleConfirm() {
     if (!pendingSubmitRef.current) return
+    const { data, changedKeys } = pendingSubmitRef.current
 
-    const { data } = pendingSubmitRef.current
+    // オーナーは即保存
+    if (isOwner) {
+      try {
+        await mutateAsync({ data })
+        toast.success('スタッフ情報を更新しました')
+        router.push(`/staff/${id}`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'スタッフの更新に失敗しました'
+        toast.error(message)
+      } finally {
+        setShowConfirm(false)
+        pendingSubmitRef.current = null
+      }
+      return
+    }
+
+    // 非オーナーは承認申請
+    const req = computeAttachmentRequirement(changedKeys)
+    if (needsAnyAttachment(req) && attachmentUrls.length === 0) {
+      toast.error('本人確認書類の添付が必要です')
+      return
+    }
+
+    // changesを { field: { from, to } } 形式に変換
+    const original = getOriginalValues()
+    const changesPayload: Record<string, { from: unknown; to: unknown }> = {}
+    for (const k of changedKeys) {
+      changesPayload[k] = { from: original[k] ?? null, to: (data as Record<string, unknown>)[k] ?? null }
+    }
 
     try {
-      await mutateAsync({ data })
-      toast.success('スタッフ情報を更新しました')
+      const res = await fetch('/api/profile-change-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_id: id,
+          changes: changesPayload,
+          attachment_urls: attachmentUrls,
+        }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        toast.error(e.error || '申請に失敗しました')
+        return
+      }
+      toast.success('変更申請を送信しました。オーナーの承認をお待ちください')
       router.push(`/staff/${id}`)
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'スタッフの更新に失敗しました'
-      toast.error(message)
+    } catch {
+      toast.error('申請に失敗しました')
     } finally {
       setShowConfirm(false)
       pendingSubmitRef.current = null
+    }
+  }
+
+  // 添付ファイルをSupabase Storageにアップロード
+  async function handleFileUpload(file: File) {
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('staff_id', id)
+      const res = await fetch('/api/profile-change-requests/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        toast.error('アップロード失敗')
+        return
+      }
+      const data = await res.json()
+      if (data.url) setAttachmentUrls(prev => [...prev, data.url])
+    } catch {
+      toast.error('アップロード失敗')
     }
   }
 
@@ -235,6 +337,10 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
         changes={changes}
         onConfirm={handleConfirm}
         isLoading={isPending}
+        submitMode={isOwner ? 'save' : 'request'}
+        attachmentRequirement={attachmentRequirement}
+        attachmentUrls={attachmentUrls}
+        onUploadFile={handleFileUpload}
       />
     </div>
   )

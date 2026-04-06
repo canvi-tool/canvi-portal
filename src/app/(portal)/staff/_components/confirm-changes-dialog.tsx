@@ -24,6 +24,14 @@ interface ConfirmChangesDialogProps {
   changes: FieldChange[]
   onConfirm: () => void
   isLoading?: boolean
+  submitMode?: 'save' | 'request'
+  attachmentRequirement?: {
+    requiresIdentityDoc: boolean
+    requiresAddressDoc: boolean
+    requiresBankHolderDoc: boolean
+  }
+  attachmentUrls?: string[]
+  onUploadFile?: (file: File) => void
 }
 
 export function ConfirmChangesDialog({
@@ -32,6 +40,10 @@ export function ConfirmChangesDialog({
   changes,
   onConfirm,
   isLoading,
+  submitMode = 'save',
+  attachmentRequirement,
+  attachmentUrls = [],
+  onUploadFile,
 }: ConfirmChangesDialogProps) {
   const newFields = changes.filter((c) => !c.before && c.after)
   const updatedFields = changes.filter((c) => c.before && c.after && c.before !== c.after)
@@ -92,13 +104,56 @@ export function ConfirmChangesDialog({
           </div>
         )}
 
+        {/* 添付書類（承認申請モード） */}
+        {submitMode === 'request' && attachmentRequirement && (
+          (() => {
+            const needed: string[] = []
+            if (attachmentRequirement.requiresIdentityDoc) needed.push('本人確認書類（運転免許証・マイナンバーカード等）')
+            if (attachmentRequirement.requiresAddressDoc) needed.push('住所確認書類（住民票・公共料金請求書等）')
+            if (attachmentRequirement.requiresBankHolderDoc) needed.push('口座名義確認書類（通帳・キャッシュカード等）')
+            if (needed.length === 0) {
+              return (
+                <div className="mt-3 rounded border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
+                  この変更は本人確認書類の添付不要です。オーナー承認後に反映されます。
+                </div>
+              )
+            }
+            return (
+              <div className="mt-3 space-y-2">
+                <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  以下の書類の添付が必要です:
+                  <ul className="list-disc list-inside mt-1">
+                    {needed.map((n) => <li key={n}>{n}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f && onUploadFile) onUploadFile(f)
+                    }}
+                    className="text-xs"
+                  />
+                  {attachmentUrls.length > 0 && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      添付済: {attachmentUrls.length} 件
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()
+        )}
+
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             戻る
           </Button>
           <Button onClick={onConfirm} disabled={isLoading || changes.length === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            OK - 更新する
+            {submitMode === 'request' ? '変更を申請する' : 'OK - 更新する'}
           </Button>
         </DialogFooter>
       </DialogContent>
