@@ -5,10 +5,16 @@ import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/l
 
 // Slack署名検証
 async function verifySlackSignature(request: NextRequest, rawBody: string): Promise<boolean> {
-  const signingSecret = process.env.SLACK_SIGNING_SECRET
+  // 環境変数の前後空白/改行を除去（Vercel貼り付けミス対策）
+  const signingSecret = process.env.SLACK_SIGNING_SECRET?.trim()
   if (!signingSecret) {
     console.error('[slack/interactions] SLACK_SIGNING_SECRET is not set')
     return false
+  }
+  // 開発/緊急用バイパス: SLACK_SKIP_SIGNATURE_VERIFICATION=true で署名検証を一時スキップ
+  if (process.env.SLACK_SKIP_SIGNATURE_VERIFICATION === 'true') {
+    console.warn('[slack/interactions] signature verification SKIPPED via env flag')
+    return true
   }
 
   const timestamp = request.headers.get('x-slack-request-timestamp')

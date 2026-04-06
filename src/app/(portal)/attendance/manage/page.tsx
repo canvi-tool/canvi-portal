@@ -274,7 +274,7 @@ export default function AttendanceManagePage() {
                       ? `${rec.staff.last_name || ''} ${rec.staff.first_name || ''}`.trim()
                       : rec.user?.display_name || '-'
                     const projectLabel = rec.project
-                      ? rec.project.project_code || rec.project.name
+                      ? rec.project.name || rec.project.project_code
                       : '-'
                     return (
                       <TableRow key={r.id}>
