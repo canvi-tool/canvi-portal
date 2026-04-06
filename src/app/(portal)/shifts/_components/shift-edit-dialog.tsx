@@ -177,18 +177,18 @@ export function ShiftEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setIsEditing(false) }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Briefcase className="h-4 w-4" />
-            {shift.projectName}
+      <DialogContent className="sm:max-w-md overflow-hidden max-w-[calc(100vw-2rem)]">
+        <DialogHeader className="min-w-0">
+          <DialogTitle className="flex items-center gap-2 min-w-0">
+            <Briefcase className="h-4 w-4 shrink-0" />
+            <span className="truncate min-w-0 flex-1">{shift.projectName}</span>
           </DialogTitle>
           <DialogDescription>
             シフト詳細 {canEdit && '(編集可能)'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Source + Status badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-orange-50 border-orange-300 text-orange-700">
@@ -296,22 +296,22 @@ export function ShiftEditDialog({
               />
             </div>
           ) : cleanNotes ? (
-            <div className="flex items-start gap-3 text-sm">
+            <div className="flex items-start gap-3 text-sm min-w-0">
               <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="text-muted-foreground whitespace-pre-wrap">{cleanNotes}</span>
+              <span className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all line-clamp-4">{cleanNotes}</span>
             </div>
           ) : null}
 
           {/* Google Meet URL / 発行・削除 */}
           {meetUrl ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3 text-sm">
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex items-center gap-3 text-sm min-w-0">
                 <Video className="h-4 w-4 text-blue-500 shrink-0" />
                 <a
                   href={meetUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline font-medium"
+                  className="text-blue-600 hover:underline font-medium shrink-0"
                 >
                   Google Meet に参加
                 </a>
@@ -320,7 +320,7 @@ export function ShiftEditDialog({
                     navigator.clipboard.writeText(meetUrl)
                     toast.success('URLをコピーしました')
                   }}
-                  className="p-1 rounded hover:bg-muted"
+                  className="p-1 rounded hover:bg-muted shrink-0"
                   title="URLをコピー"
                 >
                   <Copy className="h-3.5 w-3.5 text-muted-foreground" />
@@ -328,14 +328,14 @@ export function ShiftEditDialog({
                 <button
                   onClick={handleMeetDelete}
                   disabled={meetLoading}
-                  className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                  className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 shrink-0"
                   title="Meet URLを削除"
                 >
                   <XCircle className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="pl-7">
-                <span className="text-xs text-muted-foreground break-all select-all">{meetUrl}</span>
+              <div className="pl-7 min-w-0">
+                <span className="text-xs text-muted-foreground break-all select-all line-clamp-2 block">{meetUrl}</span>
               </div>
             </div>
           ) : (
