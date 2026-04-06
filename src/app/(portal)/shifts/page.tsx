@@ -58,6 +58,8 @@ export default function ShiftsPage() {
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
+  const staffListRef = useRef<StaffOption[]>([])
+  useEffect(() => { staffListRef.current = staffList }, [staffList])
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -201,7 +203,29 @@ export default function ShiftsPage() {
         }
       })
 
-      setShifts(mapped)
+      // 招待者（attendees.staff_id）を別スタッフの仮想シフトとして展開
+      //   - 岡林のシフトに後藤が招待されていれば、後藤カレンダーにも「後藤優衣」名義で表示
+      //   - 仮想行は編集/ドラッグ/削除不可（オーナーシフトの参照のみ）
+      const expanded: CalendarShift[] = []
+      for (const s of mapped) {
+        expanded.push(s)
+        if (!s.attendees || s.attendees.length === 0) continue
+        for (const a of s.attendees) {
+          if (!a.staff_id || a.staff_id === s.staffId) continue
+          // staffList から名前を引ける場合はそれを優先、なければ attendee.name
+          const staffInfo = staffListRef.current.find((x) => x.id === a.staff_id)
+          const displayName = staffInfo?.name || a.name || a.email
+          expanded.push({
+            ...s,
+            id: `${s.id}__att__${a.staff_id}`,
+            staffId: a.staff_id,
+            staffName: displayName,
+            isVirtualAttendee: true,
+            ownerShiftId: s.id,
+          })
+        }
+      }
+      setShifts(expanded)
     } catch {
       toast.error('シフトの取得に失敗しました')
     } finally {
@@ -319,26 +343,35 @@ export default function ShiftsPage() {
   }, [])
 
   const handleShiftClick = useCallback((shift: CalendarShift) => {
+    // 仮想招待行クリック → オーナーシフトを開く（同じデータを参照するため情報は同一）
+    const realId = shift.isVirtualAttendee && shift.ownerShiftId ? shift.ownerShiftId : shift.id
+    const owner = shift.isVirtualAttendee
+      ? shifts.find((s) => s.id === realId) || shift
+      : shift
     setEditingShift({
-      id: shift.id,
-      staffId: shift.staffId,
-      staffName: shift.staffName,
-      projectId: shift.projectId,
-      projectName: shift.projectName,
-      date: shift.date,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      status: shift.status,
-      notes: shift.notes,
-      googleMeetUrl: shift.googleMeetUrl,
-      attendees: shift.attendees || [],
+      id: owner.id,
+      staffId: owner.staffId,
+      staffName: owner.staffName,
+      projectId: owner.projectId,
+      projectName: owner.projectName,
+      date: owner.date,
+      startTime: owner.startTime,
+      endTime: owner.endTime,
+      status: owner.status,
+      notes: owner.notes,
+      googleMeetUrl: owner.googleMeetUrl,
+      attendees: owner.attendees || [],
     })
     setEditDialogOpen(true)
-  }, [])
+  }, [shifts])
 
   const handleShiftDragUpdate = useCallback(async (
     shiftId: string, date: string, startTime: string, endTime: string
   ): Promise<boolean> => {
+    if (shiftId.includes('__att__')) {
+      toast.error('招待されたシフトは変更できません（主催者のみ編集可能）')
+      return false
+    }
     try {
       const res = await fetch(`/api/shifts/${shiftId}`, {
         method: 'PUT',
@@ -365,7 +398,8 @@ export default function ShiftsPage() {
   }, [fetchShifts])
 
   const handleShiftCopy = useCallback(async (shiftId: string, targetDate: string) => {
-    const source = shifts.find(s => s.id === shiftId)
+    const resolvedId = shiftId.includes('__att__') ? shiftId.split('__att__')[0] : shiftId
+    const source = shifts.find(s => s.id === resolvedId)
     if (!source || !targetDate) return
 
     try {
@@ -391,6 +425,10 @@ export default function ShiftsPage() {
   }, [shifts, fetchShifts])
 
   const handleShiftDelete = useCallback(async (shiftId: string) => {
+    if (shiftId.includes('__att__')) {
+      toast.error('招待されたシフトは削除できません（主催者のみ可能）')
+      return
+    }
     // 楽観的UI: ローカルstateからすぐに削除
     const prev = shifts
     setShifts(curr => curr.filter(s => s.id !== shiftId))

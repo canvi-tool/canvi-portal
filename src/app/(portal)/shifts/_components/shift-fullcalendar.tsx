@@ -30,6 +30,8 @@ export interface CalendarShift {
   googleEventId?: string | null
   approvalMode: 'AUTO' | 'APPROVAL'
   attendees?: Array<{ email: string; name?: string; staff_id?: string }>
+  isVirtualAttendee?: boolean
+  ownerShiftId?: string
 }
 
 export interface GoogleCalendarEvent {
