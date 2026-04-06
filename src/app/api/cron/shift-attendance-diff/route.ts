@@ -22,11 +22,14 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // JSTで今日の日付
+  // JSTで今日の日付（?date=YYYY-MM-DD で上書き可能、デバッグ/手動実行用）
+  const dateOverride = request.nextUrl.searchParams.get('date')
   const now = new Date()
   const jstOffset = 9 * 60 * 60 * 1000
   const jstNow = new Date(now.getTime() + jstOffset)
-  const today = jstNow.toISOString().split('T')[0]
+  const today = dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride)
+    ? dateOverride
+    : jstNow.toISOString().split('T')[0]
 
   const DIFF_THRESHOLD_MINUTES = 1
 
