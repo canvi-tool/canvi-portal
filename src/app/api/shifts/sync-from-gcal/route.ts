@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     // 既存シフト（google_calendar_event_idあり）を取得
     const { data: existingShifts } = await admin
       .from('shifts')
-      .select('id, shift_date, start_time, end_time, google_calendar_event_id, notes, status')
+      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status')
       .eq('staff_id', staffRecord.id)
       .gte('shift_date', today)
       .lte('shift_date', endDate)
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
     const toHHMM = (t: string) => t.slice(0, 5)
 
-    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string }>()
+    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null }>()
     if (existingShifts) {
       for (const shift of existingShifts) {
         if (shift.google_calendar_event_id) {
@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
             shift_date: shift.shift_date,
             start_time: toHHMM(shift.start_time),
             end_time: toHHMM(shift.end_time),
+            google_meet_url: shift.google_meet_url || null,
           })
         }
       }
@@ -135,12 +136,14 @@ export async function POST(request: NextRequest) {
       const existing = existingByEventId.get(event.id)
 
       if (existing) {
-        // GCal側で時刻が変更された場合、Canviシフトを更新
-        if (existing.shift_date !== shiftDate || existing.start_time !== startTime || existing.end_time !== endTime) {
+        // GCal側で時刻またはMeet URLが変更された場合、Canviシフトを更新
+        const newMeetUrl = event.meetUrl || null
+        if (existing.shift_date !== shiftDate || existing.start_time !== startTime || existing.end_time !== endTime || existing.google_meet_url !== newMeetUrl) {
           await admin.from('shifts').update({
             shift_date: shiftDate,
             start_time: startTime,
             end_time: endTime,
+            google_meet_url: newMeetUrl,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),
           }).eq('id', existing.id)
@@ -158,6 +161,7 @@ export async function POST(request: NextRequest) {
           shift_type: 'WORK',
           google_calendar_event_id: event.id,
           google_calendar_synced: true,
+          google_meet_url: event.meetUrl || null,
           notes: `gcal:${event.id}`,
           created_by: user.id,
         })

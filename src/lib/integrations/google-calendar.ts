@@ -17,6 +17,7 @@ interface CalendarEvent {
   end: string
   status?: string
   location?: string
+  meetUrl?: string
 }
 
 interface SyncResult {
@@ -107,6 +108,7 @@ export class GoogleCalendarClient {
             end,
             status: item.status || undefined,
             location: item.location || undefined,
+            meetUrl: item.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || undefined,
           })
         }
 

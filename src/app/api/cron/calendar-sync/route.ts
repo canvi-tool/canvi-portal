@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         // このスタッフの今日〜2週間の既存シフト（google_calendar_event_idあり）を取得
         const { data: existingShifts } = await admin
           .from('shifts')
-          .select('id, shift_date, start_time, end_time, google_calendar_event_id, notes, status')
+          .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status')
           .eq('staff_id', staffRecord.id)
           .gte('shift_date', today)
           .lte('shift_date', twoWeeksLaterStr)
@@ -168,6 +168,7 @@ export async function GET(request: NextRequest) {
           shift_date: string
           start_time: string
           end_time: string
+          google_meet_url: string | null
         }>()
 
         // notes に gcal: プレフィックスがあるシフトもマッピング
@@ -176,26 +177,24 @@ export async function GET(request: NextRequest) {
           shift_date: string
           start_time: string
           end_time: string
+          google_meet_url: string | null
         }>()
 
         if (existingShifts) {
           for (const shift of existingShifts) {
+            const shiftData = {
+              id: shift.id,
+              shift_date: shift.shift_date,
+              start_time: toHHMM(shift.start_time),
+              end_time: toHHMM(shift.end_time),
+              google_meet_url: shift.google_meet_url || null,
+            }
             if (shift.google_calendar_event_id) {
-              existingByEventId.set(shift.google_calendar_event_id, {
-                id: shift.id,
-                shift_date: shift.shift_date,
-                start_time: toHHMM(shift.start_time),
-                end_time: toHHMM(shift.end_time),
-              })
+              existingByEventId.set(shift.google_calendar_event_id, shiftData)
             }
             if (shift.notes?.startsWith('gcal:')) {
               const gcalId = shift.notes.slice(5)
-              existingByGcalNote.set(gcalId, {
-                id: shift.id,
-                shift_date: shift.shift_date,
-                start_time: toHHMM(shift.start_time),
-                end_time: toHHMM(shift.end_time),
-              })
+              existingByGcalNote.set(gcalId, shiftData)
             }
           }
         }
@@ -230,11 +229,13 @@ export async function GET(request: NextRequest) {
             existingByEventId.get(event.id) || existingByGcalNote.get(event.id)
 
           if (existingShift) {
-            // 更新チェック: 時間が変わっていれば更新
+            // 更新チェック: 時間またはMeet URLが変わっていれば更新
+            const newMeetUrl = event.meetUrl || null
             if (
               existingShift.shift_date !== shiftDate ||
               existingShift.start_time !== startTime ||
-              existingShift.end_time !== endTime
+              existingShift.end_time !== endTime ||
+              existingShift.google_meet_url !== newMeetUrl
             ) {
               const { error: updateError } = await admin
                 .from('shifts')
@@ -243,6 +244,7 @@ export async function GET(request: NextRequest) {
                   start_time: startTime,
                   end_time: endTime,
                   project_id: projectId,
+                  google_meet_url: newMeetUrl,
                   google_calendar_synced: true,
                   updated_at: new Date().toISOString(),
                 })
@@ -270,6 +272,7 @@ export async function GET(request: NextRequest) {
               shift_type: 'WORK',
               google_calendar_event_id: event.id,
               google_calendar_synced: true,
+              google_meet_url: event.meetUrl || null,
               notes: `gcal:${event.id}`,
               created_by: user.id,
             })

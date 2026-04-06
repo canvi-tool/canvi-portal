@@ -145,14 +145,14 @@ export async function POST(request: NextRequest) {
       // 既存シフトを検索（google_calendar_event_id または notes の gcal: プレフィックス）
       const { data: existingByEventId } = await admin
         .from('shifts')
-        .select('id, shift_date, start_time, end_time')
+        .select('id, shift_date, start_time, end_time, google_meet_url')
         .eq('staff_id', staffRecord.id)
         .eq('google_calendar_event_id', event.id)
         .maybeSingle()
 
       const { data: existingByNote } = await admin
         .from('shifts')
-        .select('id, shift_date, start_time, end_time')
+        .select('id, shift_date, start_time, end_time, google_meet_url')
         .eq('staff_id', staffRecord.id)
         .eq('notes', `gcal:${event.id}`)
         .maybeSingle()
@@ -160,10 +160,12 @@ export async function POST(request: NextRequest) {
       const existing = existingByEventId || existingByNote
 
       if (existing) {
+        const newMeetUrl = event.meetUrl || null
         if (
           existing.shift_date !== shiftDate ||
           existing.start_time !== startTime ||
-          existing.end_time !== endTime
+          existing.end_time !== endTime ||
+          existing.google_meet_url !== newMeetUrl
         ) {
           await admin
             .from('shifts')
@@ -172,6 +174,7 @@ export async function POST(request: NextRequest) {
               start_time: startTime,
               end_time: endTime,
               project_id: projectId,
+              google_meet_url: newMeetUrl,
               google_calendar_synced: true,
               updated_at: new Date().toISOString(),
             })
@@ -189,6 +192,7 @@ export async function POST(request: NextRequest) {
           shift_type: 'WORK',
           google_calendar_event_id: event.id,
           google_calendar_synced: true,
+          google_meet_url: event.meetUrl || null,
           notes: `gcal:${event.id}`,
           created_by: userId,
         })
