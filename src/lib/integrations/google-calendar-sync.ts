@@ -41,7 +41,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const normalizeTime = (t: string) => t.length === 5 ? `${t}:00` : t.slice(0, 8)
     const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
     const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
-    const summary = `[${projectData.name}] シフト`
+    const summary = `${projectData.name} シフト`
     const description = shift.notes || undefined
 
     if (shift.google_calendar_event_id) {
