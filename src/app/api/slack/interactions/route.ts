@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, unstable_after as after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
@@ -131,32 +131,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle view_submission → process the approval/rejection with comment
+    // Slackは3秒以内の応答を要求するため、重い処理はafter()で非同期化
     if (payload.type === 'view_submission') {
       const callbackId = payload.view?.callback_id
 
+      // 差戻しコメント必須バリデーション（同期で返す必要あり）
+      if (
+        ['report_reject_modal', 'shift_reject_modal', 'correction_reject_modal'].includes(callbackId)
+      ) {
+        const state = payload.view?.state as
+          | { values?: { comment_block?: { comment_input?: { value?: string } } } }
+          | undefined
+        const comment = state?.values?.comment_block?.comment_input?.value || ''
+        if (!comment.trim()) {
+          return NextResponse.json({
+            response_action: 'errors',
+            errors: { comment_block: '差戻し理由を入力してください' },
+          })
+        }
+      }
+
       // 日報の承認/差戻し
       if (['report_approve_modal', 'report_reject_modal'].includes(callbackId)) {
-        return handleReportApproval(payload)
+        after(async () => {
+          try { await handleReportApproval(payload) } catch (e) { console.error('after handleReportApproval', e) }
+        })
+        return new Response('', { status: 200 })
       }
 
       // シフトの承認/差戻し
       if (['shift_approve_modal', 'shift_reject_modal'].includes(callbackId)) {
-        return handleShiftApproval(payload)
+        after(async () => {
+          try { await handleShiftApproval(payload) } catch (e) { console.error('after handleShiftApproval', e) }
+        })
+        return new Response('', { status: 200 })
       }
 
       // 打刻修正 承認/差戻し
       if (['correction_approve_modal', 'correction_reject_modal'].includes(callbackId)) {
-        return handleCorrectionApproval(payload)
+        after(async () => {
+          try { await handleCorrectionApproval(payload) } catch (e) { console.error('after handleCorrectionApproval', e) }
+        })
+        return new Response('', { status: 200 })
       }
 
       // 打刻修正 申請（本人による送信）
       if (callbackId === 'correction_submit_modal') {
-        return handleCorrectionSubmit(payload)
+        after(async () => {
+          try { await handleCorrectionSubmit(payload) } catch (e) { console.error('after handleCorrectionSubmit', e) }
+        })
+        return new Response('', { status: 200 })
       }
 
       // シフト乖離: 本人による打刻修正モーダル送信
       if (callbackId === 'diff_member_fix_modal') {
-        return handleDiffMemberFixSubmit(payload)
+        after(async () => {
+          try { await handleDiffMemberFixSubmit(payload) } catch (e) { console.error('after handleDiffMemberFixSubmit', e) }
+        })
+        return new Response('', { status: 200 })
       }
 
       return new Response('', { status: 200 })
@@ -215,14 +247,20 @@ async function openCommentModal(
           {
             type: 'input',
             block_id: 'comment_block',
-            optional: true,
+            optional: isApprove,
             element: {
               type: 'plain_text_input',
               action_id: 'comment_input',
               multiline: true,
-              placeholder: { type: 'plain_text', text: 'コメントを入力（任意）' },
+              placeholder: {
+                type: 'plain_text',
+                text: isApprove ? 'コメントを入力（任意）' : '差戻し理由を入力（必須）',
+              },
             },
-            label: { type: 'plain_text', text: 'コメント' },
+            label: {
+              type: 'plain_text',
+              text: isApprove ? 'コメント（任意）' : '差戻し理由（必須）',
+            },
           },
         ],
       },
@@ -924,18 +962,14 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
         },
       },
     ]
-    // 差戻しの場合は再申請ボタン付与
-    if (!isApprove && r.attendance_record_id) {
+    // 差戻しの場合は注意書きを付与（再申請はポータルから）
+    if (!isApprove) {
       threadBlocks.push({
-        type: 'actions',
-        block_id: 'correction_resubmit_actions',
+        type: 'context',
         elements: [
           {
-            type: 'button',
-            style: 'primary',
-            text: { type: 'plain_text', text: '再申請する' },
-            action_id: 'correction_resubmit',
-            value: r.attendance_record_id,
+            type: 'mrkdwn',
+            text: ':information_source: 再申請はポータルの打刻記録ページから行ってください',
           },
         ],
       } as unknown as SlackBlock)
@@ -964,16 +998,13 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
       const dmBlocks: unknown[] = [
         { type: 'section', text: { type: 'mrkdwn', text: dmText } },
       ]
-      if (!isApprove && r.attendance_record_id) {
+      if (!isApprove) {
         dmBlocks.push({
-          type: 'actions',
+          type: 'context',
           elements: [
             {
-              type: 'button',
-              style: 'primary',
-              text: { type: 'plain_text', text: '再申請する' },
-              action_id: 'correction_resubmit',
-              value: r.attendance_record_id,
+              type: 'mrkdwn',
+              text: ':information_source: 再申請はポータルの打刻記録ページから行ってください',
             },
           ],
         })
