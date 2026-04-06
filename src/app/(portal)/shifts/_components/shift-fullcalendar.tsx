@@ -27,6 +27,7 @@ export interface CalendarShift {
   shiftType: string
   notes?: string
   googleMeetUrl?: string | null
+  googleEventId?: string | null
   approvalMode: 'AUTO' | 'APPROVAL'
 }
 

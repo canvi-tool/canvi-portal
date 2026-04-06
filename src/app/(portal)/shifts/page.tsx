@@ -185,6 +185,7 @@ export default function ShiftsPage() {
           shiftType: s.shift_type || 'WORK',
           notes: s.notes,
           googleMeetUrl: s.google_meet_url,
+          googleEventId: s.google_calendar_event_id,
           approvalMode: project.shift_approval_mode || 'AUTO',
         }
       })
@@ -608,6 +609,15 @@ export default function ShiftsPage() {
     return { byStaff, totalHours }
   }, [shifts])
 
+  // シフト由来のGCalイベントを除外（重複表示防止: シフト管理側を優先表示）
+  const dedupedGoogleEvents = useMemo(() => {
+    const shiftEventIds = new Set(
+      shifts.map(s => s.googleEventId).filter((v): v is string => !!v)
+    )
+    if (shiftEventIds.size === 0) return googleEvents
+    return googleEvents.filter(e => !shiftEventIds.has(e.id))
+  }, [googleEvents, shifts])
+
   // Filter labels
   const projectLabels = useMemo<Record<string, string>>(() => (
     { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
@@ -796,7 +806,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
       {/* FullCalendar */}
       <ShiftFullCalendar
         shifts={shifts}
-        googleEvents={filterProject === 'all' ? googleEvents : []}
+        googleEvents={filterProject === 'all' ? dedupedGoogleEvents : []}
         isManager={isManager}
         onShiftClick={handleShiftClick}
         onShiftDragUpdate={handleShiftDragUpdate}
