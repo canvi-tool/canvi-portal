@@ -161,11 +161,10 @@ export function ClockWidgetCompact() {
   const onBreakRecords = records.filter(r => r.status === 'on_break')
   const showBulkBreakStart = activeRecords.length >= 1 && onBreakRecords.length === 0
   const showBulkBreakEnd = onBreakRecords.length >= 1
-  const hasMultiplePJ = (activeRecords.length + onBreakRecords.length) > 1
 
   return (
     <div className="flex items-center gap-1">
-      {hasMultiplePJ && showBulkBreakStart && (
+      {showBulkBreakStart && (
         <Button
           size="sm"
           variant="outline"
@@ -178,7 +177,7 @@ export function ClockWidgetCompact() {
           休憩({activeRecords.length})
         </Button>
       )}
-      {hasMultiplePJ && showBulkBreakEnd && (
+      {showBulkBreakEnd && (
         <Button
           size="sm"
           variant="outline"
