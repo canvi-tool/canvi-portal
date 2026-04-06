@@ -90,7 +90,10 @@ export function SlackProvisionDialog({
 
   useEffect(() => {
     if (staff && open) {
-      setDisplayName(generateSlackDisplayName(staff))
+      // 既存のSlack表示名があればそれを初期値にする
+      const cf = staff.custom_fields as Record<string, unknown> | null
+      const existingDisplayName = cf?.slack_display_name as string | undefined
+      setDisplayName(existingDisplayName || generateSlackDisplayName(staff))
       setSelectedChannels(new Set())
       setChannelFilter('')
       setManualSlackId('')
@@ -176,13 +179,19 @@ export function SlackProvisionDialog({
 
   if (!staff) return null
 
+  const cf = staff.custom_fields as Record<string, unknown> | null
+  const isReconfig = !!(cf?.slack_user_id)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Slack連携・アカウント発行</DialogTitle>
+          <DialogTitle>{isReconfig ? 'Slack設定変更' : 'Slack連携・アカウント発行'}</DialogTitle>
           <DialogDescription>
             {staff.last_name} {staff.first_name}（{staff.email}）
+            {isReconfig && (
+              <span className="ml-2 text-emerald-600 text-xs font-medium">連携済み</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

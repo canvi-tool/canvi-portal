@@ -65,14 +65,6 @@ export async function POST(request: NextRequest) {
 
     const cf = (staff.custom_fields as Record<string, unknown>) || {}
 
-    // 既に連携済みの場合
-    if (cf.slack_user_id) {
-      return NextResponse.json(
-        { error: '既にSlack連携済みです', slack_user_id: cf.slack_user_id },
-        { status: 409 }
-      )
-    }
-
     const results = {
       workspace_invited: false,
       user_found: false,
@@ -83,12 +75,17 @@ export async function POST(request: NextRequest) {
       warnings: [] as string[],
     }
 
-    // Step 1: Slackユーザー検索（手動入力されたSlack User IDがあればそちらを使用）
+    // Step 1: Slackユーザー検索
+    // 既に連携済みの場合はそのIDを使用、手動入力があればそちら優先
     let slackUserId: string | undefined
 
     if (body.slack_user_id && typeof body.slack_user_id === 'string') {
       // 手動入力されたSlack User ID
       slackUserId = body.slack_user_id.trim()
+      results.user_found = true
+    } else if (cf.slack_user_id && typeof cf.slack_user_id === 'string') {
+      // 既に連携済み → 再設定モード（表示名変更・チャンネル招待）
+      slackUserId = cf.slack_user_id
       results.user_found = true
     } else {
       const lookup = await lookupSlackUserByEmail(staff.email)

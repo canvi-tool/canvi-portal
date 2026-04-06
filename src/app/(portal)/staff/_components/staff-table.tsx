@@ -158,9 +158,16 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
 
         if (hasSlack) {
           return (
-            <span title="Slack連携済み" className="flex justify-center text-emerald-600">
+            <button
+              title="Slack連携済み（クリックして再設定）"
+              className="flex justify-center w-full text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSlackProvisionTarget(row)
+              }}
+            >
               {slackIcon}
-            </span>
+            </button>
           )
         }
 
