@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PortalShell } from './portal-shell'
 import { getDemoAccountByRole, type DemoRole } from '@/lib/demo-accounts'
 
@@ -100,12 +101,47 @@ export default async function PortalLayout({
     }
   }
 
-  const email = user.email || ''
+  let email = user.email || ''
   const avatarUrl = user.user_metadata?.avatar_url || undefined
+
+  // 開発者インパーソネーション: dev_user_override cookieで他メンバーに切替
+  let impersonatedUserId: string | null = null
+  if (canSwitchRole) {
+    const impersonateId = cookieStore.get('dev_user_override')?.value
+    if (impersonateId && impersonateId !== user.id) {
+      try {
+        const adminClient = createAdminClient()
+        const { data: targetUser } = await adminClient
+          .from('users')
+          .select(`
+            id, email, display_name,
+            user_roles!user_roles_user_id_fkey(role:roles(name))
+          `)
+          .eq('id', impersonateId)
+          .single()
+
+        if (targetUser) {
+          impersonatedUserId = targetUser.id
+          displayName = targetUser.display_name || targetUser.email || displayName
+          email = targetUser.email || email
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const targetRoleNames = ((targetUser.user_roles as any[]) || [])
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((ur: any) => ur.role?.name as string)
+            .filter(Boolean) as string[]
+          if (targetRoleNames.includes('owner')) { roleName = 'owner'; roleLabelJa = 'オーナー' }
+          else if (targetRoleNames.includes('admin')) { roleName = 'admin'; roleLabelJa = '管理者' }
+          else { roleName = 'staff'; roleLabelJa = 'メンバー' }
+        }
+      } catch (e) {
+        console.error('impersonation lookup failed:', e)
+      }
+    }
+  }
 
   return (
     <PortalShell
-      user={{ displayName, email, avatarUrl, role: roleName, roleLabelJa, canSwitchRole }}
+      user={{ displayName, email, avatarUrl, role: roleName, roleLabelJa, canSwitchRole, isImpersonating: !!impersonatedUserId }}
     >
       {children}
     </PortalShell>

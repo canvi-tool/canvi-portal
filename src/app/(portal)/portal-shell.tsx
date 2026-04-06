@@ -13,6 +13,7 @@ interface PortalShellProps {
     role?: DemoRole
     roleLabelJa?: string
     canSwitchRole?: boolean
+    isImpersonating?: boolean
   }
   children: React.ReactNode
 }

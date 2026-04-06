@@ -54,10 +54,18 @@ export async function GET(request: NextRequest) {
     }
     if (staffId) {
       const staffIds = staffId.split(',').filter(Boolean)
-      if (staffIds.length === 1) {
-        query = query.eq('staff_id', staffIds[0])
-      } else if (staffIds.length > 1) {
-        query = query.in('staff_id', staffIds)
+      if (staffIds.length > 0) {
+        // staff_id 本人のシフト OR attendees に staff_id を含むシフト（招待されたシフト）
+        const parts: string[] = []
+        if (staffIds.length === 1) {
+          parts.push(`staff_id.eq.${staffIds[0]}`)
+        } else {
+          parts.push(`staff_id.in.(${staffIds.join(',')})`)
+        }
+        for (const id of staffIds) {
+          parts.push(`attendees.cs.[{"staff_id":"${id}"}]`)
+        }
+        query = query.or(parts.join(','))
       }
     }
     if (projectId) {

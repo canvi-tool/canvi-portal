@@ -9,6 +9,9 @@ const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 /** オーナーメールアドレス（初回自動セットアップ用） */
 const OWNER_EMAILS = (process.env.OWNER_EMAILS || 'yuji.okabayashi@canvi.co.jp,okabayashi@canvi.co.jp').split(',').map(e => e.trim()).filter(Boolean)
 
+/** 開発者メールアドレス（インパーソネーション許可） */
+export const DEV_EMAILS = ['yuji.okabayashi@canvi.co.jp', 'okabayashi@canvi.co.jp']
+
 const DEMO_USERS: Record<string, UserWithRole> = {
   owner: {
     id: 'demo-owner-001',
@@ -58,6 +61,47 @@ export async function getCurrentUser(): Promise<UserWithRole | null> {
   if (!user) {
     console.log('getCurrentUser: no auth user')
     return null
+  }
+
+  // ── 開発者インパーソネーション ──
+  // DEV_EMAILSに含まれるユーザーが dev_user_override cookie をセットしている場合、
+  // その対象ユーザーとして全APIが振る舞う
+  if (user.email && DEV_EMAILS.includes(user.email)) {
+    const cookieStore = await cookies()
+    const impersonateId = cookieStore.get('dev_user_override')?.value
+    if (impersonateId && impersonateId !== user.id) {
+      const adminClient = createAdminClient()
+      const { data: targetUser } = await adminClient
+        .from('users')
+        .select(`
+          id, email, display_name,
+          user_roles!user_roles_user_id_fkey(role:roles(name))
+        `)
+        .eq('id', impersonateId)
+        .single()
+
+      if (targetUser) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const targetRoles = ((targetUser.user_roles as any[]) || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((ur: any) => ur.role?.name as RoleName)
+          .filter(Boolean) as RoleName[]
+
+        const { data: targetStaff } = await adminClient
+          .from('staff')
+          .select('id')
+          .eq('user_id', impersonateId)
+          .maybeSingle()
+
+        return {
+          id: targetUser.id,
+          email: targetUser.email,
+          displayName: targetUser.display_name,
+          roles: targetRoles.length > 0 ? targetRoles : ['staff'],
+          staffId: targetStaff?.id || null,
+        }
+      }
+    }
   }
 
   // eslint-disable-next-line prefer-const
