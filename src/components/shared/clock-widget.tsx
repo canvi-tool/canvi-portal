@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd } from '@/hooks/use-attendance'
+import { useTodayAttendance, useClockIn, useClockOut, useBreakStart, useBreakEnd, useBulkBreakStart, useBulkBreakEnd } from '@/hooks/use-attendance'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -44,6 +44,8 @@ export function ClockWidgetCompact() {
   const clockOutMutation = useClockOut()
   const breakStartMutation = useBreakStart()
   const breakEndMutation = useBreakEnd()
+  const bulkBreakStartMutation = useBulkBreakStart()
+  const bulkBreakEndMutation = useBulkBreakEnd()
   const { data: projects } = useProjects()
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [currentTime, setCurrentTime] = useState('')
@@ -111,6 +113,26 @@ export function ClockWidgetCompact() {
     }
   }, [breakEndMutation, todayData])
 
+  const handleBulkBreakStart = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const res = await bulkBreakStartMutation.mutateAsync()
+      toast.success(`${res.count}件のPJで休憩開始`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }, [bulkBreakStartMutation])
+
+  const handleBulkBreakEnd = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const res = await bulkBreakEndMutation.mutateAsync()
+      toast.success(`${res.count}件のPJで休憩終了`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }, [bulkBreakEndMutation])
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -134,7 +156,41 @@ export function ClockWidgetCompact() {
 
   const currentStatus = statusConfig[status] || statusConfig.not_clocked_in
 
+  const records = todayData?.records || []
+  const activeRecords = records.filter(r => r.status === 'clocked_in')
+  const onBreakRecords = records.filter(r => r.status === 'on_break')
+  const showBulkBreakStart = activeRecords.length >= 1 && onBreakRecords.length === 0
+  const showBulkBreakEnd = onBreakRecords.length >= 1
+  const hasMultiplePJ = (activeRecords.length + onBreakRecords.length) > 1
+
   return (
+    <div className="flex items-center gap-1">
+      {hasMultiplePJ && showBulkBreakStart && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 px-2 text-xs"
+          onClick={handleBulkBreakStart}
+          disabled={bulkBreakStartMutation.isPending}
+          title={`${activeRecords.length}件のPJで一括休憩開始`}
+        >
+          <Coffee className="h-3.5 w-3.5 mr-1" />
+          休憩({activeRecords.length})
+        </Button>
+      )}
+      {hasMultiplePJ && showBulkBreakEnd && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 px-2 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+          onClick={handleBulkBreakEnd}
+          disabled={bulkBreakEndMutation.isPending}
+          title={`${onBreakRecords.length}件のPJで一括休憩終了`}
+        >
+          <Play className="h-3.5 w-3.5 mr-1" />
+          終了({onBreakRecords.length})
+        </Button>
+      )}
     <Popover>
       <PopoverTrigger
         className="inline-flex items-center gap-2 h-9 px-3 rounded-md hover:bg-muted transition-colors cursor-pointer"
@@ -280,5 +336,6 @@ export function ClockWidgetCompact() {
         </div>
       </PopoverContent>
     </Popover>
+    </div>
   )
 }

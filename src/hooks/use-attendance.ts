@@ -221,3 +221,38 @@ export function useBreakEnd() {
     },
   })
 }
+
+async function bulkBreak(action: 'break_start' | 'break_end'): Promise<{ count: number }> {
+  const res = await fetch('/api/attendance/bulk-break', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '一括休憩操作に失敗しました')
+  }
+  return res.json()
+}
+
+export function useBulkBreakStart() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => bulkBreak('break_start'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.today() })
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    },
+  })
+}
+
+export function useBulkBreakEnd() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => bulkBreak('break_end'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.today() })
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    },
+  })
+}
