@@ -1,7 +1,19 @@
-import { NextRequest, NextResponse, unstable_after as after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
+
+// Slack 3秒応答ルール対策: Vercel上で応答後も処理を継続させる
+// ローカル/非Vercel環境ではwaitUntilが使えないのでフォールバックでawaitせず実行
+function after(fn: () => Promise<unknown>) {
+  try {
+    waitUntil(fn().catch((e) => console.error('[after] task error:', e)))
+  } catch {
+    // 非Vercel環境フォールバック
+    fn().catch((e) => console.error('[after-fallback] task error:', e))
+  }
+}
 
 // Slack署名検証
 async function verifySlackSignature(request: NextRequest, rawBody: string): Promise<boolean> {
