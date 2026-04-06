@@ -189,60 +189,9 @@ export function ClockWidgetCompact() {
   const showBulkBreakEnd = onBreakRecords.length >= 1
   const workingCount = activeRecords.length + onBreakRecords.length
   const showBulkClockOut = workingCount >= 2
-  const showBulkClockIn = (myProjects?.length || 0) >= 2 && workingCount === 0 && status === 'not_clocked_in'
+  const showBulkClockIn = (myProjects?.length || 0) >= 2 && workingCount === 0
 
   return (
-    <div className="flex items-center gap-1">
-      {showBulkClockIn && (
-        <Button
-          size="sm"
-          className="h-8 px-2 text-xs bg-green-600 hover:bg-green-700"
-          onClick={handleBulkClockIn}
-          disabled={bulkClockInMutation.isPending}
-          title="アサイン全PJで一括出勤"
-        >
-          <LogIn className="h-3.5 w-3.5 mr-1" />
-          一括出勤
-        </Button>
-      )}
-      {showBulkClockOut && (
-        <Button
-          size="sm"
-          className="h-8 px-2 text-xs bg-red-600 hover:bg-red-700"
-          onClick={handleBulkClockOut}
-          disabled={bulkClockOutMutation.isPending}
-          title={`${workingCount}件のPJで一括退勤`}
-        >
-          <LogOut className="h-3.5 w-3.5 mr-1" />
-          一括退勤({workingCount})
-        </Button>
-      )}
-      {showBulkBreakStart && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 px-2 text-xs"
-          onClick={handleBulkBreakStart}
-          disabled={bulkBreakStartMutation.isPending}
-          title={`${activeRecords.length}件のPJで一括休憩開始`}
-        >
-          <Coffee className="h-3.5 w-3.5 mr-1" />
-          休憩({activeRecords.length})
-        </Button>
-      )}
-      {showBulkBreakEnd && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 px-2 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
-          onClick={handleBulkBreakEnd}
-          disabled={bulkBreakEndMutation.isPending}
-          title={`${onBreakRecords.length}件のPJで一括休憩終了`}
-        >
-          <Play className="h-3.5 w-3.5 mr-1" />
-          終了({onBreakRecords.length})
-        </Button>
-      )}
     <Popover>
       <PopoverTrigger
         className="inline-flex items-center gap-2 h-9 px-3 rounded-md hover:bg-muted transition-colors cursor-pointer"
@@ -317,10 +266,59 @@ export function ClockWidgetCompact() {
             </div>
           )}
 
-          {/* PJ別の現在の勤務状況 */}
+          {/* PJ別の現在の勤務状況 + 一括操作 */}
           {myProjects && myProjects.length > 0 && (
             <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1.5 px-1">PJごとの勤怠</p>
+              <div className="flex items-center justify-between mb-1.5 px-1">
+                <p className="text-xs font-medium text-muted-foreground">PJごとの勤怠</p>
+                <div className="flex gap-1 flex-wrap justify-end">
+                  {showBulkClockIn && (
+                    <Button
+                      size="sm"
+                      className="h-6 px-2 text-[10px] bg-green-600 hover:bg-green-700"
+                      onClick={handleBulkClockIn}
+                      disabled={bulkClockInMutation.isPending}
+                    >
+                      <LogIn className="h-3 w-3 mr-0.5" />一括出勤
+                    </Button>
+                  )}
+                  {showBulkBreakStart && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={handleBulkBreakStart}
+                      disabled={bulkBreakStartMutation.isPending}
+                      title={`${activeRecords.length}件で一括休憩開始`}
+                    >
+                      <Coffee className="h-3 w-3 mr-0.5" />一括休憩({activeRecords.length})
+                    </Button>
+                  )}
+                  {showBulkBreakEnd && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px] bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                      onClick={handleBulkBreakEnd}
+                      disabled={bulkBreakEndMutation.isPending}
+                      title={`${onBreakRecords.length}件で一括休憩終了`}
+                    >
+                      <Play className="h-3 w-3 mr-0.5" />休憩終了({onBreakRecords.length})
+                    </Button>
+                  )}
+                  {showBulkClockOut && (
+                    <Button
+                      size="sm"
+                      className="h-6 px-2 text-[10px] bg-red-600 hover:bg-red-700"
+                      onClick={handleBulkClockOut}
+                      disabled={bulkClockOutMutation.isPending}
+                      title={`${workingCount}件で一括退勤`}
+                    >
+                      <LogOut className="h-3 w-3 mr-0.5" />一括退勤({workingCount})
+                    </Button>
+                  )}
+                </div>
+              </div>
               <div className="max-h-60 overflow-y-auto -mx-1">
                 {myProjects.map((p) => (
                   <ProjectClockControls
@@ -405,6 +403,5 @@ export function ClockWidgetCompact() {
         </div>
       </PopoverContent>
     </Popover>
-    </div>
   )
 }
