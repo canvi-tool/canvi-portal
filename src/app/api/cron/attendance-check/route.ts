@@ -136,10 +136,10 @@ export async function GET(request: NextRequest) {
             // 既に最大回数送信済みならスキップ
             if (existingLog.alertCount >= settings.maxRepeats) continue
 
-            // 前回アラートからrepeat_interval_minutes経過しているかチェック
-            const lastAlertedJst = new Date(existingLog.lastAlertedAt.getTime() + jstOffset)
-            const lastAlertMinutes = lastAlertedJst.getUTCHours() * 60 + lastAlertedJst.getUTCMinutes()
-            const minutesSinceLastAlert = nowMinutesSinceMidnight - lastAlertMinutes
+            // 前回アラートからの実経過時間（分）でチェック
+            const minutesSinceLastAlert = Math.floor(
+              (now.getTime() - existingLog.lastAlertedAt.getTime()) / 60000
+            )
 
             if (minutesSinceLastAlert < settings.repeatIntervalMinutes) continue
           }
