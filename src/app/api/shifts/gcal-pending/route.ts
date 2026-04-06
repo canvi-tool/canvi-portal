@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
       .filter(Boolean) as string[]
     const isManager = roleNames.some((n) => ['admin', 'owner', 'manager'].includes(n))
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const staffIdsParam = searchParams.get('staff_id')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query: any = (admin as any).from('gcal_pending_events').select('*').eq('excluded', false)
     if (staffIdsParam) {
       const ids = staffIdsParam.split(',').filter(Boolean)
