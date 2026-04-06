@@ -484,15 +484,17 @@ export default function AttendancePage() {
           title="勤怠管理"
           description="自分の出退勤打刻と勤怠記録"
         />
-        {canManage && (
-          <Link
-            href="/attendance/manage"
-            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground shrink-0"
-          >
-            <Users className="h-4 w-4" />
-            メンバー管理
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <Link
+              href="/attendance/manage"
+              className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground shrink-0"
+            >
+              <Users className="h-4 w-4" />
+              メンバー管理
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* 時計 + 全体ステータス */}
@@ -666,7 +668,7 @@ export default function AttendancePage() {
                       </TableCell>
                       <TableCell className="text-sm">
                         {record.project ? (
-                          <span>{record.project.project_code}</span>
+                          <span>{record.project.name}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

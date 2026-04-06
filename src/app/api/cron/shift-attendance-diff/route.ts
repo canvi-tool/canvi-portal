@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // 今日のシフトを取得
     const { data: todayShifts } = await admin
       .from('shifts')
-      .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(id, last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
+      .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(id, last_name, first_name, user_id, custom_fields), project:project_id(id, name, slack_channel_id)')
       .eq('shift_date', today)
       .is('deleted_at', null)
       .in('status', ['APPROVED', 'SUBMITTED'])
@@ -58,15 +58,16 @@ export async function GET(request: NextRequest) {
     // 今日の打刻を取得 (丸め後の値を優先して使用)
     const { data: todayAttendance } = await admin
       .from('attendance_records')
-      .select('user_id, staff_id, project_id, clock_in, clock_out, clock_in_rounded, clock_out_rounded')
+      .select('id, user_id, staff_id, project_id, clock_in, clock_out, clock_in_rounded, clock_out_rounded')
       .eq('date', today)
       .is('deleted_at', null)
       .not('clock_in', 'is', null)
 
     // staff_id + project_id -> attendance マップ
     // 比較は丸め後の値で行う (fallback: 生値)
-    const attendanceMap = new Map<string, { clock_in: string; clock_out: string | null }>()
+    const attendanceMap = new Map<string, { id: string; clock_in: string; clock_out: string | null }>()
     for (const att of (todayAttendance || []) as Array<{
+      id: string
       staff_id: string | null
       project_id: string | null
       clock_in: string
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
       if (!att.clock_in) continue
       const key = `${att.staff_id}__${att.project_id || ''}`
       attendanceMap.set(key, {
+        id: att.id,
         clock_in: att.clock_in_rounded || att.clock_in,
         clock_out: att.clock_out_rounded || att.clock_out,
       })
@@ -86,13 +88,22 @@ export async function GET(request: NextRequest) {
     const diffsByProject = new Map<string, {
       projectName: string
       slackChannelId: string | null
-      entries: { staffName: string; shiftTime: string; actualTime: string; diffMinutes: number }[]
+      entries: {
+        staffName: string
+        shiftTime: string
+        actualTime: string
+        diffMinutes: number
+        attendanceRecordId: string | null
+        shiftId: string | null
+        staffSlackUserId: string | null
+      }[]
       staffIds: string[]
+      attendanceRecordIds: string[]
     }>()
 
     for (const shift of todayShifts) {
       results.checked++
-      const staff = shift.staff as unknown as { id: string; last_name: string; first_name: string; user_id: string } | null
+      const staff = shift.staff as unknown as { id: string; last_name: string; first_name: string; user_id: string; custom_fields?: Record<string, unknown> | null } | null
       const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
 
       if (!staff || !shift.start_time) continue
@@ -134,9 +145,23 @@ export async function GET(request: NextRequest) {
         slackChannelId: project?.slack_channel_id || null,
         entries: [],
         staffIds: [],
+        attendanceRecordIds: [],
       }
-      existing.entries.push({ staffName, shiftTime: shiftTimeStr, actualTime: actualTimeStr, diffMinutes: maxDiff })
+      const staffSlackUserId =
+        (staff?.custom_fields && typeof staff.custom_fields === 'object'
+          ? ((staff.custom_fields as Record<string, unknown>).slack_user_id as string | undefined)
+          : undefined) || null
+      existing.entries.push({
+        staffName,
+        shiftTime: shiftTimeStr,
+        actualTime: actualTimeStr,
+        diffMinutes: maxDiff,
+        attendanceRecordId: attendance.id || null,
+        shiftId: shift.id || null,
+        staffSlackUserId,
+      })
       if (shift.staff_id) existing.staffIds.push(shift.staff_id)
+      if (attendance.id) existing.attendanceRecordIds.push(attendance.id)
       diffsByProject.set(projectId, existing)
     }
 
@@ -148,10 +173,25 @@ export async function GET(request: NextRequest) {
         const notification = buildShiftAttendanceDiffNotification(info.entries, today, info.projectName)
 
         if (info.slackChannelId) {
-          await sendProjectNotification(notification, info.slackChannelId, {
+          const result = await sendProjectNotification(notification, info.slackChannelId, {
             projectId: projectId !== '__no_project__' ? projectId : null,
             staffId: info.staffIds,
           })
+          // 送信成功時、各 attendance_record にスレッドtsを保存（後続のリプライで使用）
+          if (result?.ts && info.attendanceRecordIds.length > 0) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (admin as any)
+                .from('attendance_records')
+                .update({
+                  slack_diff_thread_ts: result.ts,
+                  slack_diff_channel_id: info.slackChannelId,
+                })
+                .in('id', info.attendanceRecordIds)
+            } catch (e) {
+              console.error('[shift-attendance-diff] failed to save slack_diff_thread_ts:', e)
+            }
+          }
         }
       } catch (err) {
         console.error(`[shift-attendance-diff] notification error for project ${info.projectName}:`, err)

@@ -1338,29 +1338,69 @@ export function buildClockOutMissingDMNotification(staffName: string, date: stri
  * シフトvs打刻の乖離通知
  */
 export function buildShiftAttendanceDiffNotification(
-  entries: { staffName: string; shiftTime: string; actualTime: string; diffMinutes: number }[],
+  entries: {
+    staffName: string
+    shiftTime: string
+    actualTime: string
+    diffMinutes: number
+    attendanceRecordId: string | null
+    shiftId: string | null
+    staffSlackUserId: string | null
+  }[],
   date: string,
   projectName?: string
 ): SlackMessage {
   const projectText = projectName ? ` — ${projectName}` : ''
-  const lines = entries.map(e =>
-    `• *${e.staffName}*: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`
-  ).join('\n')
+  // Button value encoding: `${attendanceRecordId}|${shiftId||''}|${staffSlackUserId||''}`
+  const blocks: SlackBlock[] = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: `⏱ シフトvs打刻の乖離 (${date}${projectText})`, emoji: true },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `以下のメンバーのシフト時刻と実績に乖離があります (${entries.length}件):`,
+      },
+    },
+  ]
+
+  for (const e of entries) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `• *${e.staffName}*: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`,
+      },
+    })
+    if (e.attendanceRecordId) {
+      const value = `${e.attendanceRecordId}|${e.shiftId || ''}|${e.staffSlackUserId || ''}`
+      blocks.push({
+        type: 'actions',
+        block_id: `diff_actions_${e.attendanceRecordId}`,
+        elements: [
+          {
+            type: 'button',
+            style: 'primary',
+            text: { type: 'plain_text', text: '定時で丸める' },
+            action_id: 'diff_round',
+            value,
+          },
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '修正依頼する' },
+            action_id: 'diff_request_fix',
+            value,
+          },
+        ],
+      } as unknown as SlackBlock)
+    }
+  }
+
   return {
     text: `【シフト乖離】${date}${projectText} - ${entries.length}件の乖離を検知`,
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: `⏱ シフトvs打刻の乖離 (${date}${projectText})`, emoji: true },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `以下のメンバーのシフト時刻と実績に30分以上の乖離があります:\n${lines}`,
-        },
-      },
-    ],
+    blocks,
   }
 }
 

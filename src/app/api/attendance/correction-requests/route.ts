@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { sendProjectNotification } from '@/lib/integrations/slack'
+import { sendProjectNotification, type SlackBlock } from '@/lib/integrations/slack'
 
 const createSchema = z.object({
   attendance_record_id: z.string().uuid(),
@@ -135,8 +135,31 @@ export async function POST(request: NextRequest) {
             })
           : '-'
       const text = `:memo: 打刻修正申請\n*${staffName}* さんから打刻修正の申請があります${proj?.name ? `（${proj.name}）` : ''}\n• 出勤: ${fmt(rec.clock_in)} → ${fmt(parsed.data.requested_clock_in ?? rec.clock_in)}\n• 退勤: ${fmt(rec.clock_out)} → ${fmt(parsed.data.requested_clock_out ?? rec.clock_out)}\n• 休憩: ${rec.break_minutes ?? 0}分 → ${parsed.data.requested_break_minutes ?? rec.break_minutes ?? 0}分\n• 理由: ${parsed.data.reason}`
+      const blocks: SlackBlock[] = [
+        { type: 'section', text: { type: 'mrkdwn', text } },
+        {
+          type: 'actions',
+          block_id: 'correction_actions',
+          elements: [
+            {
+              type: 'button',
+              style: 'primary',
+              text: { type: 'plain_text', text: '承認' },
+              action_id: 'correction_approve',
+              value: created.id,
+            },
+            {
+              type: 'button',
+              style: 'danger',
+              text: { type: 'plain_text', text: '差戻し' },
+              action_id: 'correction_reject',
+              value: created.id,
+            },
+          ],
+        },
+      ]
       const result = await sendProjectNotification(
-        { text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] },
+        { text, blocks },
         proj?.slack_channel_id || null,
         { projectId: rec.project_id, staffId: rec.staff_id }
       )
