@@ -64,6 +64,7 @@ async function fetchMyProjects(): Promise<MyProject[]> {
 }
 
 async function fetchAttendanceRecords(params?: {
+  scope?: 'self' | 'manage'
   staff_id?: string
   user_id?: string
   date_from?: string
@@ -73,6 +74,7 @@ async function fetchAttendanceRecords(params?: {
   per_page?: number
 }): Promise<{ data: AttendanceRecord[]; total: number }> {
   const searchParams = new URLSearchParams()
+  if (params?.scope) searchParams.set('scope', params.scope)
   if (params?.staff_id) searchParams.set('staff_id', params.staff_id)
   if (params?.user_id) searchParams.set('user_id', params.user_id)
   if (params?.date_from) searchParams.set('date_from', params.date_from)
@@ -166,6 +168,7 @@ export function useMyProjects() {
 }
 
 export function useAttendanceRecords(params?: {
+  scope?: 'self' | 'manage'
   staff_id?: string
   user_id?: string
   date_from?: string

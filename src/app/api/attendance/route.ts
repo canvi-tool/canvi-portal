@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
+    const scope = searchParams.get('scope') || 'self' // 'self' | 'manage'
     const staffId = searchParams.get('staff_id')
     const userId = searchParams.get('user_id')
     const dateFrom = searchParams.get('date_from')
@@ -34,18 +35,24 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('attendance_records')
-      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, project_code)', { count: 'exact' })
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, project_code), user:user_id(id, display_name, email)', { count: 'exact' })
       .is('deleted_at', null)
       .order('date', { ascending: false })
       .order('clock_in', { ascending: false })
 
-    // スタッフは自分のレコードのみ
-    if (!isOwner(user) && !isAdmin(user)) {
-      query = query.eq('user_id', user.id)
-    } else {
-      // 管理者はフィルタ可能
+    if (scope === 'manage') {
+      // 管理ビュー: admin/owner のみ
+      if (!isOwner(user) && !isAdmin(user)) {
+        return NextResponse.json({ error: '管理権限が必要です' }, { status: 403 })
+      }
+      // オプションフィルタ (PJ / スタッフ)
       if (staffId) query = query.eq('staff_id', staffId)
       if (userId) query = query.eq('user_id', userId)
+      // manage scope で自分自身のレコードは除外（「メンバー管理」タブ想定）
+      query = query.neq('user_id', user.id)
+    } else {
+      // self ビュー: 常に自分のレコードのみ
+      query = query.eq('user_id', user.id)
     }
 
     if (dateFrom) query = query.gte('date', dateFrom)

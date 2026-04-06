@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import Link from 'next/link'
 import {
   LogIn,
   LogOut,
@@ -42,6 +43,7 @@ import {
   FolderOpen,
   ArrowLeft,
   RotateCw,
+  Users,
 } from 'lucide-react'
 
 function formatTime(dateStr: string | null) {
@@ -408,12 +410,24 @@ export default function AttendancePage() {
   const { data: todayData } = useTodayAttendance()
   const { data: myProjects, isLoading: projectsLoading } = useMyProjects()
   const { data: recordsData, isLoading } = useAttendanceRecords({
+    scope: 'self',
     date_from: dateFrom,
     date_to: dateTo,
   })
 
   const todayRecords = useMemo(() => todayData?.records || [], [todayData])
   const records = useMemo(() => recordsData?.data || [], [recordsData])
+
+  // 管理権限の取得（admin/ownerのみ「管理用」ボタン表示）
+  const [canManage, setCanManage] = useState(false)
+  useEffect(() => {
+    fetch('/api/auth/shift-permissions')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.role === 'owner' || d?.role === 'admin') setCanManage(true)
+      })
+      .catch(() => {})
+  }, [])
 
   // 現在時刻リアルタイム表示
   const [currentTime, setCurrentTime] = useState('')
@@ -458,10 +472,21 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="勤怠管理"
-        description="出退勤の打刻と勤怠記録の管理を行います。"
-      />
+      <div className="flex items-center justify-between gap-3">
+        <PageHeader
+          title="勤怠管理"
+          description="自分の出退勤打刻と勤怠記録"
+        />
+        {canManage && (
+          <Link
+            href="/attendance/manage"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground shrink-0"
+          >
+            <Users className="h-4 w-4" />
+            メンバー管理
+          </Link>
+        )}
+      </div>
 
       {/* 時計 + 全体ステータス */}
       <Card>
