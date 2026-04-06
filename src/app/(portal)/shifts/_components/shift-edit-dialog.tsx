@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Clock, User, Briefcase, Calendar, Pencil, Trash2, CheckCircle2, XCircle, Send, Video, Copy } from 'lucide-react'
+import { Clock, User, Briefcase, Calendar, Pencil, Trash2, CheckCircle2, XCircle, Send, Video, Copy, Users } from 'lucide-react'
+import { AttendeePicker, type Attendee } from './attendee-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +44,7 @@ interface ShiftItem {
   notes?: string
   googleMeetUrl?: string | null
   googleCalendarSynced?: boolean
+  attendees?: Attendee[]
 }
 
 interface ShiftEditDialogProps {
@@ -90,6 +92,7 @@ export function ShiftEditDialog({
   const [editEndTime, setEditEndTime] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editProjectId, setEditProjectId] = useState('')
+  const [editAttendees, setEditAttendees] = useState<Attendee[]>([])
   const [meetLoading, setMeetLoading] = useState(false)
   const [currentMeetUrl, setCurrentMeetUrl] = useState<string | null>(null)
 
@@ -153,6 +156,7 @@ export function ShiftEditDialog({
     setEditEndTime(shift.endTime)
     setEditNotes(cleanNotes)
     setEditProjectId(shift.projectId)
+    setEditAttendees(shift.attendees || [])
     setIsEditing(true)
   }
 
@@ -167,6 +171,7 @@ export function ShiftEditDialog({
         notes: editNotes,
         projectId: editProjectId,
         projectName: selectedProject?.name || shift.projectName,
+        attendees: editAttendees,
       })
     }
     setIsEditing(false)
@@ -301,6 +306,42 @@ export function ShiftEditDialog({
             <div className="flex items-start gap-3 text-sm min-w-0">
               <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <span className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all">{cleanNotes}</span>
+            </div>
+          ) : null}
+
+          {/* Attendees - editable */}
+          {isEditing ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Label className="text-sm">招待者</Label>
+              </div>
+              <div className="pl-7">
+                <AttendeePicker value={editAttendees} onChange={setEditAttendees} />
+              </div>
+            </div>
+          ) : (shift.attendees && shift.attendees.length > 0) ? (
+            <div className="flex items-start gap-3 text-sm min-w-0">
+              <Users className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-xs text-muted-foreground">招待者 ({shift.attendees.length}名)</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {shift.attendees.map((a, i) => (
+                    <span
+                      key={`${a.email}-${i}`}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border',
+                        a.staff_id
+                          ? 'bg-blue-50 border-blue-200 text-blue-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-700'
+                      )}
+                      title={a.email}
+                    >
+                      {a.name || a.email}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
 

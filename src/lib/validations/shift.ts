@@ -47,6 +47,7 @@ export const shiftInlineUpdateSchema = z.object({
   end_time: z.string().min(1, '終了時刻は必須です'),
   project_id: z.string().optional(),
   notes: z.string().optional(),
+  attendees: z.array(attendeeSchema).optional(),
   _inlineUpdate: z.literal(true),
 }).refine((data) => data.start_time < data.end_time, {
   message: '終了時刻は開始時刻より後にしてください',

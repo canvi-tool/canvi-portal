@@ -29,6 +29,7 @@ export interface CalendarShift {
   googleMeetUrl?: string | null
   googleEventId?: string | null
   approvalMode: 'AUTO' | 'APPROVAL'
+  attendees?: Array<{ email: string; name?: string; staff_id?: string }>
 }
 
 export interface GoogleCalendarEvent {

@@ -136,6 +136,7 @@ export async function PUT(
       updateData.end_time = body.end_time
       if (body.project_id) updateData.project_id = body.project_id
       if (body.notes !== undefined) updateData.notes = body.notes || null
+      if (Array.isArray(body.attendees)) updateData.attendees = body.attendees
     } else {
       // 通常更新: 全フィールド
       updateData.staff_id = body.staff_id

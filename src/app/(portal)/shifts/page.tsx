@@ -79,6 +79,7 @@ export default function ShiftsPage() {
     startTime?: string
     endTime?: string
     notes?: string
+    attendees?: Array<{ email: string; name?: string; staff_id?: string }>
   } | null>(null)
 
   // Edit dialog
@@ -88,6 +89,7 @@ export default function ShiftsPage() {
     status: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION';
     notes?: string;
     googleMeetUrl?: string | null;
+    attendees?: Array<{ email: string; name?: string; staff_id?: string }>;
   } | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
@@ -195,6 +197,7 @@ export default function ShiftsPage() {
           googleMeetUrl: s.google_meet_url,
           googleEventId: s.google_calendar_event_id,
           approvalMode: project.shift_approval_mode || 'AUTO',
+          attendees: Array.isArray(s.attendees) ? s.attendees : [],
         }
       })
 
@@ -328,6 +331,7 @@ export default function ShiftsPage() {
       status: shift.status,
       notes: shift.notes,
       googleMeetUrl: shift.googleMeetUrl,
+      attendees: shift.attendees || [],
     })
     setEditDialogOpen(true)
   }, [])
@@ -410,7 +414,7 @@ export default function ShiftsPage() {
     setCreateDialogOpen(true)
   }, [])
 
-  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string; projectId?: string; notes?: string }) => {
+  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string; projectId?: string; notes?: string; attendees?: Array<{ email: string; name?: string; staff_id?: string }> }) => {
     try {
       const body: Record<string, unknown> = {
         start_time: updated.startTime,
@@ -419,6 +423,7 @@ export default function ShiftsPage() {
       }
       if (updated.projectId) body.project_id = updated.projectId
       if (updated.notes !== undefined) body.notes = updated.notes
+      if (Array.isArray(updated.attendees)) body.attendees = updated.attendees
 
       const res = await fetch(`/api/shifts/${updated.id}`, {
         method: 'PUT',
@@ -929,6 +934,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             startTime: s.startTime,
             endTime: s.endTime,
             notes: s.notes,
+            attendees: s.attendees || [],
           })
           setBulkDialogOpen(true)
         }}
