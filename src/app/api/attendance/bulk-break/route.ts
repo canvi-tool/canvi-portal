@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth/rbac'
+import {
+  sendProjectNotification,
+  buildBreakStartNotification,
+  buildBreakEndNotification,
+} from '@/lib/integrations/slack'
+import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 
 // 複数PJ並行勤務時の一括休憩開始/終了
 export async function POST(request: NextRequest) {
@@ -41,8 +47,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const staffName = user.displayName || user.email || 'メンバー'
     const results = []
+
     for (const record of records) {
+      let updated = null
+      let additionalMinutes = 0
+
       if (action === 'break_start') {
         const { data, error } = await supabase
           .from('attendance_records')
@@ -50,19 +61,51 @@ export async function POST(request: NextRequest) {
           .eq('id', record.id)
           .select()
           .single()
-        if (!error && data) results.push(data)
+        if (!error && data) {
+          updated = data
+          results.push(data)
+        }
       } else {
         const breakStart = new Date(record.break_start!)
         const breakEnd = new Date(now)
-        const additional = Math.round((breakEnd.getTime() - breakStart.getTime()) / 60000)
-        const total = (record.break_minutes || 0) + additional
+        additionalMinutes = Math.round((breakEnd.getTime() - breakStart.getTime()) / 60000)
+        const total = (record.break_minutes || 0) + additionalMinutes
         const { data, error } = await supabase
           .from('attendance_records')
           .update({ break_end: now, break_minutes: total, status: 'clocked_in' })
           .eq('id', record.id)
           .select()
           .single()
-        if (!error && data) results.push(data)
+        if (!error && data) {
+          updated = data
+          results.push(data)
+        }
+      }
+
+      if (!updated) continue
+
+      // Slack通知（PJスレッドへ）
+      try {
+        let channelId: string | null = null
+        if (record.project_id) {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('slack_channel_id')
+            .eq('id', record.project_id)
+            .single()
+          channelId = proj?.slack_channel_id || null
+        }
+        const threadTs = extractSlackThreadTs(record.note)
+        const notification = action === 'break_start'
+          ? buildBreakStartNotification(staffName)
+          : buildBreakEndNotification(staffName, additionalMinutes)
+        await sendProjectNotification(notification, channelId, {
+          ...(threadTs ? { thread_ts: threadTs } : {}),
+          projectId: record.project_id,
+          staffId: record.staff_id,
+        })
+      } catch (err) {
+        console.error('[bulk-break] Slack通知エラー:', err)
       }
     }
 
