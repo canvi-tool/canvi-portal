@@ -26,6 +26,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
@@ -69,6 +70,10 @@ export default function ShiftsPage() {
 
   // Date range from FullCalendar
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+
+  // GCal pending assign dialog
+  const [pendingAssign, setPendingAssign] = useState<{ id: string; title: string; date: string; startTime: string; endTime: string; projectId: string } | null>(null)
+  const [pendingAssigning, setPendingAssigning] = useState(false)
 
   // Create dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -234,6 +239,38 @@ export default function ShiftsPage() {
           })
         }
       }
+      // PJ未割当のGCal取込イベントを取得し、仮想シフトとして追加
+      try {
+        const pendingRes = await fetch(`/api/shifts/gcal-pending?start_date=${dateRange.start}&end_date=${dateRange.end}`)
+        if (pendingRes.ok) {
+          const pending = await pendingRes.json()
+          if (Array.isArray(pending)) {
+            for (const p of pending) {
+              const staffInfo = staffListRef.current.find((x) => x.id === p.staff_id)
+              expanded.push({
+                id: `gcal_pending__${p.id}`,
+                staffId: p.staff_id,
+                staffName: staffInfo?.name || 'GCal',
+                projectId: '',
+                projectName: 'PJ未割当',
+                date: p.event_date,
+                startTime: (p.start_time || '').slice(0, 5),
+                endTime: (p.end_time || '').slice(0, 5),
+                status: 'APPROVED',
+                shiftType: 'WORK',
+                notes: p.title || '',
+                source: 'google_calendar',
+                needsProjectAssignment: true,
+                attendees: [],
+                approvalMode: 'AUTO',
+              } as CalendarShift)
+            }
+          }
+        }
+      } catch {
+        // pending取得失敗は無視
+      }
+
       setShifts(expanded)
     } catch {
       toast.error('シフトの取得に失敗しました')
@@ -352,6 +389,12 @@ export default function ShiftsPage() {
   }, [])
 
   const handleShiftClick = useCallback((shift: CalendarShift) => {
+    // GCal pending: PJ割当ダイアログを開く
+    if (shift.id.startsWith('gcal_pending__')) {
+      const pid = shift.id.replace('gcal_pending__', '')
+      setPendingAssign({ id: pid, title: shift.notes || '(無題)', date: shift.date, startTime: shift.startTime, endTime: shift.endTime, projectId: '' })
+      return
+    }
     // 仮想招待行クリック → オーナーシフトを開く（同じデータを参照するため情報は同一）
     const realId = shift.isVirtualAttendee && shift.ownerShiftId ? shift.ownerShiftId : shift.id
     const owner = shift.isVirtualAttendee
@@ -377,6 +420,10 @@ export default function ShiftsPage() {
   const handleShiftDragUpdate = useCallback(async (
     shiftId: string, date: string, startTime: string, endTime: string
   ): Promise<boolean> => {
+    if (shiftId.startsWith('gcal_pending__')) {
+      toast.error('PJ未割当のGCal予定はPJ選択後に編集できます')
+      return false
+    }
     if (shiftId.includes('__att__')) {
       toast.error('招待されたシフトは変更できません（主催者のみ編集可能）')
       return false
@@ -434,6 +481,10 @@ export default function ShiftsPage() {
   }, [shifts, fetchShifts])
 
   const handleShiftDelete = useCallback(async (shiftId: string) => {
+    if (shiftId.startsWith('gcal_pending__')) {
+      toast.error('PJ未割当のGCal予定はここから削除できません')
+      return
+    }
     if (shiftId.includes('__att__')) {
       toast.error('招待されたシフトは削除できません（主催者のみ可能）')
       return
@@ -1056,6 +1107,67 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         onMeetCreate={handleGcalMeetCreate}
         onMeetDelete={handleGcalMeetDelete}
       />
+
+      {/* GCal Pending Assign Dialog */}
+      <Dialog open={!!pendingAssign} onOpenChange={(o) => { if (!o) setPendingAssign(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Googleカレンダー予定にPJを割り当て</DialogTitle>
+          </DialogHeader>
+          {pendingAssign && (
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                <div>件名: {pendingAssign.title}</div>
+                <div>日時: {pendingAssign.date} {pendingAssign.startTime}〜{pendingAssign.endTime}</div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">プロジェクト</label>
+                <select
+                  className="mt-1 w-full rounded border px-2 py-2 text-sm"
+                  value={pendingAssign.projectId}
+                  onChange={(e) => setPendingAssign({ ...pendingAssign, projectId: e.target.value })}
+                >
+                  <option value="">選択してください</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingAssign(null)}>キャンセル</Button>
+            <Button
+              disabled={!pendingAssign?.projectId || pendingAssigning}
+              onClick={async () => {
+                if (!pendingAssign?.projectId) return
+                setPendingAssigning(true)
+                try {
+                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_id: pendingAssign.projectId }),
+                  })
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}))
+                    toast.error(err.error || 'PJ割当に失敗しました')
+                    return
+                  }
+                  toast.success('PJを割り当てました')
+                  setPendingAssign(null)
+                  fetchShifts()
+                } catch {
+                  toast.error('PJ割当に失敗しました')
+                } finally {
+                  setPendingAssigning(false)
+                }
+              }}
+            >
+              確定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

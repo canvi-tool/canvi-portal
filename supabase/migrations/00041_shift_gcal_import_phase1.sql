@@ -1,8 +1,8 @@
--- Phase 1: Googleカレンダー取込のための shifts テーブル拡張
--- - source: 'manual' | 'google_calendar' | 'import'
--- - external_event_id: Googleカレンダーのevent id
--- - needs_project_assignment: 取込直後のPJ未割当フラグ（カレンダー上で「PJ選択」ボタンを表示）
+-- Phase 1: Googleカレンダー取込のための基盤
+-- shifts.project_id は生成列のため NULL 不可。よってPJ未割当のGCalイベントは
+-- 専用テーブル gcal_pending_events に保持し、PJ割当後に shifts へ昇格させる。
 
+-- shifts テーブル拡張（PJ割当済みのGCal由来シフトを区別するため）
 ALTER TABLE shifts
   ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 
@@ -15,22 +15,48 @@ ALTER TABLE shifts
 ALTER TABLE shifts
   ADD COLUMN IF NOT EXISTS external_updated_at TIMESTAMPTZ;
 
-ALTER TABLE shifts
-  ADD COLUMN IF NOT EXISTS needs_project_assignment BOOLEAN NOT NULL DEFAULT FALSE;
-
--- project_id を NULL 許容に（取込直後はPJ未割当）
-ALTER TABLE shifts
-  ALTER COLUMN project_id DROP NOT NULL;
-
--- 同一スタッフ内で同じ external_event_id は1件のみ
 CREATE UNIQUE INDEX IF NOT EXISTS shifts_external_event_uq
   ON shifts(staff_id, external_event_id)
   WHERE external_event_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS shifts_needs_assignment_idx
-  ON shifts(staff_id, needs_project_assignment)
-  WHERE needs_project_assignment = TRUE;
-
 COMMENT ON COLUMN shifts.source IS '出処: manual=Canvi手動 / google_calendar=GCal取込 / import=その他インポート';
 COMMENT ON COLUMN shifts.external_event_id IS 'Google Calendar event id (source=google_calendar時)';
-COMMENT ON COLUMN shifts.needs_project_assignment IS 'true=PJ未割当（予実集計対象外、カレンダー上でPJ選択を促す）';
+
+-- PJ未割当のGCalイベントを保持する一時テーブル
+-- カレンダー上ではグレー表示し、PJ選択で shifts に移動する
+CREATE TABLE IF NOT EXISTS gcal_pending_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  external_event_id TEXT NOT NULL,
+  external_calendar_id TEXT NOT NULL DEFAULT 'primary',
+  external_updated_at TIMESTAMPTZ,
+  event_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  title TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(staff_id, external_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS gcal_pending_events_staff_date_idx
+  ON gcal_pending_events(staff_id, event_date);
+
+COMMENT ON TABLE gcal_pending_events IS
+  'PJ未割当のGoogleカレンダー取込イベント。ユーザがPJを割当すると shifts へ昇格され、本レコードは削除される';
+
+-- RLS: 自分のレコードのみ参照可能 + 管理者は全件可能
+ALTER TABLE gcal_pending_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS gcal_pending_events_select_own ON gcal_pending_events;
+CREATE POLICY gcal_pending_events_select_own ON gcal_pending_events
+  FOR SELECT
+  USING (
+    staff_id IN (SELECT id FROM staff WHERE user_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM user_roles ur
+      JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = auth.uid() AND r.name IN ('admin', 'owner')
+    )
+  );

@@ -67,33 +67,47 @@ export async function syncFromGoogleCalendarForStaff(params: {
     const startTime = toJstTimeStr(startDate)
     const endTime = toJstTimeStr(endDate)
 
-    // 既存判定: external_event_id OR 旧来の google_calendar_event_id を両方チェック
+    // 既にshiftsに昇格済みならスキップ
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingList } = await admin
+    const { data: promotedList } = await admin
       .from('shifts')
-      .select('id, shift_date, start_time, end_time, external_updated_at')
+      .select('id')
       .eq('staff_id', staffId)
       .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
       .is('deleted_at', null)
-      .limit(1) as { data: { id: string; shift_date: string; start_time: string; end_time: string; external_updated_at: string | null }[] | null }
-    const existing = existingList && existingList[0] ? existingList[0] : null
+      .limit(1) as { data: { id: string }[] | null }
+    if (promotedList && promotedList[0]) {
+      result.skipped += 1
+      continue
+    }
 
-    if (existing) {
-      // 差分があればUPDATE
+    // gcal_pending_events に既存があるか
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pendingList } = await (admin as any).from('gcal_pending_events')
+      .select('id, event_date, start_time, end_time')
+      .eq('staff_id', staffId)
+      .eq('external_event_id', ev.id)
+      .limit(1) as { data: { id: string; event_date: string; start_time: string; end_time: string }[] | null }
+    const pending = pendingList && pendingList[0] ? pendingList[0] : null
+
+    if (pending) {
       const changed =
-        existing.shift_date !== shiftDate ||
-        existing.start_time.slice(0, 5) !== startTime ||
-        existing.end_time.slice(0, 5) !== endTime
+        pending.event_date !== shiftDate ||
+        pending.start_time.slice(0, 5) !== startTime ||
+        pending.end_time.slice(0, 5) !== endTime
       if (changed) {
-        const { error } = await admin
-          .from('shifts')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (admin as any).from('gcal_pending_events')
           .update({
-            shift_date: shiftDate,
+            event_date: shiftDate,
             start_time: startTime,
             end_time: endTime,
+            title: ev.summary || null,
+            description: ev.description || null,
             external_updated_at: ev.updated || null,
+            updated_at: new Date().toISOString(),
           })
-          .eq('id', existing.id)
+          .eq('id', pending.id)
         if (error) result.errors.push(`UPDATE失敗 ${ev.id}: ${error.message}`)
         else result.updated += 1
       } else {
@@ -102,25 +116,21 @@ export async function syncFromGoogleCalendarForStaff(params: {
       continue
     }
 
-    // 新規INSERT (supabase型がマイグレーション未反映のためキャスト)
+    // 新規INSERT → gcal_pending_events
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const insertPayload: any = {
       staff_id: staffId,
-      project_id: null,
-      shift_date: shiftDate,
-      start_time: startTime,
-      end_time: endTime,
-      shift_type: 'WORK',
-      status: 'APPROVED',
-      notes: ev.summary,
-      source: 'google_calendar',
       external_event_id: ev.id,
       external_calendar_id: 'primary',
       external_updated_at: ev.updated || null,
-      needs_project_assignment: true,
+      event_date: shiftDate,
+      start_time: startTime,
+      end_time: endTime,
+      title: ev.summary || null,
+      description: ev.description || null,
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (admin.from('shifts') as any).insert(insertPayload)
+    const { error } = await (admin as any).from('gcal_pending_events').insert(insertPayload)
     if (error) result.errors.push(`INSERT失敗 ${ev.id}: ${error.message}`)
     else result.created += 1
   }
