@@ -62,7 +62,7 @@ export async function GET() {
       projectName: s.project?.name || '不明',
       startTime: s.start_time?.slice(0, 5) || '00:00',
       endTime: s.end_time?.slice(0, 5) || '00:00',
-      status: s.status || 'DRAFT',
+      status: s.status || 'SUBMITTED',
     }))
 
     // アラート（alertsテーブルにはproject_idがないため、related_staff_idでスコープ）

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ChevronDown,
   Users,
+  Check,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,6 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import { ShiftCreateDialog } from './_components/shift-create-dialog'
@@ -77,7 +77,7 @@ export default function ShiftsPage() {
   const [editingShift, setEditingShift] = useState<{
     id: string; staffId: string; staffName: string; projectId: string;
     projectName: string; date: string; startTime: string; endTime: string;
-    status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
+    status: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION';
     notes?: string;
     googleMeetUrl?: string | null;
   } | null>(null)
@@ -634,7 +634,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="シフト管理"
+        title="Canviカレンダー"
         description="ドラッグ&リサイズでシフトを直感的に管理"
         actions={
           <div className="flex items-center gap-2">
@@ -772,28 +772,66 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="start">
             <div className="space-y-1 max-h-64 overflow-y-auto">
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted"
+              <div
+                role="button"
+                tabIndex={0}
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted cursor-pointer select-none"
                 onClick={() => setFilterStaffIds([])}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setFilterStaffIds([])
+                  }
+                }}
               >
-                <Checkbox checked={filterStaffIds.length === 0} />
-                全スタッフ
-              </button>
-              <div className="border-t my-1" />
-              {staffList.map(s => (
-                <button
-                  key={s.id}
-                  className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted"
-                  onClick={() => {
-                    setFilterStaffIds(prev =>
-                      prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
-                    )
-                  }}
+                <span
+                  className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    filterStaffIds.length === 0
+                      ? 'bg-primary border-primary text-primary-foreground'
+                      : 'border-input'
+                  }`}
+                  aria-hidden
                 >
-                  <Checkbox checked={filterStaffIds.includes(s.id)} />
-                  {s.name}
-                </button>
-              ))}
+                  {filterStaffIds.length === 0 && <Check className="h-3 w-3" />}
+                </span>
+                全スタッフ
+              </div>
+              <div className="border-t my-1" />
+              {staffList.map(s => {
+                const isSelected = filterStaffIds.includes(s.id)
+                const toggle = () => {
+                  setFilterStaffIds(prev =>
+                    prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                  )
+                }
+                return (
+                  <div
+                    key={s.id}
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-muted cursor-pointer select-none"
+                    onClick={toggle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        toggle()
+                      }
+                    }}
+                  >
+                    <span
+                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        isSelected
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : 'border-input'
+                      }`}
+                      aria-hidden
+                    >
+                      {isSelected && <Check className="h-3 w-3" />}
+                    </span>
+                    {s.name}
+                  </div>
+                )
+              })}
             </div>
           </PopoverContent>
         </Popover>

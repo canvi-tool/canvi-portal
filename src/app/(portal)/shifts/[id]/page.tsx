@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils'
 
 // --- Types ---
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ApprovalEvent {
   action: string
@@ -121,8 +121,9 @@ const DEMO_SHIFTS: Record<string, ShiftDetail> = {
     date: todayStr,
     startTime: '09:00',
     endTime: '18:00',
-    status: 'DRAFT',
+    status: 'SUBMITTED',
     notes: '',
+    submittedAt: todayStr + 'T07:00:00',
     googleCalendarSynced: false,
     approvalHistory: [
       { action: '作成', by: '高橋雄太', at: todayStr + 'T07:00:00' },
@@ -137,13 +138,13 @@ const DEMO_SHIFTS: Record<string, ShiftDetail> = {
     date: dayOffset(-1),
     startTime: '10:00',
     endTime: '19:00',
-    status: 'REJECTED',
+    status: 'NEEDS_REVISION',
     notes: '',
     googleCalendarSynced: false,
     approvalHistory: [
       { action: '作成', by: '田中美咲', at: dayOffset(-2) + 'T20:00:00' },
       { action: '申請', by: '田中美咲', at: dayOffset(-2) + 'T20:05:00' },
-      { action: '却下', by: '管理者', at: dayOffset(-1) + 'T09:00:00', comment: '日程が重複しています。確認してください。' },
+      { action: '修正依頼', by: '管理者', at: dayOffset(-1) + 'T09:00:00', comment: '日程が重複しています。確認してください。' },
     ],
   },
   '9': {
@@ -174,10 +175,8 @@ const PROJECTS = [
 ]
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle2 }> = {
-  DRAFT: { label: '下書き', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-300', icon: FileText },
   SUBMITTED: { label: '申請中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-300', icon: Clock },
   APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300', icon: CheckCircle2 },
-  REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300', icon: XCircle },
   NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300', icon: AlertTriangle },
 }
 
@@ -209,7 +208,7 @@ export default function ShiftDetailPage() {
   const [editProjectId, setEditProjectId] = useState(baseShift?.projectId || '')
   const [editNotes, setEditNotes] = useState(baseShift?.notes || '')
 
-  const canEdit = shift && (shift.status === 'DRAFT' || shift.status === 'NEEDS_REVISION')
+  const canEdit = shift && shift.status === 'NEEDS_REVISION'
 
   if (!shift) {
     return (

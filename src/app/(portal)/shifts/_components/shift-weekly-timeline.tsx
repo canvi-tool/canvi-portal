@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 // --- Types ---
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ShiftItem {
   id: string
@@ -55,10 +55,8 @@ function getProjectColor(projectId: string, allProjectIds: string[]) {
 // --- Status indicator ---
 
 const STATUS_DOT: Record<ShiftStatus, string> = {
-  DRAFT: 'bg-gray-300',
   SUBMITTED: 'bg-amber-300',
   APPROVED: 'bg-green-300',
-  REJECTED: 'bg-red-300',
   NEEDS_REVISION: 'bg-orange-300',
 }
 

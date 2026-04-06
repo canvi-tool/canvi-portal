@@ -12,7 +12,7 @@ import { getProjectColor, STATUS_COLORS, SHIFT_TYPE_COLORS } from './shift-color
 import { ShiftContextMenu, type ContextMenuAction } from './shift-context-menu'
 import './fullcalendar-overrides.css'
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 export interface CalendarShift {
   id: string

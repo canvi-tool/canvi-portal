@@ -7,6 +7,7 @@ import {
   buildClockOutNotification,
   buildBreakStartNotification,
   buildBreakEndNotification,
+  isNotificationEnabled,
 } from '@/lib/integrations/slack'
 import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 
@@ -145,15 +146,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             breakChannelId = proj?.slack_channel_id || null
           }
           const breakStaffName = user.displayName || user.email || 'メンバー'
-          await sendProjectNotification(
-            buildBreakStartNotification(breakStaffName),
-            breakChannelId,
-            {
-              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
-              projectId: record.project_id,
-              staffId: record.staff_id,
-            }
-          )
+          if (await isNotificationEnabled(record.project_id, 'attendance_break_start')) {
+            await sendProjectNotification(
+              buildBreakStartNotification(breakStaffName),
+              breakChannelId,
+              {
+                ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
+                projectId: record.project_id,
+                staffId: record.staff_id,
+              }
+            )
+          }
         } catch (err) {
           console.error('休憩開始Slack通知エラー:', err)
         }
@@ -199,15 +202,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             breakEndChannelId = proj?.slack_channel_id || null
           }
           const breakEndStaffName = user.displayName || user.email || 'メンバー'
-          await sendProjectNotification(
-            buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
-            breakEndChannelId,
-            {
-              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
-              projectId: record.project_id,
-              staffId: record.staff_id,
-            }
-          )
+          if (await isNotificationEnabled(record.project_id, 'attendance_break_end')) {
+            await sendProjectNotification(
+              buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
+              breakEndChannelId,
+              {
+                ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
+                projectId: record.project_id,
+                staffId: record.staff_id,
+              }
+            )
+          }
         } catch (err) {
           console.error('休憩終了Slack通知エラー:', err)
         }

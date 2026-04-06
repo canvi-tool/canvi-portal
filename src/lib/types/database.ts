@@ -679,7 +679,7 @@ export interface Database {
           shift_date: string
           start_time: string
           end_time: string
-          status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          status: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes: string | null
           google_calendar_event_id: string | null
@@ -704,7 +704,7 @@ export interface Database {
           shift_date: string
           start_time: string
           end_time: string
-          status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          status?: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes?: string | null
           google_calendar_event_id?: string | null
@@ -729,7 +729,7 @@ export interface Database {
           shift_date?: string
           start_time?: string
           end_time?: string
-          status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+          status?: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
           notes?: string | null
           google_calendar_event_id?: string | null

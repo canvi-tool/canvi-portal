@@ -10,6 +10,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // 通知設定のトグルキー名
 export type NotificationToggleKey =
   | 'attendance_clock_in'
+  | 'attendance_break_start'
+  | 'attendance_break_end'
   | 'attendance_clock_out'
   | 'attendance_missing'
   | 'shift_submitted'
@@ -27,6 +29,8 @@ export type NotificationToggleKey =
 // 出退勤はスレッド化のため必ずON（thread_ts取得に必要）
 const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
   attendance_clock_in: true,
+  attendance_break_start: false,
+  attendance_break_end: false,
   attendance_clock_out: true,
   attendance_missing: true,
   shift_submitted: false,

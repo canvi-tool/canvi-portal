@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 
 // --- Types ---
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ShiftItem {
   id: string

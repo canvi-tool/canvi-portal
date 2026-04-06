@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 // --- Types ---
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ShiftItem {
   id: string
@@ -29,10 +29,8 @@ interface ShiftDayViewProps {
 }
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string }> = {
-  DRAFT: { label: '下書き', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-300' },
   SUBMITTED: { label: '申請中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-300' },
   APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
-  REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
   NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
 }
 

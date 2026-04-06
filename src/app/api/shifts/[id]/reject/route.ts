@@ -9,7 +9,7 @@ interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// POST /api/shifts/[id]/reject - シフトを却下 (SUBMITTED → REJECTED)
+// POST /api/shifts/[id]/reject - シフトを差戻し (SUBMITTED → NEEDS_REVISION)
 export async function POST(
   request: NextRequest,
   { params }: RouteParams
@@ -50,11 +50,11 @@ export async function POST(
 
     const now = new Date().toISOString()
 
-    // ステータスを REJECTED に更新（ステータスもWHERE条件に含めて競合防止）
+    // ステータスを NEEDS_REVISION に更新（ステータスもWHERE条件に含めて競合防止）
     const { data, error } = await supabase
       .from('shifts')
       .update({
-        status: 'REJECTED',
+        status: 'NEEDS_REVISION',
         rejected_at: now,
         rejected_by: currentUser.id,
         approval_comment: comment || null,

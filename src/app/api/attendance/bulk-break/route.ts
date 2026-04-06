@@ -5,6 +5,7 @@ import {
   sendProjectNotification,
   buildBreakStartNotification,
   buildBreakEndNotification,
+  isNotificationEnabled,
 } from '@/lib/integrations/slack'
 import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 
@@ -96,14 +97,17 @@ export async function POST(request: NextRequest) {
           channelId = proj?.slack_channel_id || null
         }
         const threadTs = extractSlackThreadTs(record.note)
-        const notification = action === 'break_start'
-          ? buildBreakStartNotification(staffName)
-          : buildBreakEndNotification(staffName, additionalMinutes)
-        await sendProjectNotification(notification, channelId, {
-          ...(threadTs ? { thread_ts: threadTs } : {}),
-          projectId: record.project_id,
-          staffId: record.staff_id,
-        })
+        const toggleKey = action === 'break_start' ? 'attendance_break_start' : 'attendance_break_end'
+        if (await isNotificationEnabled(record.project_id, toggleKey)) {
+          const notification = action === 'break_start'
+            ? buildBreakStartNotification(staffName)
+            : buildBreakEndNotification(staffName, additionalMinutes)
+          await sendProjectNotification(notification, channelId, {
+            ...(threadTs ? { thread_ts: threadTs } : {}),
+            projectId: record.project_id,
+            staffId: record.staff_id,
+          })
+        }
       } catch (err) {
         console.error('[bulk-break] Slack通知エラー:', err)
       }

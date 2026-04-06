@@ -176,13 +176,10 @@ export async function POST(request: NextRequest) {
         if (processedEventIds.has(shift.google_calendar_event_id)) continue
 
         // Canviで作成してGCalに同期したシフトがGCalから削除された → ソフト削除
+        const nowIso = new Date().toISOString()
         await admin.from('shifts').update({
-          status: 'REJECTED',
-          notes: `${shift.notes || ''} [GCalから削除検知]`.trim(),
-          google_calendar_event_id: null,
-          google_meet_url: null,
-          google_calendar_synced: false,
-          updated_at: new Date().toISOString(),
+          deleted_at: nowIso,
+          updated_at: nowIso,
         }).eq('id', shift.id)
         deleted++
       }

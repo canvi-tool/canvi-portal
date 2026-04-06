@@ -28,10 +28,8 @@ export function getProjectColor(projectId: string): string {
 }
 
 export const STATUS_COLORS: Record<string, string> = {
-  DRAFT: '#9ca3af',
   SUBMITTED: '#f59e0b',
   APPROVED: '#10b981',
-  REJECTED: '#ef4444',
   NEEDS_REVISION: '#f97316',
 }
 

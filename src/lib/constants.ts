@@ -139,18 +139,14 @@ export const LEAVE_STATUS_LABELS: Record<string, string> = {
 }
 
 export const SHIFT_STATUS_LABELS: Record<string, string> = {
-  DRAFT: '下書き',
-  SUBMITTED: '申請済',
+  SUBMITTED: '申請中',
   APPROVED: '承認済',
-  REJECTED: '却下',
   NEEDS_REVISION: '修正依頼',
 }
 
 export const SHIFT_STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
   SUBMITTED: 'bg-amber-100 text-amber-700',
   APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
   NEEDS_REVISION: 'bg-orange-100 text-orange-700',
 }
 
@@ -177,8 +173,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
       { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
-      { label: 'シフト管理', href: '/shifts', icon: 'CalendarDays' },
-      { label: 'Canviカレンダー', href: '/calendar', icon: 'Calendar' },
+      { label: 'Canviカレンダー', href: '/shifts', icon: 'CalendarDays' },
       { label: '日次報告', href: '/reports/work', icon: 'ClipboardList' },
       { label: '月次報告', href: '/reports/performance', icon: 'BarChart3' },
     ],

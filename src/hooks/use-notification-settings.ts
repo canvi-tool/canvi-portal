@@ -9,6 +9,8 @@ export interface ProjectNotificationSettings {
 
   // トグル設定
   attendance_clock_in: boolean
+  attendance_break_start: boolean
+  attendance_break_end: boolean
   attendance_clock_out: boolean
   attendance_missing: boolean
   shift_submitted: boolean
@@ -33,6 +35,7 @@ export interface ProjectNotificationSettings {
   shift_submission_alert_repeat_interval_days: number
 
   // 日報未提出リマインドのタイミング
+  report_overdue_delay_minutes: number
   report_overdue_delay_hours: number
   report_overdue_repeat_interval_hours: number
   report_overdue_max_repeats: number
@@ -45,7 +48,7 @@ export interface ProjectNotificationSettings {
 
 // トグル可能なフィールドのキー
 export type ToggleSettingKey = Extract<keyof ProjectNotificationSettings,
-  | 'attendance_clock_in' | 'attendance_clock_out' | 'attendance_missing'
+  | 'attendance_clock_in' | 'attendance_break_start' | 'attendance_break_end' | 'attendance_clock_out' | 'attendance_missing'
   | 'shift_submitted' | 'shift_approved' | 'shift_rejected'
   | 'report_submitted' | 'report_overdue'
   | 'overtime_warning' | 'leave_requested'
@@ -57,7 +60,7 @@ export type ToggleSettingKey = Extract<keyof ProjectNotificationSettings,
 export type NumericSettingKey = Extract<keyof ProjectNotificationSettings,
   | 'attendance_missing_delay_minutes' | 'attendance_missing_repeat_interval_minutes' | 'attendance_missing_max_repeats'
   | 'shift_submission_deadline_day' | 'shift_submission_alert_start_days_before' | 'shift_submission_alert_repeat_interval_days'
-  | 'report_overdue_delay_hours' | 'report_overdue_repeat_interval_hours' | 'report_overdue_max_repeats'
+  | 'report_overdue_delay_minutes' | 'report_overdue_delay_hours' | 'report_overdue_repeat_interval_hours' | 'report_overdue_max_repeats'
   | 'overtime_warning_threshold_hours'
 >
 
@@ -88,13 +91,23 @@ export interface NotificationCategory {
 export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
   {
     key: 'attendance',
-    label: '出退勤',
+    label: '打刻通知',
     icon: '🕐',
     items: [
       {
         key: 'attendance_clock_in',
         label: '出勤通知',
         description: 'メンバーが出勤打刻した際に通知',
+      },
+      {
+        key: 'attendance_break_start',
+        label: '休憩開始通知',
+        description: 'メンバーが休憩開始した際に通知',
+      },
+      {
+        key: 'attendance_break_end',
+        label: '休憩終了通知',
+        description: 'メンバーが休憩終了した際に通知',
       },
       {
         key: 'attendance_clock_out',
@@ -166,21 +179,11 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
           },
         ],
       },
-      {
-        key: 'shift_approved',
-        label: 'シフト承認通知',
-        description: 'シフトが承認された際に通知',
-      },
-      {
-        key: 'shift_rejected',
-        label: 'シフト差戻し通知',
-        description: 'シフトが差し戻された際に通知',
-      },
     ],
   },
   {
     key: 'report',
-    label: '勤務報告',
+    label: '日次報告',
     icon: '📝',
     items: [
       {
@@ -194,11 +197,12 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
         description: '日報未提出のメンバーをリマインド',
         timingParams: [
           {
-            key: 'report_overdue_delay_hours',
+            key: 'report_overdue_delay_minutes',
             label: '退勤後リマインドまでの時間',
-            unit: '時間後',
+            unit: '分後',
             min: 1,
-            max: 24,
+            max: 60,
+            step: 1,
           },
           {
             key: 'report_overdue_repeat_interval_hours',

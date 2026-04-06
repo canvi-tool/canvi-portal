@@ -406,7 +406,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
   }
 
   // Check if already processed
-  if (shift.status === 'APPROVED' || shift.status === 'REJECTED') {
+  if (shift.status === 'APPROVED' || shift.status === 'NEEDS_REVISION') {
     const statusLabel = shift.status === 'APPROVED' ? '承認済み' : '差戻し済み'
     await updateSlackMessageDirect(channelId, messageTs, `このシフトは既に${statusLabel}です`)
     return new Response('', { status: 200 })
@@ -419,7 +419,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
     return new Response('', { status: 200 })
   }
 
-  const newStatus = isApprove ? 'APPROVED' : 'REJECTED'
+  const newStatus = isApprove ? 'APPROVED' : 'NEEDS_REVISION'
   const now = new Date().toISOString()
 
   // Update the shift

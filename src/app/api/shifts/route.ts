@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('project_id', projectId)
     }
     if (status) {
-      query = query.eq('status', status as 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION')
+      query = query.eq('status', status as 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION')
     }
 
     const { data, error, count } = await query
@@ -131,14 +131,15 @@ export async function POST(request: NextRequest) {
       created_by: user.id,
     }
 
-    // AUTO モードの場合は即時承認
+    // AUTO モードの場合は即時承認、それ以外は申請中として作成
     if (isAutoApproval) {
       insertData.status = 'APPROVED'
       insertData.submitted_at = now
       insertData.approved_at = now
       insertData.approved_by = user.id
     } else {
-      insertData.status = 'DRAFT'
+      insertData.status = 'SUBMITTED'
+      insertData.submitted_at = now
     }
 
     const { data, error } = await supabase

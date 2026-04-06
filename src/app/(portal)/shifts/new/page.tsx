@@ -196,7 +196,7 @@ export default function ShiftNewPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [resultStatus, setResultStatus] = useState<'APPROVED' | 'DRAFT' | null>(null)
+  const [resultStatus, setResultStatus] = useState<'APPROVED' | 'SUBMITTED' | null>(null)
   const [resultCount, setResultCount] = useState(0)
 
   // ログインユーザーのスタッフIDとアサイン済みプロジェクトを取得
@@ -298,7 +298,7 @@ export default function ShiftNewPage() {
           if (data.status === 'APPROVED') {
             setResultStatus('APPROVED')
           } else {
-            setResultStatus('DRAFT')
+            setResultStatus('SUBMITTED')
           }
         } else {
           failedDates.push(date)
@@ -317,7 +317,7 @@ export default function ShiftNewPage() {
 
     if (successCount > 0) {
       if (!resultStatus) {
-        setResultStatus(isAutoApproval ? 'APPROVED' : 'DRAFT')
+        setResultStatus(isAutoApproval ? 'APPROVED' : 'SUBMITTED')
       }
       setSubmitted(true)
     }
@@ -367,10 +367,10 @@ export default function ShiftNewPage() {
                   <FileText className="h-8 w-8 text-gray-600" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
-                  {resultCount}件のシフトが下書き保存されました
+                  {resultCount}件のシフトを申請しました
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  プロジェクト「{selectedProject?.name}」は承認制のため、PMの承認が必要です。
+                  プロジェクト「{selectedProject?.name}」は承認制のため、PMの承認をお待ちください。
                 </p>
                 <div className="flex flex-wrap justify-center gap-1.5 mb-4">
                   {sortedDates.map(d => (

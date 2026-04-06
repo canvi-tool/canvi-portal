@@ -300,14 +300,13 @@ export async function GET(request: NextRequest) {
               : null
             if (noteEventId && processedEventIds.has(noteEventId)) continue
 
-            // イベントが消えた → シフトをソフト削除（REJECTED に変更）
+            // イベントが消えた → シフトをソフト削除
+            const nowIso = new Date().toISOString()
             const { error: deleteError } = await admin
               .from('shifts')
               .update({
-                status: 'REJECTED',
-                notes: `${shift.notes || ''} [GCalから削除検知]`.trim(),
-                google_calendar_synced: false,
-                updated_at: new Date().toISOString(),
+                deleted_at: nowIso,
+                updated_at: nowIso,
               })
               .eq('id', shift.id)
 

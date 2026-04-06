@@ -68,10 +68,8 @@ export type FieldType =
   | 'textarea'
 
 export const SHIFT_STATUS = {
-  DRAFT: 'DRAFT',
   SUBMITTED: 'SUBMITTED',
   APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
   NEEDS_REVISION: 'NEEDS_REVISION',
 } as const
 

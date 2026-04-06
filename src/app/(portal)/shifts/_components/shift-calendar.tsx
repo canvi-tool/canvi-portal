@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 // --- Types ---
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ShiftItem {
   id: string
@@ -26,10 +26,8 @@ interface ShiftCalendarProps {
 }
 
 const STATUS_COLORS: Record<ShiftStatus, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700 border-gray-300',
   SUBMITTED: 'bg-amber-50 text-amber-700 border-amber-300',
   APPROVED: 'bg-green-50 text-green-700 border-green-300',
-  REJECTED: 'bg-red-50 text-red-700 border-red-300',
   NEEDS_REVISION: 'bg-orange-50 text-orange-700 border-orange-300',
 }
 

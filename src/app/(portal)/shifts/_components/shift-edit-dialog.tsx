@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-type ShiftStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION'
+type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
 interface ProjectOption {
   id: string
@@ -59,10 +59,8 @@ interface ShiftEditDialogProps {
 }
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle2 }> = {
-  DRAFT: { label: '下書き', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-300', icon: Pencil },
   SUBMITTED: { label: '申請中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-300', icon: Send },
   APPROVED: { label: '承認済', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300', icon: CheckCircle2 },
-  REJECTED: { label: '却下', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300', icon: XCircle },
   NEEDS_REVISION: { label: '修正依頼', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300', icon: Pencil },
 }
 
@@ -142,7 +140,7 @@ export function ShiftEditDialog({
 
   const statusConfig = STATUS_CONFIG[shift.status]
   const StatusIcon = statusConfig.icon
-  const canEdit = isManager || shift.status === 'DRAFT' || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
+  const canEdit = isManager || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
   const canApprove = shift.status === 'SUBMITTED'
 
   const handleStartEdit = () => {

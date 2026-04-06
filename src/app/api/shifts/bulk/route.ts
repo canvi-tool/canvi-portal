@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
         base.approved_at = now
         base.approved_by = user.id
       } else {
-        base.status = 'DRAFT'
+        base.status = 'SUBMITTED'
+        base.submitted_at = now
       }
 
       return base

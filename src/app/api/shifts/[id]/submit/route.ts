@@ -49,8 +49,8 @@ export async function POST(
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
     }
 
-    // DRAFT または NEEDS_REVISION のみ提出可能
-    if (shift.status !== 'DRAFT' && shift.status !== 'NEEDS_REVISION') {
+    // NEEDS_REVISION のみ再提出可能（新規作成時はすでに SUBMITTED）
+    if (shift.status !== 'NEEDS_REVISION') {
       return NextResponse.json(
         { error: `現在のステータス(${shift.status})では提出できません` },
         { status: 400 }
@@ -74,7 +74,7 @@ export async function POST(
         updated_at: now,
       })
       .eq('id', id)
-      .in('status', ['DRAFT', 'NEEDS_REVISION'])
+      .eq('status', 'NEEDS_REVISION')
       .select()
       .single()
 
