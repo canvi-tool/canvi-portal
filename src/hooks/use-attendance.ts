@@ -23,7 +23,7 @@ export interface AttendanceRecord {
   modification_reason: string | null
   created_at: string
   updated_at: string
-  staff?: { id: string; display_name: string } | null
+  staff?: { id: string; last_name?: string; first_name?: string } | null
   project?: { id: string; name: string; project_code: string } | null
 }
 

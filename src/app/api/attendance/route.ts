@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('attendance_records')
-      .select('*, staff:staff_id(id, display_name), project:project_id(id, name, project_code)', { count: 'exact' })
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, project_code)', { count: 'exact' })
       .is('deleted_at', null)
       .order('date', { ascending: false })
       .order('clock_in', { ascending: false })
