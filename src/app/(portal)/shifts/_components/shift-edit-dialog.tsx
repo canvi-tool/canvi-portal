@@ -181,7 +181,7 @@ export function ShiftEditDialog({
         <DialogHeader className="min-w-0">
           <DialogTitle className="flex items-center gap-2 min-w-0">
             <Briefcase className="h-4 w-4 shrink-0" />
-            <span className="truncate min-w-0 flex-1">{shift.projectName}</span>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere] break-words">{shift.projectName}</span>
           </DialogTitle>
           <DialogDescription>
             シフト詳細 {canEdit && '(編集可能)'}

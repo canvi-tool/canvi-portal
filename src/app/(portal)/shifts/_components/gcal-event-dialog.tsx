@@ -170,7 +170,7 @@ export function GCalEventDialog({
         <DialogHeader className="min-w-0">
           <DialogTitle className="flex items-center gap-2 min-w-0">
             <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
-            <span className="truncate min-w-0 flex-1">{event.summary || '(予定)'}</span>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere] break-words">{event.summary || '(予定)'}</span>
           </DialogTitle>
           <DialogDescription>
             Googleカレンダーの予定
