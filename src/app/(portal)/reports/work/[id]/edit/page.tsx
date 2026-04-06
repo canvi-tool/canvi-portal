@@ -46,6 +46,7 @@ export default function EditDailyReportPage() {
   const { data: report, isLoading } = useDailyReport(id)
   const updateReport = useUpdateDailyReport(id)
   const { data: projects = [] } = useProjects()
+  const projectItems = Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name]))
 
   // --- Common state ---
   const [reportType, setReportType] = useState<DailyReportType>('outbound')
@@ -424,7 +425,7 @@ export default function EditDailyReportPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>プロジェクト {renderRequiredMark()}</Label>
-                <Select value={projectId} onValueChange={setProjectId}>
+                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="プロジェクトを選択" />
                   </SelectTrigger>
@@ -657,7 +658,7 @@ export default function EditDailyReportPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>プロジェクト {renderRequiredMark()}</Label>
-                <Select value={projectId} onValueChange={setProjectId}>
+                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="プロジェクトを選択" />
                   </SelectTrigger>

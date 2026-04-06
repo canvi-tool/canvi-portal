@@ -6,8 +6,10 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-type SelectProps = Omit<SelectPrimitive.Root.Props<string>, 'onValueChange'> & {
+type SelectProps = Omit<SelectPrimitive.Root.Props<string>, 'onValueChange' | 'items'> & {
   onValueChange?: (value: string) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  items?: Record<string, React.ReactNode> | ReadonlyArray<{ label: React.ReactNode; value: any }>
 }
 
 function Select({ onValueChange, ...props }: SelectProps) {

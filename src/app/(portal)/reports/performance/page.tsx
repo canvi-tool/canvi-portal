@@ -66,6 +66,19 @@ export default function PerformanceReportsPage() {
   const { data: staffList = [] } = useStaffList()
   const generateReport = useGeneratePerformanceReport()
 
+  const staffItems = useMemo(
+    () => ({ all: '全スタッフ', ...Object.fromEntries(staffList.map((s) => [s.id, `${s.last_name || ''} ${s.first_name || ''}`.trim() || s.id])) }),
+    [staffList]
+  )
+  const staffItemsNoAll = useMemo(
+    () => Object.fromEntries(staffList.map((s) => [s.id, `${s.last_name || ''} ${s.first_name || ''}`.trim() || s.id])),
+    [staffList]
+  )
+  const projectItems = useMemo(
+    () => ({ all: '全プロジェクト', ...Object.fromEntries(projects.map((p) => [p.id, p.name])) }),
+    [projects]
+  )
+
   // Summary stats
   const summary = useMemo(() => {
     const totalCalls = reports.reduce((sum, r) => sum + (r.call_count || 0), 0)
@@ -150,7 +163,7 @@ export default function PerformanceReportsPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">スタッフ</Label>
-          <Select value={filterStaff} onValueChange={setFilterStaff}>
+          <Select value={filterStaff} onValueChange={setFilterStaff} items={staffItems}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="全スタッフ" />
             </SelectTrigger>
@@ -166,7 +179,7 @@ export default function PerformanceReportsPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">プロジェクト</Label>
-          <Select value={filterProject} onValueChange={setFilterProject}>
+          <Select value={filterProject} onValueChange={setFilterProject} items={projectItems}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="全プロジェクト" />
             </SelectTrigger>
@@ -271,7 +284,7 @@ export default function PerformanceReportsPage() {
             </div>
             <div className="space-y-2">
               <Label>スタッフ</Label>
-              <Select value={genStaffId} onValueChange={setGenStaffId}>
+              <Select value={genStaffId} onValueChange={setGenStaffId} items={staffItemsNoAll}>
                 <SelectTrigger>
                   <SelectValue placeholder="スタッフを選択" />
                 </SelectTrigger>
@@ -286,7 +299,7 @@ export default function PerformanceReportsPage() {
             </div>
             <div className="space-y-2">
               <Label>プロジェクト（任意）</Label>
-              <Select value={genProjectId} onValueChange={setGenProjectId}>
+              <Select value={genProjectId} onValueChange={setGenProjectId} items={projectItems}>
                 <SelectTrigger>
                   <SelectValue placeholder="全プロジェクト" />
                 </SelectTrigger>
