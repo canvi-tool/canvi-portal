@@ -44,7 +44,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
     const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
     const calendarDisplayName = projectData.custom_fields?.calendar_display_name as string | undefined
-    const summary = calendarDisplayName || `${projectData.name} シフト`
+    const summary = calendarDisplayName || projectData.name
     const description = shift.notes || undefined
     const attendeeEmails = Array.isArray(shift.attendees)
       ? (shift.attendees as Array<{ email?: string }>).map(a => a?.email).filter((e): e is string => !!e)
