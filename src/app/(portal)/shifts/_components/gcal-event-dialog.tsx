@@ -124,7 +124,7 @@ export function GCalEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setIsEditing(false); setCurrentMeetUrl(null) }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-slate-500" />
@@ -195,7 +195,7 @@ export function GCalEventDialog({
           {event.description && (
             <div className="flex items-start gap-3 text-sm min-w-0">
               <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="text-muted-foreground whitespace-pre-wrap break-words line-clamp-4 min-w-0 flex-1">
+              <span className="text-muted-foreground whitespace-pre-wrap line-clamp-4 min-w-0 flex-1 [overflow-wrap:anywhere] break-all">
                 {event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
               </span>
             </div>
