@@ -603,10 +603,7 @@ export default function ShiftsPage() {
   const projectLabels = useMemo<Record<string, string>>(() => (
     { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
   ), [projects])
-  const staffLabels = useMemo<Record<string, string>>(() => (
-    { all: '全スタッフ', ...Object.fromEntries(staffList.map(s => [s.id, s.name])) }
-  ), [staffList])
-  const statusLabels = useMemo<Record<string, string>>(() => ({
+const statusLabels = useMemo<Record<string, string>>(() => ({
     all: '全ステータス',
     DRAFT: '下書き',
     SUBMITTED: '申請中',
