@@ -27,6 +27,48 @@ export function getProjectColor(projectId: string): string {
   return color
 }
 
+// スタッフカラー: 100名前提でHSL黄金角分散により最大限の視認性を確保
+// 同じstaffIdは常に同じ色、隣接するハッシュ値でも離れた色相になる
+const staffColorCache = new Map<string, { solid: string; transparent: string }>()
+
+function hashString(s: string): number {
+  let hash = 0
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
+
+function getStaffColorPair(staffId: string): { solid: string; transparent: string } {
+  const cached = staffColorCache.get(staffId)
+  if (cached) return cached
+
+  const hash = hashString(staffId)
+  // 黄金角 (137.508°) で色相を分散、最大100種類で高い判別性
+  const index = hash % 100
+  const hue = (index * 137.508) % 360
+  // 彩度・輝度を3段階に分けてさらに判別性UP
+  const satLevels = [70, 60, 78]
+  const lightLevels = [48, 42, 54]
+  const variant = Math.floor(hash / 100) % 3
+  const sat = satLevels[variant]
+  const light = lightLevels[variant]
+
+  const solid = `hsl(${hue.toFixed(1)}, ${sat}%, ${light}%)`
+  const transparent = `hsla(${hue.toFixed(1)}, ${sat}%, ${light}%, 0.28)`
+  const pair = { solid, transparent }
+  staffColorCache.set(staffId, pair)
+  return pair
+}
+
+export function getStaffColor(staffId: string): string {
+  return getStaffColorPair(staffId).solid
+}
+
+export function getStaffColorTransparent(staffId: string): string {
+  return getStaffColorPair(staffId).transparent
+}
+
 export const STATUS_COLORS: Record<string, string> = {
   SUBMITTED: '#f59e0b',
   APPROVED: '#10b981',

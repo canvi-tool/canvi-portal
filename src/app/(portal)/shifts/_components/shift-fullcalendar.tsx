@@ -8,7 +8,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import type { EventApi, EventDropArg, EventContentArg, DatesSetArg, DateSelectArg } from '@fullcalendar/core'
 import type { EventResizeDoneArg, DateClickArg } from '@fullcalendar/interaction'
 import { toast } from 'sonner'
-import { getProjectColor, STATUS_COLORS, SHIFT_TYPE_COLORS } from './shift-colors'
+import { getStaffColor, getStaffColorTransparent, STATUS_COLORS, SHIFT_TYPE_COLORS } from './shift-colors'
 import { ShiftContextMenu, type ContextMenuAction } from './shift-context-menu'
 import './fullcalendar-overrides.css'
 
@@ -64,13 +64,21 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
   return shifts.map((s) => {
     const isPending = !!s.needsProjectAssignment && s.id.startsWith('gcal_pending__')
     const isLeave = s.shiftType !== 'WORK'
+    // Canviで登録されたシフトは濃い色、Googleカレンダー取込分(googleEventId有)は同色の透過
+    const isFromGoogle = !!s.googleEventId
     const bgColor = isPending
       ? 'rgba(156, 163, 175, 0.25)' // gray-400 15%
       : isLeave
       ? SHIFT_TYPE_COLORS[s.shiftType] || '#6366f1'
-      : getProjectColor(s.projectId)
-    const borderColor = isPending ? '#6b7280' : bgColor
-    const textColor = isPending ? '#374151' : '#fff'
+      : isFromGoogle
+      ? getStaffColorTransparent(s.staffId)
+      : getStaffColor(s.staffId)
+    const borderColor = isPending
+      ? '#6b7280'
+      : isFromGoogle
+      ? getStaffColor(s.staffId)
+      : bgColor
+    const textColor = isPending || isFromGoogle ? '#1f2937' : '#fff'
 
     return {
       id: s.id,
