@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { isOwner, isAdmin } from '@/lib/auth/rbac'
+import { isOwner } from '@/lib/auth/rbac'
 import { isFreelanceType } from '@/lib/validations/staff'
 
 function todayStr() {
@@ -49,7 +49,7 @@ export async function GET() {
       .eq('shift_date', today)
       .is('deleted_at', null)
       .order('start_time', { ascending: true })
-      .limit(10)
+      .limit(100)
 
     if (allowedProjectIds !== null && allowedProjectIds.length > 0) {
       shiftQuery = shiftQuery.in('project_id', allowedProjectIds)
@@ -57,15 +57,7 @@ export async function GET() {
       // アサインなし → シフトなし
       shiftQuery = shiftQuery.in('project_id', ['__none__'])
     }
-    // メンバー(staff)は自分のシフトのみ
-    const isMemberOnly = !isOwnerUser && !isAdmin(user)
-    if (isMemberOnly) {
-      if (user.staffId) {
-        shiftQuery = shiftQuery.eq('staff_id', user.staffId)
-      } else {
-        shiftQuery = shiftQuery.eq('staff_id', '__none__')
-      }
-    }
+    // 自分 + 参画中PJの全メンバーのシフトを表示（allowedProjectIds で既にPJ範囲に絞られている）
 
     const shiftRes = await shiftQuery
 
