@@ -104,6 +104,21 @@ export function ShiftBulkDialog({
 
   // スタッフ: 自分自身のみ。管理者/オーナーは選択可能
   const [staffId, setStaffId] = useState(currentStaffId || '')
+  const [myStaffName, setMyStaffName] = useState<string>('')
+
+  // 自分のスタッフ名を取得（staffListに自分が含まれない場合のフォールバック）
+  useEffect(() => {
+    if (!open || isManager || isOwner) return
+    fetch('/api/staff/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.last_name || d?.first_name) {
+          setMyStaffName(`${d.last_name || ''} ${d.first_name || ''}`.trim())
+        }
+        if (d?.id && !staffId) setStaffId(d.id)
+      })
+      .catch(() => {})
+  }, [open, isManager, isOwner, staffId])
   const [projectId, setProjectId] = useState('')
   const [shiftType, setShiftType] = useState<ShiftType>('WORK')
   const [notes, setNotes] = useState('')
@@ -337,7 +352,7 @@ export function ShiftBulkDialog({
           ) : (
             <div className="space-y-1.5">
               <Label>スタッフ</Label>
-              <p className="text-sm font-medium">{availableStaff.find(s => s.id === staffId)?.name || '-'}</p>
+              <p className="text-sm font-medium">{availableStaff.find(s => s.id === staffId)?.name || myStaffName || '-'}</p>
             </div>
           )}
 
