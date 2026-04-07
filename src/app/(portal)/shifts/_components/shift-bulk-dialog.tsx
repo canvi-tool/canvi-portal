@@ -21,6 +21,7 @@ import { SHIFT_TYPE_LABELS, type ShiftType, SHIFT_TYPES } from '@/lib/validation
 import { AttendeePicker, type Attendee } from './attendee-picker'
 import { toast } from 'sonner'
 import { CalendarPlus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { isJpHoliday } from '@/lib/jp-holidays'
 
 interface ProjectOption {
   id: string
@@ -55,6 +56,9 @@ interface ShiftBulkDialogProps {
 }
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] as const
+// 月曜始まり表示用: 各セルが表す JS getDay() の値
+const WEEK_ORDER_MON_FIRST = [1, 2, 3, 4, 5, 6, 0] as const
+const WEEK_LABELS_MON_FIRST = ['月', '火', '水', '木', '金', '土', '日'] as const
 
 function formatDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
@@ -68,7 +72,9 @@ function formatDateJP(dateStr: string): string {
 
 // ミニカレンダー用ヘルパー
 function getCalendarDays(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay()
+  const firstDayJs = new Date(year, month, 1).getDay()
+  // 月曜始まり: 月=0, 火=1, ... 日=6
+  const firstDay = (firstDayJs + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const days: Array<{ date: string; day: number; inMonth: boolean }> = []
 
@@ -394,10 +400,10 @@ export function ShiftBulkDialog({
                 </button>
               </div>
 
-              {/* 曜日ヘッダー */}
+              {/* 曜日ヘッダー (月曜始まり) */}
               <div className="grid grid-cols-7 gap-0.5 mb-1">
-                {DAY_LABELS.map((label, i) => (
-                  <div key={i} className={`text-center text-[10px] font-medium ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-muted-foreground'}`}>
+                {WEEK_LABELS_MON_FIRST.map((label, i) => (
+                  <div key={i} className={`text-center text-[10px] font-medium ${i === 6 ? 'text-red-500' : i === 5 ? 'text-blue-500' : 'text-muted-foreground'}`}>
                     {label}
                   </div>
                 ))}
@@ -409,6 +415,7 @@ export function ShiftBulkDialog({
                   if (!d.inMonth) return <div key={i} />
                   const isSelected = selectedDates.has(d.date)
                   const dayOfWeek = new Date(Number(d.date.split('-')[0]), Number(d.date.split('-')[1]) - 1, d.day).getDay()
+                  const holiday = isJpHoliday(d.date)
                   return (
                     <button
                       key={i}
@@ -417,8 +424,8 @@ export function ShiftBulkDialog({
                       className={`h-8 rounded text-xs font-medium transition-all ${
                         isSelected
                           ? 'bg-primary text-primary-foreground shadow-sm'
-                          : dayOfWeek === 0 ? 'text-red-400 hover:bg-red-50'
-                          : dayOfWeek === 6 ? 'text-blue-400 hover:bg-blue-50'
+                          : (dayOfWeek === 0 || holiday) ? 'text-red-500 hover:bg-red-50'
+                          : dayOfWeek === 6 ? 'text-blue-500 hover:bg-blue-50'
                           : 'text-foreground hover:bg-muted'
                       }`}
                     >
@@ -433,22 +440,25 @@ export function ShiftBulkDialog({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] text-muted-foreground shrink-0">曜日で一括追加:</span>
                   <div className="flex gap-0.5">
-                    {DAY_LABELS.map((label, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setQuickDays(prev => { const n = [...prev]; n[idx] = !n[idx]; return n })}
-                        className={`h-6 w-6 rounded text-[10px] font-medium transition-colors ${
-                          quickDays[idx]
-                            ? idx === 0 ? 'bg-red-500 text-white'
-                              : idx === 6 ? 'bg-blue-500 text-white'
-                              : 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    {WEEK_LABELS_MON_FIRST.map((label, i) => {
+                      const jsDay = WEEK_ORDER_MON_FIRST[i]
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setQuickDays(prev => { const n = [...prev]; n[jsDay] = !n[jsDay]; return n })}
+                          className={`h-6 w-6 rounded text-[10px] font-medium transition-colors ${
+                            quickDays[jsDay]
+                              ? jsDay === 0 ? 'bg-red-500 text-white'
+                                : jsDay === 6 ? 'bg-blue-500 text-white'
+                                : 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
                   </div>
                   <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={applyDayPattern}>
                     追加
