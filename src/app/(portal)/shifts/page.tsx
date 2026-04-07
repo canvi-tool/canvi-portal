@@ -117,12 +117,20 @@ export default function ShiftsPage() {
   const [syncing, setSyncing] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
 
+  const didInitFilterRef = useRef(false)
   useEffect(() => {
     fetch('/api/user/current')
       .then(r => r.json())
       .then(data => {
         if (data.isManager != null) setIsManager(data.isManager)
-        if (data.staffId) setCurrentStaffId(data.staffId)
+        if (data.staffId) {
+          setCurrentStaffId(data.staffId)
+          // 初回ロード時のみ自分自身を選択状態にする
+          if (!didInitFilterRef.current) {
+            didInitFilterRef.current = true
+            setFilterStaffIds([data.staffId])
+          }
+        }
         if (data.roles) setUserRoles(data.roles)
         if (data.id) setCurrentUserId(data.id)
       })
