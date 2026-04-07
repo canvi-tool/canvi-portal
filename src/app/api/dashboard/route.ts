@@ -5,8 +5,12 @@ import { isOwner, isAdmin } from '@/lib/auth/rbac'
 import { isFreelanceType } from '@/lib/validations/staff'
 
 function todayStr() {
-  const t = new Date()
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  // JST (Asia/Tokyo) で本日の YYYY-MM-DD を返す（Vercel UTC環境対応）
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  })
+  return fmt.format(new Date())
 }
 
 export async function GET() {
@@ -43,6 +47,7 @@ export async function GET() {
       .from('shifts')
       .select('id, start_time, end_time, status, staff:staff_id(last_name, first_name), project:project_id(name)')
       .eq('shift_date', today)
+      .is('deleted_at', null)
       .order('start_time', { ascending: true })
       .limit(10)
 
