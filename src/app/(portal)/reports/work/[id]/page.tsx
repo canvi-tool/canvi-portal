@@ -317,6 +317,70 @@ function InboundContent({ cf }: { cf: Record<string, unknown> }) {
   )
 }
 
+function LeonIsContent({ cf }: { cf: Record<string, unknown> }) {
+  const immediate = Number(cf.immediate_call_count ?? 0)
+  const followup = Number(cf.followup_call_count ?? 0)
+  const received = Number(cf.received_call_count ?? 0)
+  const contract = Number(cf.contract_zoom_count ?? 0)
+
+  return (
+    <>
+      <Card>
+        <CardHeader><CardTitle className="text-base">基本情報</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <Field label="日付" value={cf.report_date as string} />
+          <Field label="PJ名" value={cf.project_name as string} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">定量</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">即時架電数</p>
+              <p className="text-lg font-medium">{immediate}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">追客架電数</p>
+              <p className="text-lg font-medium">{followup}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">受電数</p>
+              <p className="text-lg font-medium">{received}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">契約入金/伴走(Zoom)</p>
+              <p className="text-lg font-medium">{contract}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">定性</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <Field label="自己評価" value={cf.self_evaluation as string} />
+          <Field label="現状の課題" value={cf.current_issues as string} />
+          <Field label="課題に対しての改善" value={cf.issue_improvements as string} />
+          <Field label="困っていること・相談事" value={cf.consultations as string} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">コンディション</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">集中度</p>
+            <Stars level={cf.concentration_level as number | undefined} />
+          </div>
+          <Field label="体調メモ" value={cf.condition_comment as string} />
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
 // ---------- main page ----------
 
 export default function DailyReportDetailPage() {
@@ -471,6 +535,11 @@ export default function DailyReportDetailPage() {
       )}
       {reportType === 'inbound' && (
         <InboundContent
+          cf={{ ...cf, project_name: report.project_name ?? report.project?.name }}
+        />
+      )}
+      {reportType === 'leon_is' && (
+        <LeonIsContent
           cf={{ ...cf, project_name: report.project_name ?? report.project?.name }}
         />
       )}

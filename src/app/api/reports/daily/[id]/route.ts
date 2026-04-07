@@ -486,6 +486,16 @@ function generateContentSummary(
       if (fields.self_evaluation) parts.push(`自己評価: ${fields.self_evaluation}`)
       if (fields.tomorrow_improvement) parts.push(`改善: ${fields.tomorrow_improvement}`)
       break
+
+    case 'leon_is':
+      parts.push(`即時架電: ${fields.immediate_call_count ?? 0}`)
+      parts.push(`追客架電: ${fields.followup_call_count ?? 0}`)
+      parts.push(`受電: ${fields.received_call_count ?? 0}`)
+      parts.push(`契約/伴走: ${fields.contract_zoom_count ?? 0}`)
+      if (fields.self_evaluation) parts.push(`自己評価: ${fields.self_evaluation}`)
+      if (fields.current_issues) parts.push(`課題: ${fields.current_issues}`)
+      if (fields.issue_improvements) parts.push(`改善: ${fields.issue_improvements}`)
+      break
   }
 
   return parts.join('\n')
@@ -500,6 +510,8 @@ function buildKpiSummary(reportType: string, fields: Record<string, unknown>): s
       return `受電 ${fields.daily_received_count ?? 0} | 完了 ${fields.daily_completed_count ?? 0} | エスカレ ${fields.daily_escalation_count ?? 0}`
     case 'training':
       return fields.study_theme ? `テーマ: ${fields.study_theme}` : null
+    case 'leon_is':
+      return `即時 ${fields.immediate_call_count ?? 0} | 追客 ${fields.followup_call_count ?? 0} | 受電 ${fields.received_call_count ?? 0} | 契約/伴走 ${fields.contract_zoom_count ?? 0}`
     default:
       return null
   }
@@ -594,6 +606,28 @@ function buildReportDetailBlocks(
       addSection('改善アクション', fields.tomorrow_improvement)
       addSection('エスカレーション', fields.escalation_items)
       addSection('体調・コンディション', fields.condition)
+      break
+    }
+
+    case 'leon_is': {
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*定量*\n即時架電: ${fields.immediate_call_count ?? 0}件\n追客架電: ${fields.followup_call_count ?? 0}件\n受電: ${fields.received_call_count ?? 0}件\n契約入金/伴走: ${fields.contract_zoom_count ?? 0}件`,
+        },
+      })
+      addSection('自己評価', fields.self_evaluation)
+      addSection('現状の課題', fields.current_issues)
+      addSection('課題に対しての改善', fields.issue_improvements)
+      addSection('困っていること・相談事', fields.consultations)
+      if (fields.concentration_level) {
+        blocks.push({
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `集中度: ${'★'.repeat(Number(fields.concentration_level))}${'☆'.repeat(5 - Number(fields.concentration_level))}` }],
+        })
+      }
+      addSection('体調・コンディション', fields.condition_comment)
       break
     }
   }

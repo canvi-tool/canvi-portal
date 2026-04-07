@@ -100,15 +100,43 @@ export const inboundReportSchema = z.object({
 
   // コンディション
   condition: z.string().max(1000).optional().or(z.literal('')),
+  concentration_level: z.coerce.number().min(1).max(5).optional(),
+  condition_comment: z.string().max(500).optional().or(z.literal('')),
 })
 
 export type InboundReportFormValues = z.infer<typeof inboundReportSchema>
+
+// ---- レオン矯正IS日報スキーマ ----
+export const leonIsReportSchema = z.object({
+  report_type: z.literal('leon_is'),
+  report_date: z.string().min(1, '日付を入力してください'),
+  project_id: z.string().min(1, 'プロジェクトを選択してください'),
+
+  // KPI実績（当日）定量
+  immediate_call_count: z.coerce.number().min(0, '即時架電数を入力してください'),
+  followup_call_count: z.coerce.number().min(0, '追客架電数を入力してください'),
+  received_call_count: z.coerce.number().min(0, '受電数を入力してください'),
+  contract_zoom_count: z.coerce.number().min(0, '契約入金および伴走（Zoom入数）を入力してください'),
+
+  // 行動の質（定性）
+  self_evaluation: z.string().min(1, '自己評価を入力してください').max(3000),
+  current_issues: z.string().min(1, '現状の課題を入力してください').max(2000),
+  issue_improvements: z.string().min(1, '課題に対しての改善を入力してください').max(2000),
+  consultations: z.string().max(2000).optional().or(z.literal('')),
+
+  // コンディション
+  concentration_level: z.coerce.number().min(1).max(5).optional(),
+  condition_comment: z.string().max(500).optional().or(z.literal('')),
+})
+
+export type LeonIsReportFormValues = z.infer<typeof leonIsReportSchema>
 
 // ---- 統合スキーマ ----
 export const dailyReportSchema = z.discriminatedUnion('report_type', [
   trainingReportSchema,
   outboundReportSchema,
   inboundReportSchema,
+  leonIsReportSchema,
 ])
 
 export type DailyReportFormValues = z.infer<typeof dailyReportSchema>
