@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
       start_time: parsed.data.start_time,
       end_time: parsed.data.end_time,
       shift_type: parsed.data.shift_type || 'WORK',
+      title: parsed.data.title || null,
       notes: parsed.data.notes || null,
       attendees: parsed.data.attendees || [],
       created_by: user.id,

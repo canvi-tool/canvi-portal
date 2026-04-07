@@ -64,6 +64,7 @@ export function ShiftCreateDialog({
   const [startTime, setStartTime] = useState(initialStartTime)
   const [endTime, setEndTime] = useState(initialEndTime)
   const [shiftType, setShiftType] = useState<ShiftType>('WORK')
+  const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -99,6 +100,7 @@ export function ShiftCreateDialog({
           start_time: startTime,
           end_time: endTime,
           shift_type: shiftType,
+          title: title || undefined,
           notes: notes || undefined,
           attendees,
         }),
@@ -114,6 +116,7 @@ export function ShiftCreateDialog({
       onCreated()
       // Reset
       setNotes('')
+      setTitle('')
       setShiftType('WORK')
       setAttendees([])
     } catch (error) {
@@ -220,6 +223,18 @@ export function ShiftCreateDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* タイトル */}
+          <div className="space-y-1.5">
+            <Label>タイトル（任意）</Label>
+            <Input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例: 定例MTG"
+              maxLength={100}
+            />
           </div>
 
           {/* メモ */}

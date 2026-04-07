@@ -681,6 +681,7 @@ export interface Database {
           end_time: string
           status: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
+          title: string | null
           notes: string | null
           google_calendar_event_id: string | null
           google_calendar_synced: boolean
@@ -706,6 +707,7 @@ export interface Database {
           end_time: string
           status?: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
+          title?: string | null
           notes?: string | null
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean
@@ -731,6 +733,7 @@ export interface Database {
           end_time?: string
           status?: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
           shift_type?: 'WORK' | 'PAID_LEAVE' | 'ABSENCE' | 'HALF_DAY_LEAVE' | 'SPECIAL_LEAVE'
+          title?: string | null
           notes?: string | null
           google_calendar_event_id?: string | null
           google_calendar_synced?: boolean

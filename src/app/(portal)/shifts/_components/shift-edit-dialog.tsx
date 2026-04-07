@@ -41,6 +41,7 @@ interface ShiftItem {
   startTime: string
   endTime: string
   status: ShiftStatus
+  title?: string
   notes?: string
   googleMeetUrl?: string | null
   googleCalendarSynced?: boolean
@@ -92,6 +93,7 @@ export function ShiftEditDialog({
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
+  const [editTitle, setEditTitle] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editProjectId, setEditProjectId] = useState('')
   const [editAttendees, setEditAttendees] = useState<Attendee[]>([])
@@ -157,6 +159,7 @@ export function ShiftEditDialog({
   const handleStartEdit = () => {
     setEditStartTime(shift.startTime)
     setEditEndTime(shift.endTime)
+    setEditTitle(shift.title || '')
     setEditNotes(cleanNotes)
     setEditProjectId(shift.projectId)
     setEditAttendees(shift.attendees || [])
@@ -171,6 +174,7 @@ export function ShiftEditDialog({
         ...shift,
         startTime: editStartTime,
         endTime: editEndTime,
+        title: editTitle,
         notes: editNotes,
         projectId: editProjectId,
         projectName: selectedProject?.name || shift.projectName,
@@ -291,6 +295,30 @@ export function ShiftEditDialog({
               </span>
             </div>
           )}
+
+          {/* Title - editable */}
+          {isEditing ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Pencil className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Label className="text-sm">タイトル</Label>
+              </div>
+              <div className="pl-7">
+                <Input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="タイトル（任意）"
+                  maxLength={100}
+                />
+              </div>
+            </div>
+          ) : shift.title ? (
+            <div className="flex items-start gap-3 text-sm min-w-0">
+              <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <span className="font-medium min-w-0 flex-1 [overflow-wrap:anywhere] break-words">{shift.title}</span>
+            </div>
+          ) : null}
 
           {/* Notes - editable */}
           {isEditing ? (

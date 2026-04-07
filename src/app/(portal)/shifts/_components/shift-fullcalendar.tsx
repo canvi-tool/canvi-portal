@@ -26,6 +26,7 @@ export interface CalendarShift {
   endTime: string
   status: ShiftStatus
   shiftType: string
+  title?: string
   notes?: string
   googleMeetUrl?: string | null
   googleEventId?: string | null
@@ -86,6 +87,8 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
       id: s.id,
       title: isPending
         ? `【PJ未割当】${s.notes || 'GCal'}`
+        : s.title
+        ? `${s.staffName} - ${s.title}`
         : isLeave
         ? `${s.staffName} - 欠勤`
         : `${s.staffName} - ${s.projectName}`,
@@ -165,7 +168,7 @@ function renderEventContent(eventInfo: EventContentArg) {
         {shift.googleMeetUrl && <span className="text-[10px]" title="Google Meet">📹</span>}
       </div>
       <div className="text-[11px] font-medium truncate">{shift.staffName}</div>
-      <div className="text-[10px] opacity-75 truncate">{shift.projectName}</div>
+      <div className="text-[10px] opacity-75 truncate">{shift.title || shift.projectName}</div>
     </div>
   )
 }

@@ -146,6 +146,7 @@ export async function PUT(
         updateData.needs_project_assignment = false
       }
       if (body.notes !== undefined) updateData.notes = body.notes || null
+      if (body.title !== undefined) updateData.title = body.title || null
       if (Array.isArray(body.attendees)) updateData.attendees = body.attendees
     } else {
       // 通常更新: 全フィールド
@@ -155,6 +156,7 @@ export async function PUT(
       updateData.start_time = body.start_time
       updateData.end_time = body.end_time
       updateData.shift_type = body.shift_type || 'WORK'
+      updateData.title = body.title || null
       updateData.notes = body.notes || null
       if (Array.isArray(body.attendees)) updateData.attendees = body.attendees
     }

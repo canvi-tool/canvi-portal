@@ -100,6 +100,7 @@ export default function ShiftsPage() {
     id: string; staffId: string; staffName: string; projectId: string;
     projectName: string; date: string; startTime: string; endTime: string;
     status: 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION';
+    title?: string;
     notes?: string;
     googleMeetUrl?: string | null;
     attendees?: Array<{ email: string; name?: string; staff_id?: string }>;
@@ -229,6 +230,7 @@ export default function ShiftsPage() {
           endTime: (s.end_time || '').slice(0, 5),
           status: s.status,
           shiftType: s.shift_type || 'WORK',
+          title: s.title || undefined,
           notes: s.notes,
           googleMeetUrl: s.google_meet_url,
           googleEventId: s.google_calendar_event_id,
@@ -438,6 +440,7 @@ export default function ShiftsPage() {
       startTime: owner.startTime,
       endTime: owner.endTime,
       status: owner.status,
+      title: owner.title,
       notes: owner.notes,
       googleMeetUrl: owner.googleMeetUrl,
       attendees: owner.attendees || [],
@@ -540,7 +543,7 @@ export default function ShiftsPage() {
     setCreateDialogOpen(true)
   }, [])
 
-  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string; projectId?: string; notes?: string; attendees?: Array<{ email: string; name?: string; staff_id?: string }> }) => {
+  const handleShiftSave = useCallback(async (updated: { id: string; staffName: string; startTime: string; endTime: string; projectId?: string; title?: string; notes?: string; attendees?: Array<{ email: string; name?: string; staff_id?: string }> }) => {
     try {
       const body: Record<string, unknown> = {
         start_time: updated.startTime,
@@ -548,6 +551,7 @@ export default function ShiftsPage() {
         _inlineUpdate: true,
       }
       if (updated.projectId) body.project_id = updated.projectId
+      if (updated.title !== undefined) body.title = updated.title
       if (updated.notes !== undefined) body.notes = updated.notes
       if (Array.isArray(updated.attendees)) body.attendees = updated.attendees
 

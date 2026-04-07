@@ -25,6 +25,7 @@ export const shiftFormSchema = z.object({
   start_time: z.string().min(1, '開始時刻は必須です'),
   end_time: z.string().min(1, '終了時刻は必須です'),
   shift_type: z.enum(SHIFT_TYPES).default('WORK'),
+  title: z.string().max(100, 'タイトルは100文字以内で入力してください').optional(),
   notes: z.string().optional(),
   attendees: z.array(attendeeSchema).optional().default([]),
 }).refine((data) => data.start_time < data.end_time, {
@@ -49,6 +50,7 @@ export const shiftInlineUpdateSchema = z.object({
   start_time: z.string().min(1, '開始時刻は必須です'),
   end_time: z.string().min(1, '終了時刻は必須です'),
   project_id: z.string().optional(),
+  title: z.string().max(100).optional(),
   notes: z.string().optional(),
   attendees: z.array(attendeeSchema).optional(),
   _inlineUpdate: z.literal(true),

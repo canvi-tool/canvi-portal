@@ -15,7 +15,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       .from('shifts')
       .select(`
         id, staff_id, project_id, shift_date, start_time, end_time,
-        shift_type, notes, attendees, google_calendar_event_id,
+        shift_type, title, notes, attendees, google_calendar_event_id,
         staff!inner(user_id, last_name, first_name),
         projects!inner(name, custom_fields)
       `)
@@ -44,7 +44,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const startDateTime = `${shift.shift_date}T${normalizeTime(shift.start_time)}+09:00`
     const endDateTime = `${shift.shift_date}T${normalizeTime(shift.end_time)}+09:00`
     const calendarDisplayName = projectData.custom_fields?.calendar_display_name as string | undefined
-    const summary = calendarDisplayName || projectData.name
+    const summary = (shift.title as string | null) || calendarDisplayName || projectData.name
     const description = shift.notes || undefined
     const attendeeEmails = Array.isArray(shift.attendees)
       ? (shift.attendees as Array<{ email?: string }>).map(a => a?.email).filter((e): e is string => !!e)
