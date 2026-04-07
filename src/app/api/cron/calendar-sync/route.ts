@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     const jstOffset = 9 * 60 * 60 * 1000
     const jstNow = new Date(now.getTime() + jstOffset)
     const today = jstNow.toISOString().split('T')[0]
+    void today
 
     // 検索範囲: 60日前の00:00 JST ～ 60日後の00:00 JST
     const rangeStart = new Date(jstNow.getTime() - 60 * 24 * 60 * 60 * 1000)
