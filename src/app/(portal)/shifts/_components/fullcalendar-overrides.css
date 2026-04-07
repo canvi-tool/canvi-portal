@@ -196,6 +196,9 @@
   margin: 4px 0;
 }
 
+/* 月ビュー: ヘッダーに日付が出ているのでセル内の日付番号は非表示 */
+.fc .fc-daygrid-day-top { display: none; }
+
 /* 曜日カラー: 土→青、日/祝→赤 */
 .fc .fc-col-header-cell.fc-day-jp-saturday { color: #2563eb !important; }
 .fc .fc-col-header-cell.fc-day-jp-holiday { color: #dc2626 !important; }
