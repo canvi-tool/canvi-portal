@@ -22,9 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Calendar, Clock, ArrowLeft, Filter } from 'lucide-react'
+import { Calendar, Clock, ArrowLeft, Filter, Pencil, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { ATTENDANCE_STATUS_LABELS } from '@/lib/validations/attendance'
 import { CorrectionRequestsSection } from './_components/correction-requests-section'
+import { AttendanceEditDialog } from '../_components/attendance-edit-dialog'
+import { useQueryClient } from '@tanstack/react-query'
+import { attendanceKeys } from '@/hooks/use-attendance'
 
 function formatTime(dateStr: string | null | undefined) {
   if (!dateStr) return '-'
@@ -67,6 +72,23 @@ export default function AttendanceManagePage() {
   })
   const [projectId, setProjectId] = useState<string>('')
   const [staffId, setStaffId] = useState<string>('')
+  const [editTarget, setEditTarget] = useState<{ id: string; clock_in?: string | null; clock_out?: string | null; break_minutes?: number | null } | null>(null)
+  const queryClient = useQueryClient()
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('この打刻記録を削除しますか？この操作は取り消せません。')) return
+    try {
+      const res = await fetch(`/api/attendance/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '削除に失敗しました')
+      }
+      toast.success('打刻を削除しました')
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
 
   // 権限チェック
   useEffect(() => {
@@ -264,6 +286,7 @@ export default function AttendanceManagePage() {
                     <TableHead>勤務時間</TableHead>
                     <TableHead>残業</TableHead>
                     <TableHead>ステータス</TableHead>
+                    <TableHead className="w-[120px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -291,6 +314,31 @@ export default function AttendanceManagePage() {
                             {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => setEditTarget({
+                                id: r.id,
+                                clock_in: r.clock_in,
+                                clock_out: r.clock_out,
+                                break_minutes: r.break_minutes,
+                              })}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(r.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -300,6 +348,13 @@ export default function AttendanceManagePage() {
           )}
         </CardContent>
       </Card>
+
+      <AttendanceEditDialog
+        record={editTarget}
+        open={!!editTarget}
+        onOpenChange={(v) => { if (!v) setEditTarget(null) }}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })}
+      />
     </div>
   )
 }

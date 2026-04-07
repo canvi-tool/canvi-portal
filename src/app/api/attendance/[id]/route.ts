@@ -303,6 +303,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
+// 打刻削除（owner/admin のみ・ソフト削除）
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+    if (!isOwner(user) && !isAdmin(user)) {
+      return NextResponse.json({ error: '削除は管理者のみ可能です' }, { status: 403 })
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: record, error: fetchError } = await supabase
+      .from('attendance_records')
+      .select('id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+    if (fetchError || !record) {
+      return NextResponse.json({ error: '打刻記録が見つかりません' }, { status: 404 })
+    }
+
+    const { error } = await supabase
+      .from('attendance_records')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('DELETE /api/attendance/[id] error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
 // 打刻承認（管理者用）
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {

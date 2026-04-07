@@ -45,8 +45,10 @@ import {
   RotateCw,
   Users,
   Pencil,
+  Trash2,
 } from 'lucide-react'
 import { CorrectionRequestDialog } from './_components/correction-request-dialog'
+import { AttendanceEditDialog } from './_components/attendance-edit-dialog'
 import { useQueryClient } from '@tanstack/react-query'
 import { attendanceKeys } from '@/hooks/use-attendance'
 
@@ -424,6 +426,22 @@ export default function AttendancePage() {
 
   const queryClient = useQueryClient()
   const [correctionTarget, setCorrectionTarget] = useState<AttendanceRecord | null>(null)
+  const [editTarget, setEditTarget] = useState<AttendanceRecord | null>(null)
+
+  const handleAdminDelete = async (id: string) => {
+    if (!confirm('この打刻記録を削除しますか？この操作は取り消せません。')) return
+    try {
+      const res = await fetch(`/api/attendance/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '削除に失敗しました')
+      }
+      toast.success('打刻を削除しました')
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
 
   // 管理権限の取得（admin/ownerのみ「管理用」ボタン表示）
   const [canManage, setCanManage] = useState(false)
@@ -704,15 +722,27 @@ export default function AttendancePage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
-                          onClick={() => setCorrectionTarget(record)}
-                        >
-                          <Pencil className="h-3.5 w-3.5 mr-1" />
-                          修正
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={() => canManage ? setEditTarget(record) : setCorrectionTarget(record)}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            修正
+                          </Button>
+                          {canManage && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              onClick={() => handleAdminDelete(record.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -728,6 +758,13 @@ export default function AttendancePage() {
         open={!!correctionTarget}
         onOpenChange={(v) => { if (!v) setCorrectionTarget(null) }}
         onSubmitted={() => queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })}
+      />
+
+      <AttendanceEditDialog
+        record={editTarget}
+        open={!!editTarget}
+        onOpenChange={(v) => { if (!v) setEditTarget(null) }}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() })}
       />
     </div>
   )
