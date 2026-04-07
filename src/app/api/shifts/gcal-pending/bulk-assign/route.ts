@@ -39,9 +39,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '該当イベントが見つかりません' }, { status: 404 })
     }
 
-    // 権限チェック
+    // 権限チェック: メンバーは PJ 割当不可。オーナー or 管理者(自PJに対して) のみ可
     const access = await getProjectAccess()
     const currentUser = access.user
+    if (!currentUser || (!isOwner(currentUser) && !isAdmin(currentUser))) {
+      return NextResponse.json({ error: 'PJ割り当ては管理者のみ実行できます' }, { status: 403 })
+    }
     const ownerOk = !!currentUser && isOwner(currentUser)
     const adminPjOk =
       !!currentUser &&

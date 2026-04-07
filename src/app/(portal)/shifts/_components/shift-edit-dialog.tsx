@@ -59,6 +59,7 @@ interface ShiftEditDialogProps {
   onDuplicate?: (shift: ShiftItem) => void
   isManager?: boolean
   projects?: ProjectOption[]
+  currentStaffId?: string
 }
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle2 }> = {
@@ -86,6 +87,7 @@ export function ShiftEditDialog({
   onDuplicate,
   isManager = false,
   projects = [],
+  currentStaffId,
 }: ShiftEditDialogProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
@@ -145,7 +147,8 @@ export function ShiftEditDialog({
 
   const statusConfig = STATUS_CONFIG[shift.status]
   const StatusIcon = statusConfig.icon
-  const canEdit = isManager || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
+  const isOwnShift = !!currentStaffId && shift.staffId === currentStaffId
+  const canEdit = isManager || isOwnShift || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
   const canApprove = shift.status === 'SUBMITTED'
 
   // gcal: プレフィックスは内部用なので表示時は除外

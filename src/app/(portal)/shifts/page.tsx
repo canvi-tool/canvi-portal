@@ -415,6 +415,10 @@ export default function ShiftsPage() {
   const handleShiftClick = useCallback((shift: CalendarShift) => {
     // GCal pending: PJ割当ダイアログを開く
     if (shift.id.startsWith('gcal_pending__')) {
+      if (!isManager) {
+        toast.error('PJ割り当ては管理者のみ実行できます')
+        return
+      }
       const pid = shift.id.replace('gcal_pending__', '')
       setPendingAssign({ id: pid, title: shift.notes || '(無題)', date: shift.date, startTime: shift.startTime, endTime: shift.endTime, projectId: '' })
       return
@@ -885,7 +889,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 </Badge>
               )}
             </Button>
-            {gcalPendingCount > 0 && (
+            {gcalPendingCount > 0 && isManager && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1143,6 +1147,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         }}
         isManager={isManager}
         projects={projects}
+        currentStaffId={currentStaffId}
       />
 
       {/* GCal Event Dialog */}
