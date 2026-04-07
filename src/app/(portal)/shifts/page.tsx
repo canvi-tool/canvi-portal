@@ -1082,6 +1082,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         shifts={shifts}
         googleEvents={filterProject === 'all' ? dedupedGoogleEvents : []}
         isManager={isManager}
+        currentStaffId={currentStaffId || undefined}
         onShiftClick={handleShiftClick}
         onShiftDragUpdate={handleShiftDragUpdate}
         onShiftCopy={handleShiftCopy}

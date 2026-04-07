@@ -51,6 +51,7 @@ interface ShiftFullCalendarProps {
   shifts: CalendarShift[]
   googleEvents?: GoogleCalendarEvent[]
   isManager: boolean
+  currentStaffId?: string
   onShiftClick: (shift: CalendarShift) => void
   onShiftDragUpdate: (shiftId: string, date: string, startTime: string, endTime: string) => Promise<boolean>
   onShiftCopy: (shiftId: string, targetDate: string) => void
@@ -173,6 +174,7 @@ export function ShiftFullCalendar({
   shifts,
   googleEvents = [],
   isManager,
+  currentStaffId,
   onShiftClick,
   onShiftDragUpdate,
   onShiftCopy,
@@ -211,7 +213,9 @@ export function ShiftFullCalendar({
     }
     const shift = info.event.extendedProps.shift as CalendarShift
 
-    if (!isManager && shift.status === 'APPROVED') {
+    // 自分のシフトは常に編集可能。他人のAPPROVEDは管理者のみ。
+    const isOwnShift = !!currentStaffId && shift.staffId === currentStaffId
+    if (!isManager && !isOwnShift && shift.status === 'APPROVED') {
       info.revert()
       toast.error('承認済みシフトは管理者のみ変更できます')
       return
@@ -227,7 +231,7 @@ export function ShiftFullCalendar({
     if (!success) {
       info.revert()
     }
-  }, [isManager, onShiftDragUpdate, onGoogleEventDragUpdate])
+  }, [isManager, currentStaffId, onShiftDragUpdate, onGoogleEventDragUpdate])
 
   // イベントリサイズ完了
   const handleEventResize = useCallback(async (info: EventResizeDoneArg) => {
@@ -244,7 +248,9 @@ export function ShiftFullCalendar({
     }
     const shift = info.event.extendedProps.shift as CalendarShift
 
-    if (!isManager && shift.status === 'APPROVED') {
+    // 自分のシフトは常に編集可能。他人のAPPROVEDは管理者のみ。
+    const isOwnShift = !!currentStaffId && shift.staffId === currentStaffId
+    if (!isManager && !isOwnShift && shift.status === 'APPROVED') {
       info.revert()
       toast.error('承認済みシフトは管理者のみ変更できます')
       return
@@ -260,7 +266,7 @@ export function ShiftFullCalendar({
     if (!success) {
       info.revert()
     }
-  }, [isManager, onShiftDragUpdate, onGoogleEventDragUpdate])
+  }, [isManager, currentStaffId, onShiftDragUpdate, onGoogleEventDragUpdate])
 
   // イベントクリック
   const handleEventClick = useCallback((info: { event: EventApi; jsEvent: MouseEvent }) => {
