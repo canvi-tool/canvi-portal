@@ -273,8 +273,23 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [data, setData] = useState<(DashboardData & { isOwner?: boolean }) | null>(null)
   const [loading, setLoading] = useState(true)
+  const [effectiveName, setEffectiveName] = useState<string | null>(null)
 
-  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ユーザー'
+  useEffect(() => {
+    // インパーソネーション対応: サーバーから現在の有効ユーザー名を取得
+    fetch('/api/staff/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return
+        const ln = d.last_name || ''
+        const fn = d.first_name || ''
+        const name = `${ln} ${fn}`.trim()
+        if (name) setEffectiveName(name)
+      })
+      .catch(() => {})
+  }, [])
+
+  const displayName = effectiveName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ユーザー'
 
   useEffect(() => {
     fetchDashboardData()

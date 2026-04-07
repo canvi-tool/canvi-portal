@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { isOwner } from '@/lib/auth/rbac'
+import { isOwner, isAdmin } from '@/lib/auth/rbac'
 import { isFreelanceType } from '@/lib/validations/staff'
 
 function todayStr() {
@@ -51,6 +51,15 @@ export async function GET() {
     } else if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
       // アサインなし → シフトなし
       shiftQuery = shiftQuery.in('project_id', ['__none__'])
+    }
+    // メンバー(staff)は自分のシフトのみ
+    const isMemberOnly = !isOwnerUser && !isAdmin(user)
+    if (isMemberOnly) {
+      if (user.staffId) {
+        shiftQuery = shiftQuery.eq('staff_id', user.staffId)
+      } else {
+        shiftQuery = shiftQuery.eq('staff_id', '__none__')
+      }
     }
 
     const shiftRes = await shiftQuery
