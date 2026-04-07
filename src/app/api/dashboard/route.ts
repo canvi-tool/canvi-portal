@@ -24,6 +24,36 @@ export async function GET() {
     const today = todayStr()
     const isOwnerUser = isOwner(user)
 
+    // アラート購読設定: 現在ユーザーのロールで dashboard 配信ONのアラートIDセット
+    // 失敗しても既存表示は維持する（フィルタ無効化）
+    const userRole: 'owner' | 'admin' | 'staff' = isOwnerUser
+      ? 'owner'
+      : user.roles.includes('admin')
+        ? 'admin'
+        : 'staff'
+    let subscribedAlertIds: Set<string> | null = null
+    try {
+      // alert_subscriptions は Database 型未生成のため any キャスト
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subsRes = await (supabase as any)
+        .from('alert_subscriptions')
+        .select('alert_id, role, enabled, channel_dashboard')
+        .eq('role', userRole)
+      const subs = subsRes?.data as Array<{ alert_id: string; enabled: boolean; channel_dashboard: boolean }> | null
+      if (subs) {
+        subscribedAlertIds = new Set(
+          subs.filter((s) => s.enabled && s.channel_dashboard).map((s) => s.alert_id)
+        )
+      }
+    } catch {
+      subscribedAlertIds = null
+    }
+    const isAlertSubscribed = (alertId: string): boolean => {
+      // 設定取得失敗 → 既存挙動維持（true）
+      if (subscribedAlertIds === null) return true
+      return subscribedAlertIds.has(alertId)
+    }
+
     // プロジェクト数（スコープ適用）
     let activeProjectCount = 0
     if (allowedProjectIds === null) {
@@ -216,12 +246,17 @@ export async function GET() {
       }
     }
 
+    // 購読設定でフィルタ（最小限）: staff_missing_fields がOFFなら空配列に
+    const filteredStaffMissingFields = isAlertSubscribed('staff_missing_fields')
+      ? staffMissingFields
+      : []
+
     return NextResponse.json({
       staffCount,
       activeProjects: activeProjectCount,
       unresolvedAlerts: alertCountRes.count || 0,
       pendingForms,
-      staffMissingFields,
+      staffMissingFields: filteredStaffMissingFields,
       todaysShifts,
       recentAlerts,
       recentStaff,

@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Shield, ShieldCheck } from 'lucide-react'
+import { Shield, ShieldCheck, Bell } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +24,12 @@ const SETTING_CARDS = [
     description: 'マイナンバー法に基づく特定個人情報取扱担当者の指定・管理を行います。担当者のみが本人確認書類を閲覧できます。',
     href: '/settings/my-number-handlers',
     icon: ShieldCheck,
+  },
+  {
+    title: 'アラート購読設定',
+    description: 'ロール（オーナー / 管理者 / メンバー）ごとに、ダッシュボードへ表示するアラート種別をON/OFFします。',
+    href: '/settings/alerts',
+    icon: Bell,
   },
 ]
 
