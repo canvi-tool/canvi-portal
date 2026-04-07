@@ -388,43 +388,61 @@ export default function DashboardPage() {
               {d.todaysShifts.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">本日のシフトはありません</p>
               ) : (
-                <div className="space-y-1.5">
-                  {d.todaysShifts.map((shift) => {
-                    const [sh, sm] = shift.startTime.split(':').map(Number)
-                    const [eh, em] = shift.endTime.split(':').map(Number)
-                    const startMin = sh * 60 + sm
-                    const endMin = eh * 60 + em
-                    const isActive = currentMinutes >= startMin && currentMinutes < endMin
-                    const isPast = currentMinutes >= endMin
-                    const statusCfg = SHIFT_STATUS_CONFIG[shift.status] || SHIFT_STATUS_CONFIG.SUBMITTED
-
-                    return (
-                      <div
-                        key={shift.id}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors',
-                          isActive && 'bg-blue-50/60 border-blue-200',
-                          isPast && 'opacity-50',
-                          !isActive && !isPast && 'hover:bg-muted/50'
-                        )}
-                      >
-                        <div className="w-[100px] shrink-0 font-mono text-xs text-muted-foreground">
-                          {shift.startTime} - {shift.endTime}
+                <div className="space-y-4">
+                  {Object.entries(
+                    d.todaysShifts.reduce<Record<string, typeof d.todaysShifts>>((acc, s) => {
+                      const key = s.projectName || '未分類'
+                      if (!acc[key]) acc[key] = []
+                      acc[key].push(s)
+                      return acc
+                    }, {})
+                  )
+                    .sort(([a], [b]) => a.localeCompare(b, 'ja'))
+                    .map(([projectName, shifts]) => (
+                      <div key={projectName}>
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                          <span className="text-xs font-semibold text-muted-foreground">{projectName}</span>
+                          <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
+                            {shifts.length}件
+                          </Badge>
                         </div>
-                        <span className={cn('w-2 h-2 rounded-full shrink-0', statusCfg.color)} />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium">{shift.staffName}</span>
-                          <span className="text-muted-foreground mx-1.5">/</span>
-                          <span className="text-muted-foreground">{shift.projectName}</span>
+                        <div className="space-y-1.5">
+                          {shifts.map((shift) => {
+                            const [sh, sm] = shift.startTime.split(':').map(Number)
+                            const [eh, em] = shift.endTime.split(':').map(Number)
+                            const startMin = sh * 60 + sm
+                            const endMin = eh * 60 + em
+                            const isActive = currentMinutes >= startMin && currentMinutes < endMin
+                            const isPast = currentMinutes >= endMin
+                            const statusCfg = SHIFT_STATUS_CONFIG[shift.status] || SHIFT_STATUS_CONFIG.SUBMITTED
+                            return (
+                              <div
+                                key={shift.id}
+                                className={cn(
+                                  'flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors',
+                                  isActive && 'bg-blue-50/60 border-blue-200',
+                                  isPast && 'opacity-50',
+                                  !isActive && !isPast && 'hover:bg-muted/50'
+                                )}
+                              >
+                                <div className="w-[100px] shrink-0 font-mono text-xs text-muted-foreground">
+                                  {shift.startTime} - {shift.endTime}
+                                </div>
+                                <span className={cn('w-2 h-2 rounded-full shrink-0', statusCfg.color)} />
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-medium">{shift.staffName}</span>
+                                </div>
+                                {isActive && (
+                                  <span className="text-[10px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+                                    稼働中
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
-                        {isActive && (
-                          <span className="text-[10px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
-                            稼働中
-                          </span>
-                        )}
                       </div>
-                    )
-                  })}
+                    ))}
                 </div>
               )}
             </CardContent>
