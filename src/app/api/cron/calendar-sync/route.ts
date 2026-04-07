@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
           const displayName = project?.custom_fields?.calendar_display_name as string | undefined
           if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
         }
-        const defaultProjectId = assignments[0].project_id
+        void assignments
 
         // プライマリカレンダーからイベントを取得
         const events = await client.getEvents('primary', timeMin, timeMax)
@@ -208,8 +208,6 @@ export async function GET(request: NextRequest) {
 
         // イベントごとに処理
         for (const event of shiftEvents) {
-          processedEventIds.add(event.id)
-
           // ISO 8601 → JST の DATE と TIME に変換
           const { shiftDate, startTime, endTime } = parseEventToJST(event.start, event.end)
           if (!shiftDate || !startTime || !endTime) {
@@ -226,7 +224,15 @@ export async function GET(request: NextRequest) {
           }
 
           // イベントIDに対応するプロジェクトを特定
-          const projectId = matchProjectFromSummary(event.summary, projectMap) || defaultProjectId
+          // サマリーからPJが特定できないイベントはシフト化しない（個人予定の誤取込防止）
+          const projectId = matchProjectFromSummary(event.summary, projectMap)
+          if (!projectId) {
+            userResult.skipped++
+            continue
+          }
+          // PJマッチしたイベントのみ「処理済み」として扱う
+          // (マッチしないイベントに紐づく既存シフトは削除検知で自動削除される)
+          processedEventIds.add(event.id)
 
           // 既存シフトとのマッチング (google_calendar_event_id のみ)
           const existingShift = existingByEventId.get(event.id)

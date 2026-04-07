@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       // 今日のシフト（対象プロジェクトのみ）を取得
       const { data: todayShifts } = await admin
         .from('shifts')
-        .select('id, staff_id, project_id, start_time, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
+        .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
         .eq('shift_date', today)
         .is('deleted_at', null)
         .in('status', ['APPROVED', 'SUBMITTED'])
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
         const alertsByProject = new Map<string, {
           projectName: string
           slackChannelId: string | null
-          names: string[]
+          entries: Array<{ name: string; startTime: string | null; endTime: string | null }>
           staffIds: string[]
           shiftIdsToInsert: string[]
           shiftIdsToUpdate: string[]
@@ -149,14 +149,18 @@ export async function GET(request: NextRequest) {
           const existing = alertsByProject.get(projectId) || {
             projectName: project?.name || '未割当',
             slackChannelId: project?.slack_channel_id || null,
-            names: [],
+            entries: [],
             staffIds: [],
             shiftIdsToInsert: [],
             shiftIdsToUpdate: [],
           }
 
           const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
-          existing.names.push(staffName)
+          existing.entries.push({
+            name: staffName,
+            startTime: shift.start_time || null,
+            endTime: shift.end_time || null,
+          })
           if (shift.staff_id) existing.staffIds.push(shift.staff_id)
 
           if (existingLog) {
@@ -170,12 +174,12 @@ export async function GET(request: NextRequest) {
 
         // PJ別に通知送信 + アラートログ更新
         for (const [projectId, info] of alertsByProject) {
-          if (info.names.length === 0) continue
+          if (info.entries.length === 0) continue
 
-          results.missing_clock.alerted += info.names.length
-          results.missing_clock.names.push(...info.names)
+          results.missing_clock.alerted += info.entries.length
+          results.missing_clock.names.push(...info.entries.map(e => e.name))
 
-          const notification = buildMissingClockNotification(info.names, today)
+          const notification = buildMissingClockNotification(info.entries, today)
 
           if (info.slackChannelId) {
             await sendProjectNotification(notification, info.slackChannelId, {

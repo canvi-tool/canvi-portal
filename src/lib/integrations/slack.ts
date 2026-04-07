@@ -1006,11 +1006,20 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
 
 /**
  * 打刻漏れアラート
+ * staffEntries: { name, startTime, endTime } の配列。シフト時刻を併記する。
  */
-export function buildMissingClockNotification(staffNames: string[], date: string): SlackMessage {
-  const nameList = staffNames.map(n => `• ${n}`).join('\n')
+export function buildMissingClockNotification(
+  staffEntries: Array<{ name: string; startTime?: string | null; endTime?: string | null }>,
+  date: string,
+): SlackMessage {
+  // HH:MM:SS -> HH:MM に短縮
+  const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '--:--')
+  const lines = staffEntries.map((e) => {
+    const range = `${hhmm(e.startTime)}〜${hhmm(e.endTime)}`
+    return `• *${e.name}* (シフト ${range})`
+  })
   return {
-    text: `【打刻漏れ】${date} - ${staffNames.length}名が未打刻です`,
+    text: `【打刻漏れ】${date} - ${staffEntries.length}名が未打刻です`,
     blocks: [
       {
         type: 'header',
@@ -1020,7 +1029,7 @@ export function buildMissingClockNotification(staffNames: string[], date: string
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `シフト登録済みですが打刻がないメンバー:\n${nameList}`,
+          text: `シフト登録済みですが打刻がないメンバー:\n${lines.join('\n')}`,
         },
       },
     ],
