@@ -45,9 +45,10 @@ export async function POST(request: NextRequest) {
     // 日付範囲の計算
     const jstOffset = 9 * 60 * 60 * 1000
     const jstNow = new Date(Date.now() + jstOffset)
-    const today = body.start_date || jstNow.toISOString().split('T')[0]
-    const thirtyDaysLater = new Date(jstNow.getTime() + 30 * 24 * 60 * 60 * 1000)
-    const endDate = body.end_date || thirtyDaysLater.toISOString().split('T')[0]
+    const sixtyDaysAgo = new Date(jstNow.getTime() - 60 * 24 * 60 * 60 * 1000)
+    const today = body.start_date || sixtyDaysAgo.toISOString().split('T')[0]
+    const sixtyDaysLater = new Date(jstNow.getTime() + 60 * 24 * 60 * 60 * 1000)
+    const endDate = body.end_date || sixtyDaysLater.toISOString().split('T')[0]
 
     const timeMin = `${today}T00:00:00+09:00`
     const timeMax = `${endDate}T23:59:59+09:00`

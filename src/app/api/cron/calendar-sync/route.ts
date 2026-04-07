@@ -38,16 +38,18 @@ export async function GET(request: NextRequest) {
   }> = []
 
   try {
-    // JSTで今日から2週間の日付を計算
+    // JSTで前後60日の日付を計算
     const now = new Date()
     const jstOffset = 9 * 60 * 60 * 1000
     const jstNow = new Date(now.getTime() + jstOffset)
     const today = jstNow.toISOString().split('T')[0]
 
-    // 検索範囲: 今日の00:00 JST ～ 30日後の00:00 JST
-    const timeMin = `${today}T00:00:00+09:00`
-    const twoWeeksLater = new Date(jstNow.getTime() + 30 * 24 * 60 * 60 * 1000)
-    const twoWeeksLaterStr = twoWeeksLater.toISOString().split('T')[0]
+    // 検索範囲: 60日前の00:00 JST ～ 60日後の00:00 JST
+    const rangeStart = new Date(jstNow.getTime() - 60 * 24 * 60 * 60 * 1000)
+    const rangeStartStr = rangeStart.toISOString().split('T')[0]
+    const timeMin = `${rangeStartStr}T00:00:00+09:00`
+    const rangeEnd = new Date(jstNow.getTime() + 60 * 24 * 60 * 60 * 1000)
+    const twoWeeksLaterStr = rangeEnd.toISOString().split('T')[0]
     const timeMax = `${twoWeeksLaterStr}T00:00:00+09:00`
 
     // google_refresh_token を持つユーザー一覧を取得
@@ -171,7 +173,7 @@ export async function GET(request: NextRequest) {
           .from('shifts')
           .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status')
           .eq('staff_id', staffRecord.id)
-          .gte('shift_date', today)
+          .gte('shift_date', rangeStartStr)
           .lte('shift_date', twoWeeksLaterStr)
           .is('deleted_at', null)
           .not('google_calendar_event_id', 'is', null)
