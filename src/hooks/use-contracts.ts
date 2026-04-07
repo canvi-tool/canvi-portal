@@ -26,6 +26,14 @@ interface ContractListResponse {
 type ContractDetail = Contract & {
   staff: Tables<'staff'> | null
   template: ContractTemplate | null
+  // Legacy/extra columns not in regenerated DB types
+  content?: string | null
+  variables?: Record<string, unknown> | null
+  external_sign_id?: string | null
+  external_sign_url?: string | null
+  signed_at?: string | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any
 }
 
 // ─── Template Types ──────────────────────────────────
