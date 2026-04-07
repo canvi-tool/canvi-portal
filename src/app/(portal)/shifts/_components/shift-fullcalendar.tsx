@@ -490,6 +490,11 @@ export function ShiftFullCalendar({
             day: 'numeric',
             omitCommas: true,
           }}
+          views={{
+            dayGridMonth: {
+              dayHeaderFormat: { weekday: 'short' },
+            },
+          }}
           buttonText={{
             today: '今日',
             month: '月',
