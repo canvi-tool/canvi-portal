@@ -52,6 +52,11 @@ interface ShiftFullCalendarProps {
   googleEvents?: GoogleCalendarEvent[]
   isManager: boolean
   currentStaffId?: string
+  /**
+   * 編集禁止対象のスタッフID。例えば管理者(admin)が閲覧中の場合に
+   * オーナーロールユーザーの staff_id を渡すと、当該シフトのドラッグ/リサイズ/削除/編集を抑止する。
+   */
+  restrictedStaffIds?: string[]
   onShiftClick: (shift: CalendarShift) => void
   onShiftDragUpdate: (shiftId: string, date: string, startTime: string, endTime: string) => Promise<boolean>
   onShiftCopy: (shiftId: string, targetDate: string) => void
@@ -62,9 +67,11 @@ interface ShiftFullCalendarProps {
   onGoogleEventDragUpdate?: (eventId: string, startDateTime: string, endDateTime: string) => Promise<boolean>
 }
 
-function toFullCalendarEvents(shifts: CalendarShift[]) {
+function toFullCalendarEvents(shifts: CalendarShift[], restrictedStaffIds: string[] = []) {
+  const restricted = new Set(restrictedStaffIds)
   return shifts.map((s) => {
     const isPending = !!s.needsProjectAssignment && s.id.startsWith('gcal_pending__')
+    const isRestricted = restricted.has(s.staffId)
     const isLeave = s.shiftType !== 'WORK'
     // Canviで登録されたシフトは濃い色、Googleカレンダー取込分(googleEventId有)は同色の透過
     const isFromGoogle = !!s.googleEventId
@@ -101,10 +108,10 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
         isGoogleEvent: false,
         isPending,
       },
-      // 仮想招待行 / pending は編集不可
-      editable: !s.isVirtualAttendee && !isPending,
-      durationEditable: !s.isVirtualAttendee && !isPending,
-      startEditable: !s.isVirtualAttendee && !isPending,
+      // 仮想招待行 / pending / restricted(admin→owner) は編集不可
+      editable: !s.isVirtualAttendee && !isPending && !isRestricted,
+      durationEditable: !s.isVirtualAttendee && !isPending && !isRestricted,
+      startEditable: !s.isVirtualAttendee && !isPending && !isRestricted,
       overlap: true,
     }
   })
@@ -175,6 +182,7 @@ export function ShiftFullCalendar({
   googleEvents = [],
   isManager,
   currentStaffId,
+  restrictedStaffIds = [],
   onShiftClick,
   onShiftDragUpdate,
   onShiftCopy,
@@ -184,6 +192,8 @@ export function ShiftFullCalendar({
   onGoogleEventClick,
   onGoogleEventDragUpdate,
 }: ShiftFullCalendarProps) {
+  const restrictedSet = useRef<Set<string>>(new Set())
+  restrictedSet.current = new Set(restrictedStaffIds)
   const calendarRef = useRef<FullCalendar>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [viewType, setViewType] = useState<'timeGridWeek' | 'timeGridDay' | 'dayGridMonth'>('timeGridWeek')
@@ -194,7 +204,7 @@ export function ShiftFullCalendar({
     shiftDate: string
   } | null>(null)
 
-  const shiftEvents = toFullCalendarEvents(shifts)
+  const shiftEvents = toFullCalendarEvents(shifts, restrictedStaffIds)
   const gcalEvents = toGoogleCalendarFCEvents(googleEvents)
   const events = [...shiftEvents, ...gcalEvents]
 
@@ -218,6 +228,11 @@ export function ShiftFullCalendar({
     if (!isManager && !isOwnShift && shift.status === 'APPROVED') {
       info.revert()
       toast.error('承認済みシフトは管理者のみ変更できます')
+      return
+    }
+    if (restrictedSet.current.has(shift.staffId)) {
+      info.revert()
+      toast.error('オーナーのシフトは編集できません')
       return
     }
 
@@ -253,6 +268,11 @@ export function ShiftFullCalendar({
     if (!isManager && !isOwnShift && shift.status === 'APPROVED') {
       info.revert()
       toast.error('承認済みシフトは管理者のみ変更できます')
+      return
+    }
+    if (restrictedSet.current.has(shift.staffId)) {
+      info.revert()
+      toast.error('オーナーのシフトは編集できません')
       return
     }
 
@@ -318,12 +338,17 @@ export function ShiftFullCalendar({
   // コンテキストメニューアクション
   const handleContextAction = useCallback((action: ContextMenuAction, shiftId: string, targetDate?: string) => {
     setContextMenu(null)
+    const shift = shifts.find(s => s.id === shiftId)
+    const isRestricted = !!shift && restrictedSet.current.has(shift.staffId)
+    if (isRestricted && (action === 'delete' || action === 'copy-next-day' || action === 'copy-next-week' || action === 'copy-to-date')) {
+      toast.error('オーナーのシフトは編集・削除・複製できません')
+      return
+    }
     if (action === 'copy-next-day' || action === 'copy-next-week' || action === 'copy-to-date') {
       onShiftCopy(shiftId, targetDate || '')
     } else if (action === 'delete') {
       onShiftDelete(shiftId)
     } else if (action === 'edit') {
-      const shift = shifts.find(s => s.id === shiftId)
       if (shift) onShiftClick(shift)
     }
   }, [shifts, onShiftCopy, onShiftDelete, onShiftClick])

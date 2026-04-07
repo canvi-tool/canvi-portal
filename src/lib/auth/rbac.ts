@@ -334,6 +334,69 @@ export async function requireRole(role: RoleName): Promise<UserWithRole> {
   return user
 }
 
+/**
+ * 指定 staff_id に紐づくユーザーのロール（最高位）を取得する
+ * - staff.user_id → users → user_roles → roles.name
+ * - 紐づくユーザーがない / ロール未割当の場合は null
+ */
+export async function getStaffUserRole(staffId: string): Promise<RoleName | null> {
+  if (!staffId) return null
+  try {
+    const adminClient = createAdminClient()
+    const { data: staff } = await adminClient
+      .from('staff')
+      .select('user_id')
+      .eq('id', staffId)
+      .maybeSingle()
+    if (!staff?.user_id) return null
+
+    const { data: userRows } = await adminClient
+      .from('users')
+      .select('user_roles!user_roles_user_id_fkey(role:roles(name))')
+      .eq('id', staff.user_id)
+      .maybeSingle()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const roles = ((userRows?.user_roles as any[]) || [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((ur: any) => ur.role?.name as RoleName)
+      .filter(Boolean) as RoleName[]
+
+    if (roles.includes('owner')) return 'owner'
+    if (roles.includes('admin')) return 'admin'
+    if (roles.includes('staff')) return 'staff'
+    return null
+  } catch (e) {
+    console.error('getStaffUserRole error:', e)
+    return null
+  }
+}
+
+/**
+ * 管理者(admin)はオーナー(owner)のカレンダー/シフトを編集・削除・作成代行できない。
+ * （閲覧は別途 canViewShift で許可）
+ *
+ * - オーナーは全員に対して編集可能
+ * - 管理者は staff/admin に対しては編集可能、owner に対しては不可
+ * - その他のロール（staff）はこの helper の対象外（既存の canEditShift で個別判定）
+ */
+export function canEditCalendarOf(
+  currentUser: { roles: RoleName[] } | UserWithRole,
+  targetUserRole: RoleName | null
+): boolean {
+  const roles = currentUser.roles || []
+  const isCurrentOwner = roles.includes('owner')
+  const isCurrentAdmin = roles.includes('admin')
+
+  if (isCurrentOwner) return true
+  if (isCurrentAdmin) {
+    if (targetUserRole === 'owner') return false
+    return true
+  }
+  // staff は本ヘルパでの判定対象外（自分のシフトのみ既存ロジックで許可）
+  return false
+}
+
 export async function requireAdmin(): Promise<UserWithRole> {
   const user = await getCurrentUser()
   if (!user) throw new Error('Unauthorized')

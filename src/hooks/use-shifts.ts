@@ -286,6 +286,56 @@ export function useRequestRevision() {
   })
 }
 
+// ---- Current user role / calendar edit helpers ----
+
+interface CurrentUserInfo {
+  id?: string
+  staffId?: string
+  roles?: string[]
+  ownerStaffIds?: string[]
+  isManager?: boolean
+}
+
+async function fetchCurrentUserInfo(): Promise<CurrentUserInfo> {
+  const res = await fetch('/api/user/current')
+  if (!res.ok) throw new Error('ユーザー情報の取得に失敗しました')
+  return res.json()
+}
+
+/**
+ * シフトカレンダー編集権限ユーティリティ。
+ * - admin(オーナー権限なし) は owner ロールユーザーのシフトを編集できない
+ * - owner は全員編集可
+ * - staff は既存のロジックに委ねる（自分のみ）
+ */
+export function useCalendarEditGuard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['user', 'current'],
+    queryFn: fetchCurrentUserInfo,
+  })
+
+  const roles = data?.roles || []
+  const isOwner = roles.includes('owner')
+  const isAdmin = roles.includes('admin')
+  const ownerStaffIds = data?.ownerStaffIds || []
+
+  function canEditShiftOfStaff(staffId: string | null | undefined): boolean {
+    if (!staffId) return true
+    if (isOwner) return true
+    if (isAdmin) return !ownerStaffIds.includes(staffId)
+    // staff は自分のみ
+    return data?.staffId === staffId
+  }
+
+  return {
+    isLoading,
+    currentUser: data,
+    ownerStaffIds,
+    restrictedStaffIds: isOwner ? [] : (isAdmin ? ownerStaffIds : []),
+    canEditShiftOfStaff,
+  }
+}
+
 export function useShiftPermissions(projectId?: string) {
   const { data, isLoading } = useQuery({
     queryKey: shiftKeys.permissions(projectId),

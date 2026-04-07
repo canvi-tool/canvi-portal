@@ -60,6 +60,11 @@ interface ShiftEditDialogProps {
   isManager?: boolean
   projects?: ProjectOption[]
   currentStaffId?: string
+  /**
+   * 強制的に読み取り専用にする。
+   * 例: 管理者(admin)がオーナー(owner)のシフトを開いた場合に true を渡す。
+   */
+  readOnlyOverride?: boolean
 }
 
 const STATUS_CONFIG: Record<ShiftStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle2 }> = {
@@ -88,6 +93,7 @@ export function ShiftEditDialog({
   isManager = false,
   projects = [],
   currentStaffId,
+  readOnlyOverride = false,
 }: ShiftEditDialogProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
@@ -148,7 +154,7 @@ export function ShiftEditDialog({
   const statusConfig = STATUS_CONFIG[shift.status]
   const StatusIcon = statusConfig.icon
   const isOwnShift = !!currentStaffId && shift.staffId === currentStaffId
-  const canEdit = isManager || isOwnShift || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED'
+  const canEdit = !readOnlyOverride && (isManager || isOwnShift || shift.status === 'NEEDS_REVISION' || shift.status === 'SUBMITTED')
   const canApprove = shift.status === 'SUBMITTED'
 
   // gcal: プレフィックスは内部用なので表示時は除外

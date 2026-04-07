@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, isOwner, isAdmin, hasRole, type UserWithRole } from './rbac'
+import { getCurrentUser, isOwner, isAdmin, hasRole, getStaffUserRole, type UserWithRole } from './rbac'
 
 /**
  * オーナー以外のユーザーがアクセス可能なプロジェクトIDリストを取得する。
@@ -158,8 +158,14 @@ export async function canEditShift(shift: {
   // 自分のシフトは常に編集可
   if (staffId && shift.staff_id === staffId) return { user, canEdit: true }
 
-  // 管理者: 自身のPJ内のシフトは編集可
+  // 管理者: 自身のPJ内のシフトは編集可。ただしオーナーロールのユーザーのシフトは編集不可
   if (isAdmin(user) && shift.project_id && allowedProjectIds?.includes(shift.project_id)) {
+    if (shift.staff_id) {
+      const targetRole = await getStaffUserRole(shift.staff_id)
+      if (targetRole === 'owner') {
+        return { user, canEdit: false }
+      }
+    }
     return { user, canEdit: true }
   }
 

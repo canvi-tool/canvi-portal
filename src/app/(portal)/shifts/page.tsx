@@ -114,6 +114,7 @@ export default function ShiftsPage() {
   const [currentStaffId, setCurrentStaffId] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
   const [userRoles, setUserRoles] = useState<string[]>([])
+  const [ownerStaffIds, setOwnerStaffIds] = useState<string[]>([])
   const [syncing, setSyncing] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
 
@@ -132,6 +133,7 @@ export default function ShiftsPage() {
           }
         }
         if (data.roles) setUserRoles(data.roles)
+        if (Array.isArray(data.ownerStaffIds)) setOwnerStaffIds(data.ownerStaffIds)
         if (data.id) setCurrentUserId(data.id)
       })
       .catch(() => {})
@@ -1087,6 +1089,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         googleEvents={filterProject === 'all' ? dedupedGoogleEvents : []}
         isManager={isManager}
         currentStaffId={currentStaffId || undefined}
+        restrictedStaffIds={
+          // 管理者(オーナー権限なし)はオーナーロールユーザーのシフトを編集不可
+          userRoles.includes('owner') ? [] : (userRoles.includes('admin') ? ownerStaffIds : [])
+        }
         onShiftClick={handleShiftClick}
         onShiftDragUpdate={handleShiftDragUpdate}
         onShiftCopy={handleShiftCopy}
@@ -1148,6 +1154,12 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         isManager={isManager}
         projects={projects}
         currentStaffId={currentStaffId}
+        readOnlyOverride={
+          !!editingShift &&
+          !userRoles.includes('owner') &&
+          userRoles.includes('admin') &&
+          ownerStaffIds.includes(editingShift.staffId)
+        }
       />
 
       {/* GCal Event Dialog */}
