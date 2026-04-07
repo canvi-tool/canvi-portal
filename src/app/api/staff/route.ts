@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, requireAdmin, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { getProjectAccess } from '@/lib/auth/project-access'
 import { staffFormSchema, staffSearchSchema } from '@/lib/validations/staff'
 import { createUser as createGoogleUser } from '@/lib/integrations/google-workspace'
 import { inviteUserToSlackWorkspace } from '@/lib/integrations/slack'
@@ -58,6 +59,24 @@ export async function GET(request: NextRequest) {
 
     const { data, error, count } = await query
 
+    // scope=accessible: 自分のアサインPJを共有するスタッフ + 自分のみに絞る（オーナーは全件）
+    let filteredData = data || []
+    if (searchParams.get('scope') === 'accessible' && !isOwner(user)) {
+      const { allowedProjectIds, staffId } = await getProjectAccess()
+      if (!allowedProjectIds || allowedProjectIds.length === 0) {
+        filteredData = staffId ? filteredData.filter((s) => s.id === staffId) : []
+      } else {
+        const { data: assigns } = await supabase
+          .from('project_assignments')
+          .select('staff_id')
+          .in('project_id', allowedProjectIds)
+          .is('deleted_at', null)
+        const accessibleStaffIds = new Set<string>((assigns || []).map((a) => a.staff_id))
+        if (staffId) accessibleStaffIds.add(staffId)
+        filteredData = filteredData.filter((s) => accessibleStaffIds.has(s.id))
+      }
+    }
+
     if (error) {
       console.error('Staff list query error:', error)
       return NextResponse.json(
@@ -68,8 +87,8 @@ export async function GET(request: NextRequest) {
 
     // staffロールのユーザーには機密フィールドを除外して返す
     const staffData = (isOwner(user) || isAdmin(user))
-      ? (data || [])
-      : filterStaffListForStaffRole(data || [], user.staffId)
+      ? filteredData
+      : filterStaffListForStaffRole(filteredData, user.staffId)
 
     return NextResponse.json({
       data: staffData,

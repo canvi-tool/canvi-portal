@@ -323,7 +323,7 @@ export default function ShiftsPage() {
       })
       .catch(() => {})
 
-    fetch('/api/staff?status=active&limit=100')
+    fetch('/api/staff?status=active&limit=100&scope=accessible')
       .then(r => r.json())
       .then(res => {
         const list = res.data || (Array.isArray(res) ? res : [])
