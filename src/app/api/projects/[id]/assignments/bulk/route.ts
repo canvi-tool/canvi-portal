@@ -51,8 +51,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single()
 
     for (const staffId of staff_ids) {
-      // Check for duplicate assignment
-      const { data: existing } = await supabase
+      // アクティブな重複チェック
+      const { data: activeExisting } = await supabase
         .from('project_assignments')
         .select('id')
         .eq('project_id', projectId)
@@ -61,30 +61,66 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .in('status', ['proposed', 'confirmed', 'in_progress'])
         .maybeSingle()
 
-      if (existing) {
+      if (activeExisting) {
         skippedIds.push(staffId)
         continue
       }
 
-      const { data, error } = await supabase
+      // ソフト削除済み or 同じ start_date の旧レコードがあれば復活させる
+      // (UNIQUE(project_id, staff_id, start_date) 制約のため同一start_dateの再insert不可)
+      const { data: existingByKey } = await supabase
         .from('project_assignments')
-        .insert({
-          project_id: projectId,
-          staff_id: staffId,
-          role_title: role_title || null,
-          status,
-          start_date,
-          end_date: end_date || null,
-        })
-        .select(`
-          *,
-          staff (*),
-          compensation_rules (*)
-        `)
-        .single()
+        .select('id, deleted_at')
+        .eq('project_id', projectId)
+        .eq('staff_id', staffId)
+        .eq('start_date', start_date)
+        .maybeSingle()
 
-      if (error) {
-        console.error(`Failed to insert assignment for staff ${staffId}:`, error.message)
+      let data: { id: string; staff: unknown } | null = null
+      let error: { message: string } | null = null
+
+      if (existingByKey) {
+        const restored = await supabase
+          .from('project_assignments')
+          .update({
+            role_title: role_title || null,
+            status,
+            end_date: end_date || null,
+            deleted_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingByKey.id)
+          .select(`
+            *,
+            staff (*),
+            compensation_rules (*)
+          `)
+          .single()
+        data = restored.data
+        error = restored.error
+      } else {
+        const inserted = await supabase
+          .from('project_assignments')
+          .insert({
+            project_id: projectId,
+            staff_id: staffId,
+            role_title: role_title || null,
+            status,
+            start_date,
+            end_date: end_date || null,
+          })
+          .select(`
+            *,
+            staff (*),
+            compensation_rules (*)
+          `)
+          .single()
+        data = inserted.data
+        error = inserted.error
+      }
+
+      if (error || !data) {
+        console.error(`Failed to upsert assignment for staff ${staffId}:`, error?.message)
         continue
       }
 
