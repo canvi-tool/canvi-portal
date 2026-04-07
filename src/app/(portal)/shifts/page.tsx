@@ -548,7 +548,8 @@ export default function ShiftsPage() {
         toast.success(`${updated.staffName}のシフトを更新しました`)
         fetchShifts()
       } else {
-        toast.error('シフトの更新に失敗しました')
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'シフトの更新に失敗しました')
       }
     } catch {
       toast.error('シフトの更新に失敗しました')
