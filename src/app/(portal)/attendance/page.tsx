@@ -47,6 +47,12 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
+import {
+  computeRoundedDisplay,
+  formatTimeWithRaw,
+  formatBreakWithRaw,
+  formatMinutesWithRaw,
+} from '@/lib/attendance/display'
 import { CorrectionRequestDialog } from './_components/correction-request-dialog'
 import { AttendanceEditDialog } from './_components/attendance-edit-dialog'
 import { useQueryClient } from '@tanstack/react-query'
@@ -675,7 +681,18 @@ export default function AttendancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((record) => (
+                  {records.map((record) => {
+                    const rounded = computeRoundedDisplay({
+                      date: record.date,
+                      clock_in: record.clock_in,
+                      clock_out: record.clock_out,
+                      break_minutes: record.break_minutes,
+                      work_minutes: record.work_minutes,
+                      shift_start_time: record.shift_start_time,
+                      shift_end_time: record.shift_end_time,
+                      staff: record.staff,
+                    })
+                    return (
                     <TableRow key={record.id}>
                       <TableCell className="font-medium whitespace-nowrap">
                         {new Date(record.date).toLocaleDateString('ja-JP', {
@@ -692,16 +709,16 @@ export default function AttendancePage() {
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
-                        {formatTime(record.clock_in)}
+                        {formatTimeWithRaw(rounded.roundedIn, record.clock_in)}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
-                        {formatTime(record.clock_out)}
+                        {formatTimeWithRaw(rounded.roundedOut, record.clock_out)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {record.break_minutes > 0 ? `${record.break_minutes}分` : '-'}
+                        {formatBreakWithRaw(rounded.roundedBreakMinutes, record.break_minutes)}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
-                        {formatMinutes(record.work_minutes)}
+                        {formatMinutesWithRaw(rounded.roundedWorkMinutes, record.work_minutes)}
                       </TableCell>
                       <TableCell
                         className={`font-mono text-sm ${record.overtime_minutes > 0 ? 'text-orange-500' : ''}`}
@@ -745,7 +762,7 @@ export default function AttendancePage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )})}
                 </TableBody>
               </Table>
             </div>

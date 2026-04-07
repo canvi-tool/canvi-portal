@@ -23,8 +23,10 @@ export interface AttendanceRecord {
   modification_reason: string | null
   created_at: string
   updated_at: string
-  staff?: { id: string; last_name?: string; first_name?: string } | null
+  staff?: { id: string; last_name?: string; first_name?: string; employment_type?: string | null } | null
   project?: { id: string; name: string; project_code: string } | null
+  shift_start_time?: string | null
+  shift_end_time?: string | null
 }
 
 export interface TodayStatus {

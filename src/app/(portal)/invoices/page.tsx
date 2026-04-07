@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/layout/page-header'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -15,253 +15,192 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { INVOICE_STATUS_LABELS } from '@/lib/constants'
-import {
-  Plus,
-  Search,
-  Wallet,
-  CheckCircle2,
-  AlertTriangle,
-  Send,
-  TrendingUp,
-} from 'lucide-react'
+import { Plus, Search, Wallet, CheckCircle2, AlertTriangle, Send } from 'lucide-react'
 
-// --- Types ---
-type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
-
-interface Invoice {
-  id: string
-  invoice_number: string
-  project_name: string
-  client_name: string
-  amount: number
-  tax_amount: number
-  total_amount: number
-  status: InvoiceStatus
-  issued_at: string
-  due_date: string
-  paid_at: string | null
+const STATUS_LABELS: Record<string, string> = {
+  draft: '下書き',
+  issued: '発行済',
+  sent: '送付済',
+  paid: '入金済',
+  overdue: '支払遅延',
+  cancelled: 'キャンセル',
 }
 
-// --- Demo Data ---
-const demoInvoices: Invoice[] = [
-  {
-    id: 'inv-001',
-    invoice_number: 'INV-2026-001',
-    project_name: 'Webリニューアル',
-    client_name: '株式会社ABC商事',
-    amount: 1250000,
-    tax_amount: 125000,
-    total_amount: 1375000,
-    status: 'paid',
-    issued_at: '2026-03-01',
-    due_date: '2026-03-31',
-    paid_at: '2026-03-28',
-  },
-  {
-    id: 'inv-002',
-    invoice_number: 'INV-2026-002',
-    project_name: 'Webリニューアル',
-    client_name: '株式会社ABC商事',
-    amount: 1250000,
-    tax_amount: 125000,
-    total_amount: 1375000,
-    status: 'sent',
-    issued_at: '2026-03-15',
-    due_date: '2026-04-15',
-    paid_at: null,
-  },
-  {
-    id: 'inv-003',
-    invoice_number: 'INV-2026-003',
-    project_name: 'SNSマーケ運用',
-    client_name: '合同会社デジタルフロント',
-    amount: 850000,
-    tax_amount: 85000,
-    total_amount: 935000,
-    status: 'draft',
-    issued_at: '',
-    due_date: '',
-    paid_at: null,
-  },
-  {
-    id: 'inv-004',
-    invoice_number: 'INV-2026-004',
-    project_name: '業務システム開発',
-    client_name: '株式会社テクノソリューション',
-    amount: 2900000,
-    tax_amount: 290000,
-    total_amount: 3190000,
-    status: 'overdue',
-    issued_at: '2026-02-01',
-    due_date: '2026-02-28',
-    paid_at: null,
-  },
-  {
-    id: 'inv-005',
-    invoice_number: 'INV-2026-005',
-    project_name: 'ECサイト構築',
-    client_name: '株式会社ネクストステージ',
-    amount: 1600000,
-    tax_amount: 160000,
-    total_amount: 1760000,
-    status: 'sent',
-    issued_at: '2026-03-20',
-    due_date: '2026-04-20',
-    paid_at: null,
-  },
-  {
-    id: 'inv-006',
-    invoice_number: 'INV-2026-006',
-    project_name: 'アプリ開発',
-    client_name: '株式会社イノベーションラボ',
-    amount: 2250000,
-    tax_amount: 225000,
-    total_amount: 2475000,
-    status: 'cancelled',
-    issued_at: '2026-01-15',
-    due_date: '2026-02-15',
-    paid_at: null,
-  },
-]
+interface InvoiceListItem {
+  id: string
+  invoice_number: string
+  status: string
+  issue_date: string
+  due_date: string
+  subtotal: number
+  tax_amount: number
+  total_amount: number
+  paid_amount: number
+  project: { id: string; name: string } | null
+  client: { id: string; name: string; email: string | null } | null
+}
 
-// --- Helper ---
-const formatCurrency = (value: number) =>
-  `¥${value.toLocaleString('ja-JP')}`
+const formatCurrency = (v: number) => `¥${Number(v ?? 0).toLocaleString('ja-JP')}`
 
-// --- Column definitions (static, outside component) ---
-const columns: DataTableColumn<Invoice>[] = [
-  {
-    key: 'invoice_number',
-    header: '請求番号',
-    accessor: (row) => row.invoice_number,
-    cell: (row) => (
-      <Link
-        href={`/documents/invoices/${row.id}`}
-        className="font-mono text-sm text-primary hover:underline"
-      >
-        {row.invoice_number}
-      </Link>
-    ),
-  },
-  {
-    key: 'project_name',
-    header: 'プロジェクト',
-    accessor: (row) => row.project_name,
-    cell: (row) => <span className="font-medium">{row.project_name}</span>,
-  },
-  {
-    key: 'client_name',
-    header: 'クライアント',
-    accessor: (row) => row.client_name,
-  },
-  {
-    key: 'total_amount',
-    header: '請求額（税込）',
-    accessor: (row) => row.total_amount,
-    cell: (row) => (
-      <div className="text-right">
-        <span className="font-mono font-medium">{formatCurrency(row.total_amount)}</span>
-        <span className="block text-xs text-muted-foreground">
-          (税抜 {formatCurrency(row.amount)})
-        </span>
-      </div>
-    ),
-  },
-  {
-    key: 'status',
-    header: 'ステータス',
-    accessor: (row) => row.status,
-    cell: (row) => (
-      <StatusBadge
-        status={row.status}
-        labels={INVOICE_STATUS_LABELS}
-        variants={{
-          paid: 'default',
-          sent: 'secondary',
-          draft: 'outline',
-          overdue: 'destructive',
-          cancelled: 'outline',
-        }}
-      />
-    ),
-  },
-  {
-    key: 'issued_at',
-    header: '発行日',
-    accessor: (row) => row.issued_at,
-    cell: (row) =>
-      row.issued_at ? (
-        <span>{row.issued_at.replace(/-/g, '/')}</span>
-      ) : (
-        <span className="text-muted-foreground">-</span>
-      ),
-  },
-  {
-    key: 'due_date',
-    header: '支払期限',
-    accessor: (row) => row.due_date,
-    cell: (row) => {
-      if (!row.due_date) return <span className="text-muted-foreground">-</span>
-      // Compare date strings to avoid timezone issues
-      const today = new Date().toISOString().slice(0, 10)
-      const isOverdue = row.status === 'overdue' || (row.status === 'sent' && row.due_date < today)
-      return (
-        <span className={isOverdue ? 'text-destructive font-medium' : ''}>
-          {row.due_date.replace(/-/g, '/')}
-        </span>
-      )
-    },
-  },
-]
-
-// --- Component ---
 export default function InvoicesPage() {
+  const [invoices, setInvoices] = useState<InvoiceListItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [creating, setCreating] = useState(false)
 
-  // Filtered data
+  async function fetchInvoices() {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      const res = await fetch(`/api/invoices?${params.toString()}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '取得に失敗しました')
+      setInvoices(json.data ?? [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'unknown')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchInvoices()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter])
+
   const filtered = useMemo(() => {
-    let data: Invoice[] = demoInvoices
-    if (search) {
-      const lower = search.toLowerCase()
-      data = data.filter(
-        (d) =>
-          d.invoice_number.toLowerCase().includes(lower) ||
-          d.project_name.toLowerCase().includes(lower) ||
-          d.client_name.toLowerCase().includes(lower)
-      )
-    }
-    if (statusFilter !== 'all') {
-      data = data.filter((d) => d.status === statusFilter)
-    }
-    return data
-  }, [search, statusFilter])
+    if (!search) return invoices
+    const lower = search.toLowerCase()
+    return invoices.filter(
+      (i) =>
+        i.invoice_number.toLowerCase().includes(lower) ||
+        i.project?.name?.toLowerCase().includes(lower) ||
+        i.client?.name?.toLowerCase().includes(lower),
+    )
+  }, [invoices, search])
 
-  // Summary calculations
   const summary = useMemo(() => {
-    const all = demoInvoices
-    const paidAmount = all
+    const totalAmount = invoices.reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    const paidAmount = invoices
       .filter((i) => i.status === 'paid')
-      .reduce((sum, i) => sum + i.total_amount, 0)
-    const unpaidAmount = all
-      .filter((i) => i.status === 'sent' || i.status === 'overdue')
-      .reduce((sum, i) => sum + i.total_amount, 0)
-    const overdueAmount = all
-      .filter((i) => i.status === 'overdue')
-      .reduce((sum, i) => sum + i.total_amount, 0)
-
+      .reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    const unpaidAmount = invoices
+      .filter((i) => ['sent', 'issued', 'overdue'].includes(i.status))
+      .reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    const overdue = invoices.filter((i) => i.status === 'overdue')
     return {
-      total: all.length,
-      totalAmount: all.reduce((sum, i) => sum + i.total_amount, 0),
+      total: invoices.length,
+      totalAmount,
       paidAmount,
       unpaidAmount,
-      overdueCount: all.filter((i) => i.status === 'overdue').length,
-      overdueAmount,
-      sent: all.filter((i) => i.status === 'sent').length,
-      draft: all.filter((i) => i.status === 'draft').length,
+      overdueCount: overdue.length,
+      overdueAmount: overdue.reduce((s, i) => s + Number(i.total_amount ?? 0), 0),
     }
-  }, [])
+  }, [invoices])
+
+  const columns: DataTableColumn<InvoiceListItem>[] = [
+    {
+      key: 'invoice_number',
+      header: '請求番号',
+      accessor: (r) => r.invoice_number,
+      cell: (r) => (
+        <Link
+          href={`/invoices/${r.id}`}
+          className="font-mono text-sm text-primary hover:underline"
+        >
+          {r.invoice_number}
+        </Link>
+      ),
+    },
+    {
+      key: 'project',
+      header: 'プロジェクト',
+      accessor: (r) => r.project?.name ?? '',
+      cell: (r) => <span className="font-medium">{r.project?.name ?? '-'}</span>,
+    },
+    {
+      key: 'client',
+      header: 'クライアント',
+      accessor: (r) => r.client?.name ?? '',
+      cell: (r) => <span>{r.client?.name ?? '-'}</span>,
+    },
+    {
+      key: 'total',
+      header: '請求額（税込）',
+      accessor: (r) => r.total_amount,
+      cell: (r) => (
+        <div className="text-right font-mono">{formatCurrency(r.total_amount)}</div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'ステータス',
+      accessor: (r) => r.status,
+      cell: (r) => (
+        <StatusBadge
+          status={r.status}
+          labels={STATUS_LABELS}
+          variants={{
+            paid: 'default',
+            sent: 'secondary',
+            issued: 'secondary',
+            draft: 'outline',
+            overdue: 'destructive',
+            cancelled: 'outline',
+          }}
+        />
+      ),
+    },
+    {
+      key: 'issue',
+      header: '発行日',
+      accessor: (r) => r.issue_date,
+      cell: (r) => <span>{r.issue_date?.replace(/-/g, '/') ?? '-'}</span>,
+    },
+    {
+      key: 'due',
+      header: '支払期限',
+      accessor: (r) => r.due_date,
+      cell: (r) => <span>{r.due_date?.replace(/-/g, '/') ?? '-'}</span>,
+    },
+  ]
+
+  async function handleCreate() {
+    // 簡易作成: モーダル代わりに prompt
+    const projectId = window.prompt('プロジェクトID (UUID)')
+    if (!projectId) return
+    const clientId = window.prompt('クライアントID (UUID)')
+    if (!clientId) return
+    const periodStart = window.prompt('対象期間 開始 (YYYY-MM-DD)') ?? ''
+    const periodEnd = window.prompt('対象期間 終了 (YYYY-MM-DD)') ?? ''
+    if (!periodStart || !periodEnd) return
+
+    setCreating(true)
+    try {
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          client_id: clientId,
+          period_start: periodStart,
+          period_end: periodEnd,
+          auto_calculate: true,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '作成に失敗しました')
+      await fetchInvoices()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'unknown')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -270,69 +209,66 @@ export default function InvoicesPage() {
         description="請求書の発行・送付・入金管理"
         actions={
           <div className="flex items-center gap-2">
-            <Link href="/documents/invoices/auto" className={buttonVariants({ variant: 'outline' })}>
-              <TrendingUp className="h-4 w-4 mr-1" />
-              自動作成
+            <Link
+              href="/settings/billing-rules"
+              className={buttonVariants({ variant: 'outline' })}
+            >
+              請求ルール設定
             </Link>
-            <Link href="/documents/invoices/new" className={buttonVariants()}>
+            <Button onClick={handleCreate} disabled={creating}>
               <Plus className="h-4 w-4 mr-1" />
-              新規作成
-            </Link>
+              自動生成
+            </Button>
           </div>
         }
       />
 
-      {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">請求総額</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono">
               {formatCurrency(summary.totalAmount)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.total}件の請求書
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">{summary.total}件</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">入金済</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono">
               {formatCurrency(summary.paidAmount)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              回収率 {summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0}%
-            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">未入金</CardTitle>
-            <Send className="h-4 w-4 text-blue-600" aria-hidden="true" />
+            <Send className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold font-mono">
               {formatCurrency(summary.unpaidAmount)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.sent}件 送付済
-            </p>
           </CardContent>
         </Card>
         <Card className={summary.overdueCount > 0 ? 'border-destructive/50' : ''}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">支払遅延</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${summary.overdueCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`} aria-hidden="true" />
+            <AlertTriangle
+              className={`h-4 w-4 ${summary.overdueCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`}
+            />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold font-mono ${summary.overdueCount > 0 ? 'text-destructive' : ''}`}>
+            <div
+              className={`text-2xl font-bold font-mono ${summary.overdueCount > 0 ? 'text-destructive' : ''}`}
+            >
               {formatCurrency(summary.overdueAmount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -342,42 +278,40 @@ export default function InvoicesPage() {
         </Card>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="請求番号、PJ名、クライアント名で検索..."
-            aria-label="請求書を検索"
+            placeholder="請求番号 / PJ / クライアント検索..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? 'all')}>
-          <SelectTrigger className="w-40" aria-label="ステータスで絞り込み">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? 'all')}>
+          <SelectTrigger className="w-40">
             <SelectValueWithLabel
               value={statusFilter}
-              labels={{ all: 'すべて', ...INVOICE_STATUS_LABELS }}
+              labels={{ all: 'すべて', ...STATUS_LABELS }}
             />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">すべて</SelectItem>
-            {Object.entries(INVOICE_STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {Object.entries(STATUS_LABELS).map(([v, l]) => (
+              <SelectItem key={v} value={v}>
+                {l}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Data Table */}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <DataTable
         columns={columns}
         data={filtered}
-        emptyMessage="条件に一致する請求書が見つかりません"
-        keyExtractor={(row) => row.id}
+        emptyMessage={loading ? '読み込み中...' : '請求書がありません'}
+        keyExtractor={(r) => r.id}
       />
     </div>
   )
