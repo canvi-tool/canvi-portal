@@ -315,11 +315,11 @@ async function checkSlackUserPermission(slackUserId: string): Promise<{ approver
 
   let approverUserId: string | null = null
 
-  // (1) staff.custom_fields.slack_user_id で検索
+  // (1) staff.custom_fields.slack_user_id で検索 (->> で text 比較)
   const { data: approverStaff } = await supabase
     .from('staff')
     .select('user_id')
-    .or(`custom_fields->slack_user_id.eq.${slackUserId},custom_fields->>slack_user_id.eq.${slackUserId}`)
+    .filter('custom_fields->>slack_user_id', 'eq', slackUserId)
     .limit(1)
     .maybeSingle()
 
@@ -354,6 +354,7 @@ async function checkSlackUserPermission(slackUserId: string): Promise<{ approver
   }
 
   if (!approverUserId) {
+    console.error('[checkSlackUserPermission] could not resolve approver for slackUserId:', slackUserId)
     return { approverUserId: null, isAuthorized: false }
   }
 
@@ -368,6 +369,9 @@ async function checkSlackUserPermission(slackUserId: string): Promise<{ approver
     .filter(Boolean) || []
 
   const isAuthorized = roleNames.includes('admin') || roleNames.includes('owner')
+  if (!isAuthorized) {
+    console.error('[checkSlackUserPermission] not admin/owner', { slackUserId, approverUserId, roleNames })
+  }
   return { approverUserId, isAuthorized }
 }
 
@@ -407,20 +411,25 @@ async function handleReportApproval(payload: Record<string, unknown>) {
   // Permission check
   const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
   if (!approverUserId || !isAuthorized) {
-    await updateSlackMessageDirect(channelId, messageTs, '管理者権限が必要です')
+    console.error('[handleReportApproval] permission denied', { slackUserId, approverUserId, isAuthorized })
+    // Non-destructive: ephemeralで通知し、元メッセージは残す
+    await sendDiffEphemeral(channelId, slackUserId, ':warning: 管理者権限が必要です。Slackアカウントとポータルアカウントが紐付いているか確認してください。')
     return new Response('', { status: 200 })
   }
 
+  const now = new Date().toISOString()
   const newStatus = isApprove ? 'approved' : 'rejected'
 
-  // Update the report
+  // Update the report (work_reports schema: review_comment / reviewed_by / reviewed_at)
   const updateData: Record<string, unknown> = {
     status: newStatus,
-    updated_at: new Date().toISOString(),
-    approval_comment: comment || null,
+    updated_at: now,
+    review_comment: comment || null,
+    reviewed_by: approverUserId,
+    reviewed_at: now,
   }
   if (newStatus === 'approved') {
-    updateData.approved_at = new Date().toISOString()
+    updateData.approved_at = now
     updateData.approved_by = approverUserId
   }
 
@@ -590,7 +599,8 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
   // Permission check
   const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
   if (!approverUserId || !isAuthorized) {
-    await updateSlackMessageDirect(channelId, messageTs, '管理者権限が必要です')
+    console.error('[handleShiftApproval] permission denied', { slackUserId })
+    await sendDiffEphemeral(channelId, slackUserId, ':warning: 管理者権限が必要です')
     return new Response('', { status: 200 })
   }
 
@@ -861,18 +871,26 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
   // 権限: PJの管理者以上
   const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
   if (!approverUserId || !isAuthorized) {
-    await updateSlackMessageDirect(channelId, messageTs, '管理者権限が必要です')
+    console.error('[handleCorrectionApproval] permission denied', { slackUserId })
+    await sendDiffEphemeral(channelId, slackUserId, ':warning: 管理者権限が必要です')
     return new Response('', { status: 200 })
   }
-  // PJアサイン確認
+  // PJアサイン確認 (project_assignments は staff_id を持つ)
   if (r.project_id) {
-    const { data: assigned } = await supabase
-      .from('project_members')
+    const { data: approverStaffRow } = await supabase
+      .from('staff')
       .select('id')
-      .eq('project_id', r.project_id)
       .eq('user_id', approverUserId)
-      .limit(1)
       .maybeSingle()
+    const { data: assigned } = approverStaffRow?.id
+      ? await supabase
+          .from('project_assignments')
+          .select('id')
+          .eq('project_id', r.project_id)
+          .eq('staff_id', approverStaffRow.id)
+          .limit(1)
+          .maybeSingle()
+      : { data: null }
     // owner は全PJ許可
     const { data: ownerCheck } = await supabase
       .from('user_roles')
@@ -882,7 +900,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
       (ur) => ur.role?.name === 'owner'
     )
     if (!isOwnerRole && !assigned) {
-      await updateSlackMessageDirect(channelId, messageTs, 'このPJの管理権限がありません')
+      await sendDiffEphemeral(channelId, slackUserId, ':warning: このPJの管理権限がありません')
       return new Response('', { status: 200 })
     }
   }
