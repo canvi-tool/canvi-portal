@@ -286,11 +286,11 @@ export default function NewDailyReportPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>明日の自習で重点的に取り組みたいこと {renderRequiredMark()}</Label>
+                <Label>次回の自習で重点的に取り組みたいこと {renderRequiredMark()}</Label>
                 <Textarea
                   value={tomorrowStudyFocus}
                   onChange={(e) => setTomorrowStudyFocus(e.target.value)}
-                  placeholder="明日取り組みたい内容を記入"
+                  placeholder="次回取り組みたい内容を記入"
                   rows={3}
                 />
               </div>
@@ -533,7 +533,7 @@ export default function NewDailyReportPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>明日の目標架電数 {renderRequiredMark()}</Label>
+                  <Label>次回の目標架電数 {renderRequiredMark()}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -543,7 +543,7 @@ export default function NewDailyReportPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>明日のアポ目標 {renderRequiredMark()}</Label>
+                  <Label>次回のアポ目標 {renderRequiredMark()}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -554,11 +554,11 @@ export default function NewDailyReportPage() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>明日試す改善アクション {renderRequiredMark()}</Label>
+                <Label>次回試す改善アクション {renderRequiredMark()}</Label>
                 <Textarea
                   value={tomorrowImprovement}
                   onChange={(e) => setTomorrowImprovement(e.target.value)}
-                  placeholder="明日取り組む具体的な改善アクションを記入"
+                  placeholder="次回取り組む具体的な改善アクションを記入"
                   rows={3}
                 />
               </div>
@@ -775,11 +775,11 @@ export default function NewDailyReportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>明日試す改善アクション {renderRequiredMark()}</Label>
+                <Label>次回試す改善アクション {renderRequiredMark()}</Label>
                 <Textarea
                   value={inboundTomorrowImprovement}
                   onChange={(e) => setInboundTomorrowImprovement(e.target.value)}
-                  placeholder="明日取り組む具体的な改善アクションを記入"
+                  placeholder="次回取り組む具体的な改善アクションを記入"
                   rows={3}
                 />
               </div>

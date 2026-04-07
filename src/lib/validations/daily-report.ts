@@ -9,13 +9,14 @@ export const workReportApprovalSchema = z.object({
 export type WorkReportApprovalValues = z.infer<typeof workReportApprovalSchema>
 
 // ---- 日報タイプ ----
-export const DAILY_REPORT_TYPES = ['training', 'outbound', 'inbound'] as const
+export const DAILY_REPORT_TYPES = ['training', 'outbound', 'inbound', 'leon_is'] as const
 export type DailyReportType = (typeof DAILY_REPORT_TYPES)[number]
 
 export const DAILY_REPORT_TYPE_LABELS: Record<DailyReportType, string> = {
   training: '研修日報',
   outbound: '架電日報',
   inbound: '受電日報',
+  leon_is: 'レオン矯正IS',
 }
 
 // ---- 研修日報スキーマ ----
@@ -30,7 +31,7 @@ export const trainingReportSchema = z.object({
   self_solved: z.string().max(2000).optional().or(z.literal('')),
 
   awareness: z.string().min(1, '気づきを入力してください').max(2000),
-  tomorrow_focus: z.string().min(1, '明日の重点項目を入力してください').max(2000),
+  tomorrow_focus: z.string().min(1, '次回の重点項目を入力してください').max(2000),
   questions: z.string().max(2000).optional().or(z.literal('')),
 
   concentration_level: z.coerce.number().min(1).max(5).optional(),
@@ -67,6 +68,8 @@ export const outboundReportSchema = z.object({
 
   // コンディション
   condition: z.string().max(1000).optional().or(z.literal('')),
+  concentration_level: z.coerce.number().min(1).max(5).optional(),
+  condition_comment: z.string().max(500).optional().or(z.literal('')),
 })
 
 export type OutboundReportFormValues = z.infer<typeof outboundReportSchema>

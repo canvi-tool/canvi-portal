@@ -469,7 +469,7 @@ function generateContentSummary(
       if (fields.smooth_operations) parts.push(`スムーズにできた: ${fields.smooth_operations}`)
       if (fields.difficulties) parts.push(`難しかった点: ${fields.difficulties}`)
       if (fields.awareness) parts.push(`気づき: ${fields.awareness}`)
-      if (fields.tomorrow_focus) parts.push(`明日の重点: ${fields.tomorrow_focus}`)
+      if (fields.tomorrow_focus) parts.push(`次回の重点: ${fields.tomorrow_focus}`)
       break
 
     case 'outbound':
@@ -528,7 +528,7 @@ function buildReportDetailBlocks(
       addSection('難しかった内容', fields.difficulties)
       addSection('自力で解決できたこと', fields.self_solved)
       addSection('気づき', fields.awareness)
-      addSection('明日の重点項目', fields.tomorrow_focus)
+      addSection('次回の重点項目', fields.tomorrow_focus)
       addSection('上長への質問', fields.questions)
       if (fields.concentration_level) {
         blocks.push({
@@ -563,7 +563,7 @@ function buildReportDetailBlocks(
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*明日の目標*\n架電: ${fields.tomorrow_call_target || 0}件 | アポ: ${fields.tomorrow_appointment_target || 0}件`,
+            text: `*次回の目標*\n架電: ${fields.tomorrow_call_target || 0}件 | アポ: ${fields.tomorrow_appointment_target || 0}件`,
           },
         })
       }

@@ -111,7 +111,7 @@ function TrainingContent({ cf }: { cf: Record<string, unknown> }) {
         <CardHeader><CardTitle className="text-base">気づき</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Field label="気づき" value={cf.awareness as string} />
-          <Field label="明日の重点項目" value={cf.tomorrow_focus as string} />
+          <Field label="次回の重点項目" value={cf.tomorrow_focus as string} />
           <Field label="質問事項" value={cf.questions as string} />
         </CardContent>
       </Card>
@@ -211,8 +211,8 @@ function OutboundContent({ cf }: { cf: Record<string, unknown> }) {
       <Card>
         <CardHeader><CardTitle className="text-base">改善・次アクション</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <Field label="明日の架電目標" value={cf.tomorrow_call_target as number} />
-          <Field label="明日のアポ目標" value={cf.tomorrow_appointment_target as number} />
+          <Field label="次回の架電目標" value={cf.tomorrow_call_target as number} />
+          <Field label="次回のアポ目標" value={cf.tomorrow_appointment_target as number} />
           <Field label="改善アクション" value={cf.tomorrow_improvement as string} />
           <Field label="エスカレーション事項" value={cf.escalation_items as string} />
         </CardContent>
