@@ -1303,6 +1303,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                   onChange={(e) => setPendingAssign({ ...pendingAssign, projectId: e.target.value })}
                 >
                   <option value="">選択してください</option>
+                  <option value="__EXCLUDE__">― PJではない（除外する）―</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -1336,6 +1337,18 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 if (!pendingAssign?.projectId) return
                 setPendingAssigning(true)
                 try {
+                  // 「PJではない（除外する）」を選んだ場合は PATCH で除外
+                  if (pendingAssign.projectId === '__EXCLUDE__') {
+                    const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'PATCH' })
+                    if (!res.ok) {
+                      toast.error('除外に失敗しました')
+                      return
+                    }
+                    toast.success('PJ対象外に設定しました')
+                    setPendingAssign(null)
+                    fetchShifts()
+                    return
+                  }
                   const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}/assign`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
