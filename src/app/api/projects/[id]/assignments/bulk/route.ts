@@ -24,8 +24,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const parsed = bulkAssignSchema.safeParse(body)
     if (!parsed.success) {
+      const flat = parsed.error.flatten()
+      console.error('[POST /assignments/bulk] validation error', { body, flat })
+      // 最初のフィールドエラーをユーザーに表示
+      const firstField = Object.entries(flat.fieldErrors)[0]
+      const friendly = firstField
+        ? `${firstField[0]}: ${(firstField[1] as string[])?.[0] || ''}`
+        : 'バリデーションエラー'
       return NextResponse.json(
-        { error: 'バリデーションエラー', details: parsed.error.flatten() },
+        { error: friendly, details: flat },
         { status: 400 }
       )
     }
