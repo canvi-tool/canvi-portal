@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarClient } from '@/lib/integrations/google-calendar'
 import { getValidTokenForUser } from '@/lib/integrations/google-token'
+import { syncFromGoogleCalendarForStaff } from '@/lib/integrations/google-calendar-import'
+
+// Vercel Serverless Function 最大実行時間（全ユーザー同期用に長め確保）
+export const maxDuration = 300
+export const dynamic = 'force-dynamic'
 
 /**
  * Google Calendar → シフト 定期同期 Cron Job
  *
- * 10分ごとに実行し、Googleカレンダーの変更をシフトに反映:
- * 1. google_refresh_token を持つユーザーを取得
- * 2. 各ユーザーのプライマリカレンダーから今日・明日のイベントを取得
- * 3. 既存シフトと比較して作成・更新・削除を実行
+ * 1時間ごとに実行し、全ユーザーのGoogleカレンダー変更をCanviシフトに反映:
+ * 1. google_refresh_token を持つ全ユーザーを取得（ログイン状態不問）
+ * 2. Phase 1: syncFromGoogleCalendarForStaff で gcal_pending_events にPJ未割当取込
+ * 3. Phase 0: プライマリカレンダーから今日〜30日のイベントを取得して shifts を作成/更新/削除
+ *
+ * これにより、カレンダーページを開いていないユーザーのカレンダーも常に最新に保たれ、
+ * チーム全員で最新のシフトを共有できる。
  */
 export async function GET(request: NextRequest) {
   // Cron認証
@@ -89,6 +97,21 @@ export async function GET(request: NextRequest) {
         }
 
         userResult.staffId = staffRecord.id
+
+        // Phase 1: GCal → gcal_pending_events (PJ未割当取込)。
+        // シフトページを開いていないユーザーでも pending_events に入るようにする。
+        try {
+          await syncFromGoogleCalendarForStaff({
+            staffId: staffRecord.id as string,
+            userId: user.id,
+            timeMin,
+            timeMax,
+          })
+        } catch (e) {
+          userResult.errors.push(
+            `Phase1 import error: ${e instanceof Error ? e.message : String(e)}`,
+          )
+        }
 
         // 有効なGoogleトークンを取得
         const token = await getValidTokenForUser(user.id)
