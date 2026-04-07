@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema } from '@/lib/validations/shift'
 import { getProjectAccess, canEditShift } from '@/lib/auth/project-access'
-import { isOwner as isOwnerCheck, isAdmin as isAdminCheck } from '@/lib/auth/rbac'
 import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
 import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
 
@@ -23,19 +22,13 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('project_id')
     const status = searchParams.get('status')
 
-    const { user, allowedProjectIds, staffId: mySelfStaffId } = await getProjectAccess()
+    const { user, allowedProjectIds } = await getProjectAccess()
     if (!user) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
     // アサインなし → 空配列を返す
     if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
-      return NextResponse.json({ data: [], total: 0 })
-    }
-
-    // メンバー(staffロール)は自分のシフトのみ閲覧可
-    const isMemberOnly = !isOwnerCheck(user) && !isAdminCheck(user)
-    if (isMemberOnly && !mySelfStaffId) {
       return NextResponse.json({ data: [], total: 0 })
     }
 
@@ -51,11 +44,6 @@ export async function GET(request: NextRequest) {
     // オーナー以外はアサイン済みプロジェクトのシフトのみ
     if (allowedProjectIds) {
       query = query.in('project_id', allowedProjectIds)
-    }
-
-    // メンバーは自分のシフトのみ
-    if (isMemberOnly && mySelfStaffId) {
-      query = query.eq('staff_id', mySelfStaffId)
     }
 
     if (startDate) {
