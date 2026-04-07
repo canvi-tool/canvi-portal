@@ -64,21 +64,22 @@ export async function POST(request: NextRequest) {
       .in('status', ['active', 'confirmed'])
 
     const projectMap = new Map<string, string>()
-    const calendarDisplayNames = new Set<string>()
     let defaultProjectId = ''
     if (assignments) {
       for (const a of assignments) {
         const project = a.projects as unknown as { id: string; name: string; custom_fields?: Record<string, unknown> | null }
-        if (project?.name) projectMap.set(project.name.toLowerCase(), project.id)
+        if (project?.name) {
+          projectMap.set(project.name.toLowerCase(), project.id)
+          const nameStripped = project.name.toLowerCase().replace(/[（）()\s]/g, '')
+          if (nameStripped && nameStripped !== project.name.toLowerCase()) {
+            projectMap.set(nameStripped, project.id)
+          }
+        }
         const displayName = project?.custom_fields?.calendar_display_name as string | undefined
-        if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
+        if (displayName) projectMap.set(displayName.toLowerCase(), project.id)
       }
       if (assignments.length > 0) defaultProjectId = assignments[0].project_id
     }
-
-    // 全イベントを同期対象に（時刻指定のあるイベントのみ）
-    // calendarDisplayNames はプロジェクトマッチング用に保持
-    void calendarDisplayNames
     const shiftEvents = events.filter((event) => {
       // 終日イベントは除外
       if (!event.start.includes('T') || !event.end.includes('T')) return false

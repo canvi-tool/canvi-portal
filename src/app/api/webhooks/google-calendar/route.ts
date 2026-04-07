@@ -91,14 +91,19 @@ export async function POST(request: NextRequest) {
     }
 
     const projectMap = new Map<string, string>()
-    const calendarDisplayNames = new Set<string>()
     for (const a of assignments) {
       const project = a.projects as unknown as { id: string; name: string; custom_fields?: Record<string, unknown> | null }
       if (project?.name) {
         projectMap.set(project.name.toLowerCase(), project.id)
+        const nameStripped = project.name.toLowerCase().replace(/[（）()\s]/g, '')
+        if (nameStripped && nameStripped !== project.name.toLowerCase()) {
+          projectMap.set(nameStripped, project.id)
+        }
       }
       const displayName = project?.custom_fields?.calendar_display_name as string | undefined
-      if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
+      if (displayName) {
+        projectMap.set(displayName.toLowerCase(), project.id)
+      }
     }
     const defaultProjectId = assignments[0].project_id
 
@@ -122,9 +127,6 @@ export async function POST(request: NextRequest) {
       if (summary.includes('シフト')) return true
       for (const [projectName] of projectMap) {
         if (summary.includes(projectName)) return true
-      }
-      for (const displayName of calendarDisplayNames) {
-        if (summary.includes(displayName)) return true
       }
       return false
     })

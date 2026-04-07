@@ -146,14 +146,21 @@ export async function GET(request: NextRequest) {
 
         // プロジェクト名→IDマッピングを構築
         const projectMap = new Map<string, string>()
-        const calendarDisplayNames = new Set<string>()
         for (const a of assignments) {
           const project = a.projects as unknown as { id: string; name: string; custom_fields?: Record<string, unknown> | null }
           if (project?.name) {
             projectMap.set(project.name.toLowerCase(), project.id)
+            // 全角括弧を除いたエイリアスも登録 (例: "レオン矯正（IS）" → "レオン矯正is")
+            const nameStripped = project.name.toLowerCase().replace(/[（）()\s]/g, '')
+            if (nameStripped && nameStripped !== project.name.toLowerCase()) {
+              projectMap.set(nameStripped, project.id)
+            }
           }
+          // custom_fields.calendar_display_name もマッチ対象に追加
           const displayName = project?.custom_fields?.calendar_display_name as string | undefined
-          if (displayName) calendarDisplayNames.add(displayName.toLowerCase())
+          if (displayName) {
+            projectMap.set(displayName.toLowerCase(), project.id)
+          }
         }
         void assignments
 
@@ -161,7 +168,6 @@ export async function GET(request: NextRequest) {
         const events = await client.getEvents('primary', timeMin, timeMax)
 
         // 全イベントを同期対象に（時刻指定のあるイベントのみ、終日除外）
-        void calendarDisplayNames
         const shiftEvents = events.filter((event) => {
           if (!event.start.includes('T') || !event.end.includes('T')) {
             return false
@@ -403,18 +409,20 @@ function matchProjectFromSummary(
 ): string | null {
   if (!summary) return null
   const lowerSummary = summary.toLowerCase()
+  const strippedSummary = lowerSummary.replace(/[（）()\s【】\[\]]/g, '')
 
-  // "[プロジェクト名]" 形式から抽出
-  const bracketMatch = summary.match(/\[(.+?)\]/)
+  // "[プロジェクト名]" / "【プロジェクト名】" 形式から抽出
+  const bracketMatch = summary.match(/[\[【](.+?)[\]】]/)
   if (bracketMatch) {
     const projectName = bracketMatch[1].toLowerCase()
     const projectId = projectMap.get(projectName)
     if (projectId) return projectId
   }
 
-  // プロジェクト名が含まれているかチェック
-  for (const [projectName, projectId] of projectMap) {
-    if (lowerSummary.includes(projectName)) {
+  // 長いPJ名から順にマッチ（短名が先にヒットする誤マッチ防止）
+  const entries = Array.from(projectMap.entries()).sort((a, b) => b[0].length - a[0].length)
+  for (const [projectName, projectId] of entries) {
+    if (lowerSummary.includes(projectName) || strippedSummary.includes(projectName)) {
       return projectId
     }
   }
