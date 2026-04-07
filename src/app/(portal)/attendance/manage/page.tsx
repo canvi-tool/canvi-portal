@@ -40,6 +40,13 @@ function formatTime(dateStr: string | null | undefined) {
   })
 }
 
+/** 丸め適用時は「丸め時刻（生時刻）」形式で表示 */
+function formatTimeWithRaw(rounded: string | null | undefined, raw: string | null | undefined) {
+  const roundedStr = formatTime(rounded || raw)
+  if (!rounded || !raw || rounded === raw) return roundedStr
+  return `${roundedStr}（${formatTime(raw)}）`
+}
+
 function formatMinutes(minutes: number | null | undefined) {
   if (minutes == null) return '-'
   const h = Math.floor(minutes / 60)
@@ -304,8 +311,8 @@ export default function AttendanceManagePage() {
                         <TableCell>{r.date}</TableCell>
                         <TableCell className="font-medium">{staffName}</TableCell>
                         <TableCell>{projectLabel}</TableCell>
-                        <TableCell>{formatTime(r.clock_in)}</TableCell>
-                        <TableCell>{formatTime(r.clock_out)}</TableCell>
+                        <TableCell>{formatTimeWithRaw(rec.clock_in_rounded, r.clock_in)}</TableCell>
+                        <TableCell>{formatTimeWithRaw(rec.clock_out_rounded, r.clock_out)}</TableCell>
                         <TableCell>{r.break_minutes ? `${r.break_minutes}分` : '-'}</TableCell>
                         <TableCell>{formatMinutes(r.work_minutes)}</TableCell>
                         <TableCell>{formatMinutes(r.overtime_minutes)}</TableCell>

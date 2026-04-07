@@ -8,7 +8,7 @@
  */
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
-const DEFAULT_TOLERANCE_MINUTES = 10
+const DEFAULT_TOLERANCE_MINUTES = 15
 
 /**
  * 日付(YYYY-MM-DD) と時刻(HH:MM or HH:MM:SS) から JST 上の絶対時刻を返す。

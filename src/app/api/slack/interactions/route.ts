@@ -1504,7 +1504,7 @@ async function handleDiffRound(payload: Record<string, unknown>) {
   // 対象レコード
   const { data: rec } = await supabase
     .from('attendance_records')
-    .select('id, project_id, staff_id, user_id, break_minutes, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name)')
+    .select('id, project_id, staff_id, user_id, break_minutes, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name, employment_type)')
     .eq('id', attendanceRecordId)
     .is('deleted_at', null)
     .single()
@@ -1539,8 +1539,13 @@ async function handleDiffRound(payload: Record<string, unknown>) {
   const clockOutIso = new Date(`${shift.shift_date}T${shift.end_time.slice(0, 5)}:00+09:00`).toISOString()
   const totalMs = new Date(clockOutIso).getTime() - new Date(clockInIso).getTime()
   let workMinutes = Math.max(0, Math.floor(totalMs / 60000))
-  let breakMinutes: number = rec.break_minutes ?? 0
-  if (workMinutes >= 300) {
+  // 雇用区分による休憩時間の自動設定
+  // - 業務委託(freelance)・役員(executive): 休憩なし
+  // - 雇用スタッフ(full_time/contract/part_time等): 5時間以上勤務で60分休憩
+  const employmentType = (rec.staff as { employment_type?: string } | null)?.employment_type || ''
+  const isNoBreak = employmentType === 'freelance' || employmentType === 'executive'
+  let breakMinutes: number = 0
+  if (!isNoBreak && workMinutes >= 300) {
     breakMinutes = 60
   }
   workMinutes = Math.max(0, workMinutes - breakMinutes)
