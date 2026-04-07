@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, isOwner, hasRole, type UserWithRole } from './rbac'
+import { getCurrentUser, isOwner, isAdmin, hasRole, type UserWithRole } from './rbac'
 
 /**
  * オーナー以外のユーザーがアクセス可能なプロジェクトIDリストを取得する。
@@ -102,4 +102,67 @@ export async function canManageProjectShifts(projectId: string): Promise<{
     .limit(1)
 
   return { user, canManage: (data && data.length > 0) || false }
+}
+
+/**
+ * カレンダー/シフト権限ポリシー
+ *
+ * 前提: 自分のカレンダー（自分が staff_id のシフト）は誰でも編集可能
+ *
+ * メンバー (staff):
+ *   - 閲覧: 自身のPJの全員のシフト
+ *   - 編集: 自分のシフトのみ
+ * 管理者 (admin):
+ *   - 閲覧・編集: 自身のPJの全員のシフト
+ * オーナー (owner):
+ *   - 閲覧・編集: 全員
+ */
+
+/**
+ * 特定シフトを閲覧できるかを判定する
+ */
+export async function canViewShift(shift: {
+  staff_id?: string | null
+  project_id?: string | null
+}): Promise<{ user: UserWithRole | null; canView: boolean }> {
+  const { user, allowedProjectIds, staffId } = await getProjectAccess()
+  if (!user) return { user: null, canView: false }
+
+  // オーナー: 全閲覧可
+  if (allowedProjectIds === null) return { user, canView: true }
+
+  // 自分のシフトは常に閲覧可
+  if (staffId && shift.staff_id === staffId) return { user, canView: true }
+
+  // 自身のPJに属するシフトは閲覧可
+  if (shift.project_id && allowedProjectIds.includes(shift.project_id)) {
+    return { user, canView: true }
+  }
+
+  return { user, canView: false }
+}
+
+/**
+ * 特定シフトを編集（更新・削除）できるかを判定する
+ */
+export async function canEditShift(shift: {
+  staff_id?: string | null
+  project_id?: string | null
+}): Promise<{ user: UserWithRole | null; canEdit: boolean }> {
+  const { user, allowedProjectIds, staffId } = await getProjectAccess()
+  if (!user) return { user: null, canEdit: false }
+
+  // オーナー: 全編集可
+  if (isOwner(user)) return { user, canEdit: true }
+
+  // 自分のシフトは常に編集可
+  if (staffId && shift.staff_id === staffId) return { user, canEdit: true }
+
+  // 管理者: 自身のPJ内のシフトは編集可
+  if (isAdmin(user) && shift.project_id && allowedProjectIds?.includes(shift.project_id)) {
+    return { user, canEdit: true }
+  }
+
+  // メンバー: 他人のシフトは編集不可
+  return { user, canEdit: false }
 }

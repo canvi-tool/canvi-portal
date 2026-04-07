@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema } from '@/lib/validations/shift'
-import { getProjectAccess } from '@/lib/auth/project-access'
+import { getProjectAccess, canEditShift } from '@/lib/auth/project-access'
 import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
 import { sendProjectNotificationIfEnabled } from '@/lib/integrations/slack'
 
@@ -114,6 +114,18 @@ export async function POST(request: NextRequest) {
     // プロジェクトアクセス権チェック
     if (allowedProjectIds !== null && !allowedProjectIds.includes(parsed.data.project_id)) {
       return NextResponse.json({ error: 'このプロジェクトへのアクセス権がありません' }, { status: 403 })
+    }
+
+    // 作成対象シフトの編集権限チェック（メンバーは自分以外のシフトを作成できない）
+    const { canEdit } = await canEditShift({
+      staff_id: parsed.data.staff_id,
+      project_id: parsed.data.project_id,
+    })
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: '他のスタッフのシフトを作成する権限がありません' },
+        { status: 403 }
+      )
     }
 
     const supabase = await createServerSupabaseClient()

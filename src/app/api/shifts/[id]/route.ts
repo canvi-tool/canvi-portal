@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shiftFormSchema, shiftDragUpdateSchema, shiftInlineUpdateSchema } from '@/lib/validations/shift'
 import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 import { getCurrentUser } from '@/lib/auth/rbac'
-import { canManageProjectShifts } from '@/lib/auth/project-access'
+import { canEditShift, canViewShift } from '@/lib/auth/project-access'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -30,6 +30,15 @@ export async function GET(
         return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // 閲覧権限チェック
+    const { canView } = await canViewShift({
+      staff_id: data.staff_id,
+      project_id: data.project_id,
+    })
+    if (!canView) {
+      return NextResponse.json({ error: 'このシフトを閲覧する権限がありません' }, { status: 403 })
     }
 
     // 承認履歴を取得
@@ -90,10 +99,10 @@ export async function PUT(
 
     const supabase = await createServerSupabaseClient()
 
-    // ステータスチェック（カレンダー同期判定のため google_calendar_event_id も取得）
+    // 現在のシフトを取得（権限チェック + カレンダー同期判定）
     const { data: existing } = await supabase
       .from('shifts')
-      .select('status, google_calendar_event_id')
+      .select('status, google_calendar_event_id, staff_id, project_id')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -102,22 +111,19 @@ export async function PUT(
       return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
     }
 
-    // APPROVED済みシフトはプロジェクトにアサインされた管理者/オーナーのみ編集可能
-    if (existing.status === 'APPROVED') {
-      // project_idを取得
-      const { data: shiftForAuth } = await supabase
-        .from('shifts')
-        .select('project_id')
-        .eq('id', id)
-        .single()
-
-      const { canManage } = await canManageProjectShifts(shiftForAuth?.project_id || '')
-      if (!canManage) {
-        return NextResponse.json(
-          { error: 'このプロジェクトの承認済みシフトを編集する権限がありません。' },
-          { status: 403 }
-        )
-      }
+    // 編集権限チェック
+    //   - オーナー: 全編集可
+    //   - 管理者: 自PJ内シフトのみ
+    //   - メンバー: 自分のシフトのみ
+    const { canEdit } = await canEditShift({
+      staff_id: existing.staff_id,
+      project_id: existing.project_id,
+    })
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'このシフトを編集する権限がありません' },
+        { status: 403 }
+      )
     }
 
     // 更新データ構築
@@ -199,6 +205,27 @@ export async function DELETE(
     }
 
     const supabase = await createServerSupabaseClient()
+
+    // 編集（削除）権限チェック
+    const { data: target } = await supabase
+      .from('shifts')
+      .select('staff_id, project_id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+    if (!target) {
+      return NextResponse.json({ error: 'シフトが見つかりません' }, { status: 404 })
+    }
+    const { canEdit } = await canEditShift({
+      staff_id: target.staff_id,
+      project_id: target.project_id,
+    })
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'このシフトを削除する権限がありません' },
+        { status: 403 }
+      )
+    }
 
     // Googleカレンダーからイベント削除（論理削除前に実行）
     try {
