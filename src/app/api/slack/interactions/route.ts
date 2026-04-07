@@ -1425,20 +1425,33 @@ async function checkDiffPjPermission(
   projectId: string | null
 ): Promise<boolean> {
   if (!projectId) return true
-  const supabase = getSupabase()
-  const { data: ownerCheck } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = getSupabase() as any
+  // owner / admin は全PJに対して許可
+  const { data: roleRows } = await supabase
     .from('user_roles')
     .select('role:roles(name)')
     .eq('user_id', approverUserId)
-  const isOwnerRole = (ownerCheck as { role: { name: string } | null }[] | null)?.some(
-    (ur) => ur.role?.name === 'owner'
-  )
-  if (isOwnerRole) return true
+  const roleNames = (roleRows as { role: { name: string } | null }[] | null)
+    ?.map((ur) => ur.role?.name)
+    .filter(Boolean) as string[] | undefined
+  if (roleNames?.includes('owner') || roleNames?.includes('admin')) {
+    return true
+  }
+  // それ以外は、該当PJにアサインされているスタッフのみ許可
+  // project_members テーブルは存在せず、project_assignments.staff_id で判定する必要がある
+  const { data: staffRow } = await supabase
+    .from('staff')
+    .select('id')
+    .eq('user_id', approverUserId)
+    .maybeSingle()
+  if (!staffRow?.id) return false
   const { data: assigned } = await supabase
-    .from('project_members')
+    .from('project_assignments')
     .select('id')
     .eq('project_id', projectId)
-    .eq('user_id', approverUserId)
+    .eq('staff_id', staffRow.id)
+    .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
   return !!assigned

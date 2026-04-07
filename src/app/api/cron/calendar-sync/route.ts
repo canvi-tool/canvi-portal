@@ -126,12 +126,14 @@ export async function GET(request: NextRequest) {
           token.refreshToken || undefined
         )
 
-        // スタッフのアクティブなプロジェクトアサインメントを取得
+        // スタッフの有効なプロジェクトアサインメントを取得
+        // status は 'in_progress' 等が実運用で使われているため、deleted_at=null のみで絞る
         const { data: assignments } = await admin
           .from('project_assignments')
-          .select('project_id, projects!inner(id, name, custom_fields)')
+          .select('project_id, status, projects!inner(id, name, custom_fields)')
           .eq('staff_id', staffRecord.id)
-          .in('status', ['active', 'confirmed'])
+          .is('deleted_at', null)
+          .not('status', 'eq', 'completed')
 
         if (!assignments || assignments.length === 0) {
           userResult.errors.push('No active project assignments')
