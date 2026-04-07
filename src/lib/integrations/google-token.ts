@@ -1,10 +1,19 @@
-import { google } from 'googleapis'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface TokenInfo {
   accessToken: string
   refreshToken: string | null
   expiresAt: string | null
+}
+
+/**
+ * 環境変数から値を読み取り、前後の空白/引用符/改行を除去する。
+ * Vercel Dashboard に値を貼り付けた際に誤って末尾改行が入ると
+ * Google から invalid_client が返るため防御的に trim する。
+ */
+function cleanEnv(value: string | undefined): string {
+  if (!value) return ''
+  return value.trim().replace(/^['"]|['"]$/g, '').trim()
 }
 
 export async function getValidTokenForUser(userId: string): Promise<TokenInfo | null> {
@@ -42,36 +51,67 @@ async function refreshAccessToken(
   userId: string,
   refreshToken: string
 ): Promise<TokenInfo | null> {
-  try {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
+  const clientId = cleanEnv(process.env.GOOGLE_CLIENT_ID)
+  const clientSecret = cleanEnv(process.env.GOOGLE_CLIENT_SECRET)
+  if (!clientId || !clientSecret) {
+    console.error(
+      '[refreshAccessToken] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET が未設定です',
     )
+    return null
+  }
+  try {
+    // googleapis の refreshAccessToken は内部エラーを握りつぶすことがあるため
+    // 直接 oauth2.googleapis.com/token を叩いてエラー内容を取得する
+    const body = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken.trim(),
+      grant_type: 'refresh_token',
+    })
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    const j = (await res.json()) as {
+      access_token?: string
+      refresh_token?: string
+      expires_in?: number
+      error?: string
+      error_description?: string
+    }
+    if (!res.ok || !j.access_token) {
+      console.error(
+        '[refreshAccessToken] Google refresh failed for',
+        userId,
+        j.error,
+        j.error_description,
+      )
+      return null
+    }
 
-    oauth2Client.setCredentials({ refresh_token: refreshToken })
-    const { credentials } = await oauth2Client.refreshAccessToken()
+    const expiresAt = new Date(
+      Date.now() + (j.expires_in ?? 3600) * 1000,
+    ).toISOString()
 
-    if (!credentials.access_token) return null
-
-    const expiresAt = credentials.expiry_date
-      ? new Date(credentials.expiry_date).toISOString()
-      : new Date(Date.now() + 3600 * 1000).toISOString()
-
-    // DB更新
     const admin = createAdminClient()
-    await admin.from('users').update({
-      google_access_token: credentials.access_token,
-      google_refresh_token: credentials.refresh_token || refreshToken,
-      google_token_expires_at: expiresAt,
-    }).eq('id', userId)
+    await admin
+      .from('users')
+      .update({
+        google_access_token: j.access_token,
+        google_refresh_token: j.refresh_token || refreshToken,
+        google_token_expires_at: expiresAt,
+      })
+      .eq('id', userId)
 
     return {
-      accessToken: credentials.access_token,
-      refreshToken: credentials.refresh_token || refreshToken,
+      accessToken: j.access_token,
+      refreshToken: j.refresh_token || refreshToken,
       expiresAt,
     }
   } catch (error) {
-    console.error('Google token refresh failed for user:', userId, error)
+    console.error('[refreshAccessToken] unexpected error for', userId, error)
     return null
   }
 }
+

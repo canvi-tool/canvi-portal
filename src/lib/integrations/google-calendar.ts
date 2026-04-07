@@ -1,6 +1,16 @@
 import { google, calendar_v3 } from 'googleapis'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+/**
+ * 環境変数から値を読み、誤って混入した空白/引用符/改行を除去する。
+ * Vercel Dashboard への貼付時に末尾改行が入ると Google が invalid_client を返す。
+ */
+function cleanGoogleEnv(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const cleaned = value.trim().replace(/^['"]|['"]$/g, '').trim()
+  return cleaned || undefined
+}
+
 interface CalendarInfo {
   id: string
   summary: string
@@ -33,9 +43,9 @@ export class GoogleCalendarClient {
 
   constructor(accessToken: string, refreshToken?: string) {
     this.oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_ID),
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_SECRET),
+      cleanGoogleEnv(process.env.GOOGLE_REDIRECT_URI)
     )
 
     this.oauth2Client.setCredentials({
@@ -564,9 +574,9 @@ export class GoogleCalendarClient {
 
   static async getAuthUrl(): Promise<string> {
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_ID),
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_SECRET),
+      cleanGoogleEnv(process.env.GOOGLE_REDIRECT_URI)
     )
 
     return oauth2Client.generateAuthUrl({
@@ -581,9 +591,9 @@ export class GoogleCalendarClient {
 
   static async getTokensFromCode(code: string) {
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_ID),
+      cleanGoogleEnv(process.env.GOOGLE_CLIENT_SECRET),
+      cleanGoogleEnv(process.env.GOOGLE_REDIRECT_URI)
     )
 
     const { tokens } = await oauth2Client.getToken(code)

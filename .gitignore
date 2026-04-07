@@ -42,3 +42,4 @@ next-env.d.ts
 .env.vercel
 supabase/.temp/
 .mcp.json
+.env.cron-sync
