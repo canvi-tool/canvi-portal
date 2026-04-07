@@ -72,6 +72,8 @@ export async function GET(request: NextRequest) {
         .is('deleted_at', null)
         .in('status', ['APPROVED', 'SUBMITTED'])
         .in('project_id', projectIds)
+        // Canviで登録されたシフトのみチェック (Googleカレンダー取込分は除外)
+        .is('google_calendar_event_id', null)
 
       if (todayShifts && todayShifts.length > 0) {
         // 打刻済みのuser_idを取得
