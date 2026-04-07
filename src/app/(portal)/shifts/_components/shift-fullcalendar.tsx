@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { getStaffColor, getStaffColorTransparent, STATUS_COLORS, SHIFT_TYPE_COLORS } from './shift-colors'
 import { ShiftContextMenu, type ContextMenuAction } from './shift-context-menu'
 import './fullcalendar-overrides.css'
+import { isJpHoliday } from '@/lib/jp-holidays'
 
 type ShiftStatus = 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION'
 
@@ -433,7 +434,21 @@ export function ShiftFullCalendar({
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
           locale="ja"
-          firstDay={0}
+          firstDay={1}
+          dayHeaderClassNames={(arg) => {
+            const day = arg.date.getDay()
+            const ymd = formatDate(arg.date)
+            if (day === 0 || isJpHoliday(ymd)) return ['fc-day-jp-holiday']
+            if (day === 6) return ['fc-day-jp-saturday']
+            return []
+          }}
+          dayCellClassNames={(arg) => {
+            const day = arg.date.getDay()
+            const ymd = formatDate(arg.date)
+            if (day === 0 || isJpHoliday(ymd)) return ['fc-day-jp-holiday']
+            if (day === 6) return ['fc-day-jp-saturday']
+            return []
+          }}
           headerToolbar={false}
           height="auto"
           slotMinTime="07:00:00"

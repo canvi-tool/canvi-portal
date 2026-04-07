@@ -196,6 +196,12 @@
   margin: 4px 0;
 }
 
+/* 曜日カラー: 土→青、日/祝→赤 */
+.fc .fc-col-header-cell.fc-day-jp-saturday { color: #2563eb !important; }
+.fc .fc-col-header-cell.fc-day-jp-holiday { color: #dc2626 !important; }
+.fc .fc-daygrid-day.fc-day-jp-saturday .fc-daygrid-day-number { color: #2563eb; }
+.fc .fc-daygrid-day.fc-day-jp-holiday .fc-daygrid-day-number { color: #dc2626; }
+
 /* GCal pending (PJ未割当) イベント: 破線枠 + 薄グレー */
 .fc-event.gcal-pending-event {
   border-style: dashed !important;
