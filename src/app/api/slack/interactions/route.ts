@@ -1582,6 +1582,15 @@ async function handleDiffRound(payload: Record<string, unknown>) {
     }
   }
 
+  // 元メッセージのボタンを非活性化（確定済み表示）
+  await disableSlackMessageButtons(
+    channelId,
+    messageTs,
+    (message as Record<string, unknown> | undefined)?.blocks,
+    `${staffName} を定時で丸めました`,
+    `:white_check_mark: 定時で丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  )
+
   return new Response('', { status: 200 })
 }
 
@@ -1670,6 +1679,15 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
     }
   }
 
+  // 元メッセージのボタンを非活性化（依頼済み表示）
+  await disableSlackMessageButtons(
+    channelId,
+    messageTs,
+    (message as Record<string, unknown> | undefined)?.blocks,
+    `${staffName} に修正依頼を送信しました`,
+    `:pencil2: 修正依頼済み by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  )
+
   return new Response('', { status: 200 })
 }
 
@@ -1736,6 +1754,8 @@ async function openDiffMemberFixModal(payload: Record<string, unknown>) {
           attendanceRecordId,
           threadTs,
           channelId: replyChannel,
+          buttonChannelId: channelId,
+          buttonMessageTs: messageTs,
         }),
         title: { type: 'plain_text', text: '打刻修正入力' },
         submit: { type: 'plain_text', text: '送信' },
@@ -1839,10 +1859,12 @@ async function sendDiffEphemeral(channelId: string | undefined, slackUserId: str
 async function handleDiffMemberFixSubmit(payload: Record<string, unknown>) {
   const view = payload.view as Record<string, unknown>
   const metadata = JSON.parse((view?.private_metadata as string) || '{}')
-  const { attendanceRecordId, threadTs, channelId } = metadata as {
+  const { attendanceRecordId, threadTs, channelId, buttonChannelId, buttonMessageTs } = metadata as {
     attendanceRecordId: string
     threadTs: string
     channelId: string
+    buttonChannelId?: string
+    buttonMessageTs?: string
   }
   const user = payload.user as Record<string, string>
   const slackUserId = user?.id
@@ -1976,7 +1998,60 @@ async function handleDiffMemberFixSubmit(payload: Record<string, unknown>) {
     console.error('diff_member_fix_modal notify error:', e)
   }
 
+  // 「打刻修正を入力する」ボタンを非活性化
+  if (buttonChannelId && buttonMessageTs) {
+    try {
+      await updateSlackMessageDirect(
+        buttonChannelId,
+        buttonMessageTs,
+        `:white_check_mark: 打刻修正を申請しました by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+      )
+    } catch (e) {
+      console.error('diff_member_fix button disable error:', e)
+    }
+  }
+
   return new Response('', { status: 200 })
+}
+
+/**
+ * 元のSlackメッセージからactionsブロックを除去し、完了コンテキストを追記する。
+ * ボタンを非活性化（確定済み表示）するために使う。
+ */
+async function disableSlackMessageButtons(
+  channelId: string | undefined,
+  messageTs: string | undefined,
+  originalBlocks: unknown,
+  fallbackText: string,
+  confirmationText: string,
+) {
+  if (!channelId || !messageTs) return
+  const botToken = process.env.SLACK_BOT_TOKEN
+  if (!botToken) return
+  try {
+    const blocks = Array.isArray(originalBlocks)
+      ? (originalBlocks as Array<Record<string, unknown>>).filter((b) => b?.type !== 'actions')
+      : []
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: confirmationText }],
+    })
+    await fetch('https://slack.com/api/chat.update', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        ts: messageTs,
+        text: fallbackText,
+        blocks,
+      }),
+    })
+  } catch (e) {
+    console.error('disableSlackMessageButtons error:', e)
+  }
 }
 
 // Helper to update a Slack message using channel/ts directly
