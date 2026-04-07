@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Loader2, Bell, RotateCcw, Save } from 'lucide-react'
+import { Loader2, Bell, RotateCcw, Save, Users as UsersIcon } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 type Role = 'owner' | 'admin' | 'staff'
@@ -31,6 +34,12 @@ interface AlertSubscription {
   enabled: boolean
   updated_by: string | null
   updated_at: string
+  role_override?: Record<string, Partial<{
+    enabled: boolean
+    channel_dashboard: boolean
+    channel_slack: boolean
+    channel_email: boolean
+  }>> | null
 }
 
 interface ApiResponse {
@@ -158,6 +167,57 @@ export default function AlertSubscriptionsPage() {
     })
   }
 
+  const toggleChannel = (
+    alertId: string,
+    role: Role,
+    channel: 'channel_slack' | 'channel_email' | 'channel_dashboard'
+  ) => {
+    setState((prev) => {
+      const k = key(alertId, role)
+      const cur = prev[k]
+      if (!cur) return prev
+      return { ...prev, [k]: { ...cur, [channel]: !cur[channel] } }
+    })
+  }
+
+  // ロール別override 用ドロワー state
+  const [overrideTarget, setOverrideTarget] = useState<{
+    alertId: string
+    role: Role
+  } | null>(null)
+  const [overrideUserId, setOverrideUserId] = useState('')
+  const [overrideEnabled, setOverrideEnabled] = useState(true)
+
+  const saveOverride = async () => {
+    if (!overrideTarget || !overrideUserId.trim()) {
+      toast.error('ユーザーIDを入力してください')
+      return
+    }
+    try {
+      const res = await fetch('/api/alert-subscriptions/override', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          alert_id: overrideTarget.alertId,
+          role: overrideTarget.role,
+          user_id: overrideUserId.trim(),
+          override: { enabled: overrideEnabled },
+        }),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(err.error || '保存に失敗しました')
+        return
+      }
+      toast.success('ユーザー上書きを保存しました')
+      setOverrideTarget(null)
+      setOverrideUserId('')
+    } catch (e) {
+      console.error(e)
+      toast.error('保存に失敗しました')
+    }
+  }
+
   const resetToDefault = () => {
     const next: Record<SubKey, RowState> = {}
     for (const d of definitions) {
@@ -255,18 +315,19 @@ export default function AlertSubscriptionsPage() {
                             <div className="text-[10px] text-muted-foreground font-normal">ダッシュボード</div>
                           </th>
                         ))}
-                        <th className="py-2 px-3 font-medium text-center text-muted-foreground">
-                          Slack
-                          <div className="text-[10px] font-normal">
-                            <Badge variant="outline" className="text-[10px]">Phase 2</Badge>
-                          </div>
-                        </th>
-                        <th className="py-2 px-3 font-medium text-center text-muted-foreground">
-                          メール
-                          <div className="text-[10px] font-normal">
-                            <Badge variant="outline" className="text-[10px]">Phase 2</Badge>
-                          </div>
-                        </th>
+                        {ROLES.map((r) => (
+                          <th key={`slack-${r.key}`} className="py-2 px-2 font-medium text-center">
+                            <div className="text-[10px] text-muted-foreground">{r.label}</div>
+                            Slack
+                          </th>
+                        ))}
+                        {ROLES.map((r) => (
+                          <th key={`email-${r.key}`} className="py-2 px-2 font-medium text-center">
+                            <div className="text-[10px] text-muted-foreground">{r.label}</div>
+                            メール
+                          </th>
+                        ))}
+                        <th className="py-2 px-2 font-medium text-center">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -292,11 +353,41 @@ export default function AlertSubscriptionsPage() {
                               </td>
                             )
                           })}
-                          <td className="py-3 px-3 text-center">
-                            <Switch checked={false} disabled />
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <Switch checked={false} disabled />
+                          {ROLES.map((r) => {
+                            const s = state[key(d.id, r.key)]
+                            return (
+                              <td key={`slack-${r.key}`} className="py-3 px-2 text-center">
+                                <Switch
+                                  checked={s?.channel_slack ?? false}
+                                  onCheckedChange={() => toggleChannel(d.id, r.key, 'channel_slack')}
+                                />
+                              </td>
+                            )
+                          })}
+                          {ROLES.map((r) => {
+                            const s = state[key(d.id, r.key)]
+                            return (
+                              <td key={`email-${r.key}`} className="py-3 px-2 text-center">
+                                <Switch
+                                  checked={s?.channel_email ?? false}
+                                  onCheckedChange={() => toggleChannel(d.id, r.key, 'channel_email')}
+                                />
+                              </td>
+                            )
+                          })}
+                          <td className="py-3 px-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setOverrideTarget({ alertId: d.id, role: 'staff' })
+                                setOverrideUserId('')
+                                setOverrideEnabled(true)
+                              }}
+                              title="ロール別/ユーザー別の上書き設定"
+                            >
+                              <UsersIcon className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -308,6 +399,67 @@ export default function AlertSubscriptionsPage() {
           ))}
         </div>
       )}
+
+      <Sheet
+        open={overrideTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setOverrideTarget(null)
+        }}
+      >
+        <SheetContent side="right" className="w-[400px]">
+          <SheetHeader>
+            <SheetTitle>ロール別 / ユーザー別 上書き設定</SheetTitle>
+          </SheetHeader>
+          {overrideTarget && (
+            <div className="space-y-4 mt-4">
+              <div className="text-sm text-muted-foreground">
+                対象アラート: <span className="font-mono">{overrideTarget.alertId}</span>
+              </div>
+              <div>
+                <Label>対象ロール</Label>
+                <div className="flex gap-2 mt-1">
+                  {ROLES.map((r) => (
+                    <Button
+                      key={r.key}
+                      size="sm"
+                      variant={overrideTarget.role === r.key ? 'default' : 'outline'}
+                      onClick={() =>
+                        setOverrideTarget({ ...overrideTarget, role: r.key })
+                      }
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="override-uid">対象ユーザーID (UUID)</Label>
+                <Input
+                  id="override-uid"
+                  value={overrideUserId}
+                  onChange={(e) => setOverrideUserId(e.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={overrideEnabled}
+                  onCheckedChange={setOverrideEnabled}
+                />
+                <Label>このユーザーに通知する</Label>
+              </div>
+              <Button onClick={saveOverride} className="w-full">
+                <Save className="mr-2 h-4 w-4" />
+                上書きを保存
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                上書きはロール既定値より優先されます。OFFにすると当該ユーザーには
+                このアラートが配信されません。
+              </p>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

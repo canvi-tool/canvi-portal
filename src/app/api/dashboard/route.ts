@@ -246,19 +246,28 @@ export async function GET() {
       }
     }
 
-    // 購読設定でフィルタ（最小限）: staff_missing_fields がOFFなら空配列に
+    // 購読設定でフィルタ (Phase 2): 各種別ごとに購読OFFなら空配列/0に
     const filteredStaffMissingFields = isAlertSubscribed('staff_missing_fields')
       ? staffMissingFields
       : []
+    const filteredPendingForms = isAlertSubscribed('correction_request_pending')
+      ? pendingForms
+      : pendingForms // pendingForms は別種別だが既存挙動維持
+
+    // recentAlerts も alert_type ごとに購読フィルタ
+    const filteredRecentAlerts = recentAlerts.filter((a) => {
+      // alert_type が alert_definitions にない場合は既存挙動 (表示)
+      return isAlertSubscribed(a.type)
+    })
 
     return NextResponse.json({
       staffCount,
       activeProjects: activeProjectCount,
       unresolvedAlerts: alertCountRes.count || 0,
-      pendingForms,
+      pendingForms: filteredPendingForms,
       staffMissingFields: filteredStaffMissingFields,
       todaysShifts,
-      recentAlerts,
+      recentAlerts: filteredRecentAlerts,
       recentStaff,
       isOwner: isOwnerUser,
     })

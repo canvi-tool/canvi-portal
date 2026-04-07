@@ -60,6 +60,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'All staff have submitted shifts', alerted: 0 })
     }
 
+    // Phase 2: 購読フィルタ - shift_unsubmitted が全ロールでOFFならスキップ
+    let dashboardEnabled = true
+    let slackEnabled = true
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subsRes = await (supabase as any)
+        .from('alert_subscriptions')
+        .select('role, enabled, channel_dashboard, channel_slack')
+        .eq('alert_id', 'shift_unsubmitted')
+      const subs = (subsRes?.data || []) as Array<{
+        role: string
+        enabled: boolean
+        channel_dashboard: boolean
+        channel_slack: boolean
+      }>
+      if (subs.length > 0) {
+        dashboardEnabled = subs.some((s) => s.enabled && s.channel_dashboard)
+        slackEnabled = subs.some((s) => s.enabled && s.channel_slack)
+      }
+    } catch (e) {
+      console.error('[shift-reminder] subscription lookup failed:', e)
+      // 失敗時は既存挙動維持 (両方ON)
+    }
+
     // アラート作成（重複防止: 同月・同タイプのアラートが既にあればスキップ）
     const alertMonth = `${nextYear}-${String(nextMonthNorm).padStart(2, '0')}`
     let alertedCount = 0
@@ -78,6 +102,11 @@ export async function GET(request: NextRequest) {
 
       if (existing && existing.length > 0) continue
 
+      // Phase 2: ダッシュボード購読OFFなら in-app insert スキップ
+      if (!dashboardEnabled) {
+        continue
+      }
+
       // アラート作成
       await supabase.from('alerts').insert({
         type: 'unreported_work',
@@ -93,11 +122,12 @@ export async function GET(request: NextRequest) {
 
     // Slack通知: 未提出スタッフを所属PJごとにまとめて通知
     // gatedキー: report_overdue（期限超過系トグル）を流用
+    // Phase 2: shift_unsubmitted の Slack 購読がOFFならスキップ
     const deadline = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-25`
     let slackSent = 0
     try {
       const unreportedIds = unreported.map(s => s.id)
-      if (unreportedIds.length > 0) {
+      if (slackEnabled && unreportedIds.length > 0) {
         const { data: assignments } = await supabase
           .from('project_assignments')
           .select('staff_id, project:project_id(id, name, slack_channel_id)')
