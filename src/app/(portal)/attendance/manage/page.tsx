@@ -47,6 +47,70 @@ function formatTimeWithRaw(rounded: string | null | undefined, raw: string | nul
   return `${roundedStr}（${formatTime(raw)}）`
 }
 
+const ROUND_TOLERANCE_MIN = 15
+
+/** date(YYYY-MM-DD)+time(HH:MM[:SS]) の JST 絶対時刻を ISO で返す */
+function jstDateTimeToIso(date: string, hms: string): string {
+  return new Date(`${date}T${hms.slice(0, 5)}:00+09:00`).toISOString()
+}
+
+/** 打刻ISOを±15分以内ならシフト時刻に丸める */
+function roundClockToShiftIso(clockIso: string | null | undefined, shiftHms: string | null | undefined, date: string): string | null {
+  if (!clockIso || !shiftHms || !date) return clockIso ?? null
+  const shiftIso = jstDateTimeToIso(date, shiftHms)
+  const diffMin = Math.abs(new Date(clockIso).getTime() - new Date(shiftIso).getTime()) / 60000
+  return diffMin <= ROUND_TOLERANCE_MIN ? shiftIso : clockIso
+}
+
+function isEmployedStaff(employmentType?: string | null): boolean {
+  return !(employmentType === 'freelance' || employmentType === 'executive')
+}
+
+/** レコードから「丸め後の出退勤・休憩・勤務時間」を計算 */
+function computeRoundedDisplay(rec: {
+  date: string
+  clock_in?: string | null
+  clock_out?: string | null
+  break_minutes?: number | null
+  work_minutes?: number | null
+  shift_start_time?: string | null
+  shift_end_time?: string | null
+  staff?: { employment_type?: string | null } | null
+}) {
+  const roundedIn = roundClockToShiftIso(rec.clock_in, rec.shift_start_time, rec.date)
+  const roundedOut = roundClockToShiftIso(rec.clock_out, rec.shift_end_time, rec.date)
+
+  // 勤務時間: 丸め後clock_in/outベースで再計算
+  let roundedWorkMinutes: number | null = null
+  let roundedBreakMinutes: number | null = rec.break_minutes ?? null
+  if (roundedIn && roundedOut) {
+    const grossMin = Math.max(0, Math.floor((new Date(roundedOut).getTime() - new Date(roundedIn).getTime()) / 60000))
+    const employed = isEmployedStaff(rec.staff?.employment_type)
+    if (employed && grossMin >= 300) {
+      roundedBreakMinutes = 60
+    } else if (!employed) {
+      roundedBreakMinutes = 0
+    }
+    roundedWorkMinutes = Math.max(0, grossMin - (roundedBreakMinutes ?? 0))
+  }
+  return { roundedIn, roundedOut, roundedBreakMinutes, roundedWorkMinutes }
+}
+
+function formatBreakWithRaw(rounded: number | null, raw: number | null | undefined) {
+  if (rounded == null && (raw == null || raw === 0)) return '-'
+  const r = rounded ?? 0
+  const rawVal = raw ?? 0
+  if (r === rawVal) return r === 0 ? '-' : `${r}分`
+  return `${r}分（${rawVal}分）`
+}
+
+function formatMinutesWithRaw(rounded: number | null, raw: number | null | undefined) {
+  if (rounded == null && raw == null) return '-'
+  const roundedStr = rounded != null ? formatMinutes(rounded) : '-'
+  if (rounded == null || raw == null || rounded === raw) return roundedStr
+  return `${roundedStr}（${formatMinutes(raw)}）`
+}
+
 function formatMinutes(minutes: number | null | undefined) {
   if (minutes == null) return '-'
   const h = Math.floor(minutes / 60)
@@ -311,10 +375,26 @@ export default function AttendanceManagePage() {
                         <TableCell>{r.date}</TableCell>
                         <TableCell className="font-medium">{staffName}</TableCell>
                         <TableCell>{projectLabel}</TableCell>
-                        <TableCell>{formatTimeWithRaw(rec.clock_in_rounded, r.clock_in)}</TableCell>
-                        <TableCell>{formatTimeWithRaw(rec.clock_out_rounded, r.clock_out)}</TableCell>
-                        <TableCell>{r.break_minutes ? `${r.break_minutes}分` : '-'}</TableCell>
-                        <TableCell>{formatMinutes(r.work_minutes)}</TableCell>
+                        {(() => {
+                          const rounded = computeRoundedDisplay({
+                            date: r.date,
+                            clock_in: r.clock_in,
+                            clock_out: r.clock_out,
+                            break_minutes: r.break_minutes,
+                            work_minutes: r.work_minutes,
+                            shift_start_time: rec.shift_start_time,
+                            shift_end_time: rec.shift_end_time,
+                            staff: rec.staff,
+                          })
+                          return (
+                            <>
+                              <TableCell>{formatTimeWithRaw(rounded.roundedIn, r.clock_in)}</TableCell>
+                              <TableCell>{formatTimeWithRaw(rounded.roundedOut, r.clock_out)}</TableCell>
+                              <TableCell>{formatBreakWithRaw(rounded.roundedBreakMinutes, r.break_minutes)}</TableCell>
+                              <TableCell>{formatMinutesWithRaw(rounded.roundedWorkMinutes, r.work_minutes)}</TableCell>
+                            </>
+                          )
+                        })()}
                         <TableCell>{formatMinutes(r.overtime_minutes)}</TableCell>
                         <TableCell>
                           <Badge variant={getStatusBadgeVariant(r.status)}>

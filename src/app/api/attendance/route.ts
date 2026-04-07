@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('attendance_records')
-      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, project_code)', { count: 'exact' })
+      .select('*, staff:staff_id(id, last_name, first_name, employment_type), project:project_id(id, name, project_code)', { count: 'exact' })
       .is('deleted_at', null)
       .order('date', { ascending: false })
       .order('clock_in', { ascending: false })
@@ -80,7 +80,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ data: data || [], total: count || 0 })
+    // 各レコードに対応するシフト時刻(start/end)を結合（カレンダー丸め表示用）
+    const records = data || []
+    if (records.length > 0) {
+      const keys = records.map((r) => ({ staff_id: r.staff_id, project_id: r.project_id, date: r.date }))
+      const staffIds = Array.from(new Set(keys.map((k) => k.staff_id).filter(Boolean))) as string[]
+      const projectIds = Array.from(new Set(keys.map((k) => k.project_id).filter(Boolean))) as string[]
+      const dates = Array.from(new Set(keys.map((k) => k.date).filter(Boolean))) as string[]
+      if (staffIds.length && projectIds.length && dates.length) {
+        const { data: shifts } = await supabase
+          .from('shifts')
+          .select('staff_id, project_id, shift_date, start_time, end_time')
+          .in('staff_id', staffIds)
+          .in('project_id', projectIds)
+          .in('shift_date', dates)
+          .eq('shift_type', 'WORK')
+          .in('status', ['APPROVED', 'SUBMITTED'])
+          .is('deleted_at', null)
+        // 同日複数セグメント → MIN(start)/MAX(end)
+        const shiftMap = new Map<string, { start: string; end: string }>()
+        for (const sh of shifts || []) {
+          const k = `${sh.staff_id}|${sh.project_id}|${sh.shift_date}`
+          const cur = shiftMap.get(k)
+          if (!cur) {
+            shiftMap.set(k, { start: sh.start_time, end: sh.end_time })
+          } else {
+            if (sh.start_time < cur.start) cur.start = sh.start_time
+            if (sh.end_time > cur.end) cur.end = sh.end_time
+          }
+        }
+        for (const r of records) {
+          const k = `${r.staff_id}|${r.project_id}|${r.date}`
+          const sh = shiftMap.get(k)
+          if (sh) {
+            ;(r as Record<string, unknown>).shift_start_time = sh.start
+            ;(r as Record<string, unknown>).shift_end_time = sh.end
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ data: records, total: count || 0 })
   } catch (error) {
     console.error('GET /api/attendance error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
