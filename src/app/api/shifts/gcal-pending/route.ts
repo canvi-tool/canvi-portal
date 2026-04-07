@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
     const roleNames = (roleRows || [])
       .map((r) => (r.role as { name?: string } | null)?.name)
       .filter(Boolean) as string[]
-    const isManager = roleNames.some((n) => ['admin', 'owner', 'manager'].includes(n))
+    const isManager = roleNames.some((n) => ['admin', 'manager'].includes(n))
+    const isOwnerRole = roleNames.includes('owner')
 
     const staffIdsParam = searchParams.get('staff_id')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,15 +39,38 @@ export async function GET(request: NextRequest) {
       const ids = staffIdsParam.split(',').filter(Boolean)
       if (ids.length > 0) query = query.in('staff_id', ids)
     }
-    if (!isManager) {
+    if (!isOwnerRole) {
+      // 自分のstaff_id
       const { data: staffRec } = await admin
         .from('staff')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
-      if (!staffRec) return NextResponse.json([])
-      query = query.eq('staff_id', (staffRec as { id: string }).id)
+      const myStaffId = (staffRec as { id: string } | null)?.id || null
+      const allowedStaffIds = new Set<string>()
+      if (myStaffId) allowedStaffIds.add(myStaffId)
+
+      if (isManager && myStaffId) {
+        // 管理者: 自分のアサインPJの全スタッフを許可
+        const { data: myAssigns } = await admin
+          .from('project_assignments')
+          .select('project_id')
+          .eq('staff_id', myStaffId)
+          .is('deleted_at', null)
+        const myPjIds = (myAssigns || []).map((a) => a.project_id as string)
+        if (myPjIds.length > 0) {
+          const { data: pjAssigns } = await admin
+            .from('project_assignments')
+            .select('staff_id')
+            .in('project_id', myPjIds)
+            .is('deleted_at', null)
+          for (const a of pjAssigns || []) allowedStaffIds.add(a.staff_id as string)
+        }
+      }
+
+      if (allowedStaffIds.size === 0) return NextResponse.json([])
+      query = query.in('staff_id', Array.from(allowedStaffIds))
     }
     if (startDate) query = query.gte('event_date', startDate)
     if (endDate) query = query.lte('event_date', endDate)

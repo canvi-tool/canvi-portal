@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getProjectAccess } from '@/lib/auth/project-access'
+import { isOwner, isAdmin } from '@/lib/auth/rbac'
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,6 +37,33 @@ export async function POST(request: NextRequest) {
     }
     if (!pendings || pendings.length === 0) {
       return NextResponse.json({ error: '該当イベントが見つかりません' }, { status: 404 })
+    }
+
+    // 権限チェック
+    const access = await getProjectAccess()
+    const currentUser = access.user
+    const ownerOk = !!currentUser && isOwner(currentUser)
+    const adminPjOk =
+      !!currentUser &&
+      isAdmin(currentUser) &&
+      (access.allowedProjectIds === null || access.allowedProjectIds.includes(projectId))
+
+    let allowedStaffIds: Set<string> | null = null
+    if (!ownerOk && adminPjOk && access.allowedProjectIds !== null) {
+      const { data: assigns } = await admin
+        .from('project_assignments')
+        .select('staff_id')
+        .in('project_id', access.allowedProjectIds)
+        .is('deleted_at', null)
+      allowedStaffIds = new Set<string>((assigns || []).map((a) => a.staff_id as string))
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of pendings as any[]) {
+      const isSelfEvent = !!access.staffId && p.staff_id === access.staffId
+      if (isSelfEvent || ownerOk) continue
+      if (adminPjOk && (allowedStaffIds === null || allowedStaffIds.has(p.staff_id))) continue
+      return NextResponse.json({ error: '他人のGoogleカレンダー予定にPJを割り当てる権限がありません' }, { status: 403 })
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

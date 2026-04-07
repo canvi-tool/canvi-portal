@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getProjectAccess } from '@/lib/auth/project-access'
+import { isOwner, isAdmin } from '@/lib/auth/rbac'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -34,6 +36,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .maybeSingle()
     if (pErr || !pending) {
       return NextResponse.json({ error: '該当イベントが見つかりません' }, { status: 404 })
+    }
+
+    // 権限チェック: 自分の予定 or オーナー or 管理者(自PJに対して)
+    const access = await getProjectAccess()
+    const currentUser = access.user
+    const isSelfEvent = !!access.staffId && pending.staff_id === access.staffId
+    const ownerOk = !!currentUser && isOwner(currentUser)
+    const adminPjOk =
+      !!currentUser &&
+      isAdmin(currentUser) &&
+      (access.allowedProjectIds === null || access.allowedProjectIds.includes(projectId))
+    // 管理者は対象スタッフが自PJにアサインされているかも検証
+    let adminStaffOk = false
+    if (adminPjOk && access.allowedProjectIds !== null && pending.staff_id) {
+      const { data: assigns } = await admin
+        .from('project_assignments')
+        .select('project_id')
+        .eq('staff_id', pending.staff_id)
+        .in('project_id', access.allowedProjectIds)
+        .is('deleted_at', null)
+        .limit(1)
+      adminStaffOk = !!(assigns && assigns.length > 0)
+    } else if (adminPjOk && access.allowedProjectIds === null) {
+      adminStaffOk = true
+    }
+    if (!isSelfEvent && !ownerOk && !(adminPjOk && adminStaffOk)) {
+      return NextResponse.json({ error: '他人のGoogleカレンダー予定にPJを割り当てる権限がありません' }, { status: 403 })
     }
 
     // shifts へINSERT (source=google_calendar, 紐付け情報を引き継ぐ)
