@@ -34,11 +34,25 @@ export async function GET(request: NextRequest) {
     const jstDate = new Date(now.getTime() + jstOffset)
     const today = jstDate.toISOString().split('T')[0]
 
-    // 稼働中スタッフ一覧
+    // 本日シフトが登録されているスタッフのみ対象
+    const { data: todayShifts } = await supabase
+      .from('shifts')
+      .select('staff_id')
+      .eq('shift_date', today)
+      .is('deleted_at', null)
+    const shiftStaffIds = Array.from(new Set((todayShifts || []).map((s) => s.staff_id).filter(Boolean))) as string[]
+
+    if (shiftStaffIds.length === 0) {
+      return NextResponse.json({
+        today: [],
+        summary: { total_staff: 0, clocked_in: 0, on_break: 0, clocked_out: 0, not_clocked_in: 0 },
+      })
+    }
+
     const { data: activeStaffRaw } = await supabase
       .from('staff')
       .select('id, user_id, last_name, first_name, email')
-      .eq('status', 'active')
+      .in('id', shiftStaffIds)
       .is('deleted_at', null)
       .order('last_name')
 
