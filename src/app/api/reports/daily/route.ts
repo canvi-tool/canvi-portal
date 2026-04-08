@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { dailyReportSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { isOwner, isAdmin } from '@/lib/auth/rbac'
+import { isOwner, isAdmin, isManagerOrOwner } from '@/lib/auth/rbac'
 import { sendProjectNotificationIfEnabled, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
 
 // ---- GET: 日報一覧取得 ----
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       .from('work_reports')
       .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
       .not('report_type', 'is', null)
+      .is('deleted_at', null)
       .order('report_date', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -51,10 +52,25 @@ export async function GET(request: NextRequest) {
       }
       // 自分の日報は除外
       if (staffId) query = query.neq('staff_id', staffId)
-    } else {
-      // self: 自分の日報のみ
+    } else if (scope === 'self') {
+      // 明示的なself指定: 自分の日報のみ
       if (!staffId) return NextResponse.json([])
       query = query.eq('staff_id', staffId)
+    } else {
+      // デフォルト: ロールに応じて表示範囲を切り替え
+      // owner → 全PJ・全スタッフ
+      // manager/admin → 自分がアサインされているPJの全スタッフ
+      // それ以外（メンバー） → 自分の日報のみ
+      if (isOwner(user)) {
+        // 全件
+      } else if (isManagerOrOwner(user) || isAdmin(user)) {
+        if (allowedProjectIds) {
+          query = query.in('project_id', allowedProjectIds)
+        }
+      } else {
+        if (!staffId) return NextResponse.json([])
+        query = query.eq('staff_id', staffId)
+      }
     }
 
     if (startDate) query = query.gte('report_date', startDate)
