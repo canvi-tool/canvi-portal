@@ -43,18 +43,28 @@ export async function GET(
       .select('id, email, display_name')
       .in('id', link.member_ids)
 
+    // date_range_start/end が TIMESTAMPTZ で保存されている場合に YYYY-MM-DD (JST) に正規化
+    const toJstYmd = (v: string): string => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+      const d = new Date(v)
+      const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+      return jst.toISOString().slice(0, 10)
+    }
+    const dateRangeStart = toJstYmd(link.date_range_start)
+    const dateRangeEnd = toJstYmd(link.date_range_end)
+
     const memberBusy = await fetchMemberBusy(
       link.member_ids,
-      link.date_range_start,
-      link.date_range_end
+      dateRangeStart,
+      dateRangeEnd
     )
 
     const slots = computeAvailableSlots({
       memberIds: link.member_ids,
       memberBusy,
       mode: link.mode as 'all_free' | 'any_free',
-      dateRangeStart: link.date_range_start,
-      dateRangeEnd: link.date_range_end,
+      dateRangeStart,
+      dateRangeEnd,
       timeRangeStart: link.time_range_start,
       timeRangeEnd: link.time_range_end,
       durationMinutes: link.duration_minutes,
