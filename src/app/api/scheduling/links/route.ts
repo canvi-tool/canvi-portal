@@ -47,28 +47,53 @@ export async function POST(request: NextRequest) {
     const slug = generateSlug()
 
     const admin = createAdminClient()
-    const { data: link, error } = await admin
-      .from('scheduling_links')
-      .insert({
-        slug,
-        title: data.title,
-        created_by: user.id,
-        member_ids: data.member_ids,
-        mode: data.mode,
-        date_range_start: data.date_range_start,
-        date_range_end: data.date_range_end,
-        time_range_start: data.time_range_start,
-        time_range_end: data.time_range_end,
-        duration_minutes: data.duration_minutes,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30日後
-        ...({ weekdays: data.weekdays ?? null, exclude_holidays: data.exclude_holidays ?? false } as Record<string, unknown>),
-      } as never)
-      .select()
-      .single()
+    const baseInsert = {
+      slug,
+      title: data.title,
+      created_by: user.id,
+      member_ids: data.member_ids,
+      mode: data.mode,
+      date_range_start: data.date_range_start,
+      date_range_end: data.date_range_end,
+      time_range_start: data.time_range_start,
+      time_range_end: data.time_range_end,
+      duration_minutes: data.duration_minutes,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30日後
+    }
 
-    if (error) {
-      console.error('Create scheduling link error:', error)
-      return NextResponse.json({ error: 'リンクの作成に失敗しました' }, { status: 500 })
+    // 新カラム (weekdays / exclude_holidays) はマイグレーション未適用環境でも動くようフォールバック
+    let link: unknown = null
+    let insertError: { message?: string; code?: string } | null = null
+    {
+      const res = await admin
+        .from('scheduling_links')
+        .insert({
+          ...baseInsert,
+          ...({ weekdays: data.weekdays ?? null, exclude_holidays: data.exclude_holidays ?? false } as Record<string, unknown>),
+        } as never)
+        .select()
+        .single()
+      link = res.data
+      insertError = res.error
+    }
+
+    if (insertError) {
+      const msg = (insertError.message || '').toLowerCase()
+      const isColumnMissing = msg.includes('column') && (msg.includes('weekdays') || msg.includes('exclude_holidays'))
+      if (isColumnMissing) {
+        const res2 = await admin
+          .from('scheduling_links')
+          .insert(baseInsert as never)
+          .select()
+          .single()
+        link = res2.data
+        insertError = res2.error
+      }
+    }
+
+    if (insertError) {
+      console.error('Create scheduling link error:', insertError)
+      return NextResponse.json({ error: `リンクの作成に失敗しました: ${insertError.message || ''}` }, { status: 500 })
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || ''

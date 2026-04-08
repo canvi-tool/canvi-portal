@@ -163,6 +163,35 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
     return map
   }, [slots])
 
+  const emailTemplate = useMemo(() => {
+    if (!slotsByDate) return ''
+    const dates = Object.keys(slotsByDate).sort()
+    if (dates.length === 0) return ''
+    const lines = ['■候補日時']
+    for (const date of dates) {
+      const [, m, d] = date.split('-').map(Number)
+      const wd = WEEKDAY_LABELS[new Date(date + 'T00:00:00+09:00').getDay()]
+      const ranges = slotsByDate[date]
+        .map((s) => `${s.startTime}~${s.endTime}`)
+        .join(' / ')
+      lines.push(`●${m}月${d}日（${wd}） ${ranges}`)
+    }
+    return lines.join('\n')
+  }, [slotsByDate])
+
+  const handleCopyTemplate = async () => {
+    if (!emailTemplate) {
+      toast.error('コピーする候補日時がありません')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(emailTemplate)
+      toast.success('メール用テンプレをコピーしました')
+    } catch {
+      toast.error('コピーに失敗しました')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -301,9 +330,17 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
       {slotsByDate && (
         <Card>
           <CardContent className="pt-6">
-            <div className="text-sm font-medium mb-3">
-              検索結果: {slots?.length || 0} 枠
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium">
+                検索結果: {slots?.length || 0} 枠
+              </div>
+              <Button size="sm" variant="outline" onClick={handleCopyTemplate} disabled={!emailTemplate}>
+                メール用テンプレをコピー
+              </Button>
             </div>
+            {emailTemplate && (
+              <pre className="mb-3 whitespace-pre-wrap rounded border bg-muted/30 p-2 text-xs">{emailTemplate}</pre>
+            )}
             {Object.keys(slotsByDate).length === 0 ? (
               <div className="text-sm text-muted-foreground">条件に合う空き枠がありません</div>
             ) : (
