@@ -71,14 +71,21 @@ function computeRoundedDisplay(rec: {
   date: string
   clock_in?: string | null
   clock_out?: string | null
+  clock_in_rounded?: string | null
+  clock_out_rounded?: string | null
   break_minutes?: number | null
   work_minutes?: number | null
   shift_start_time?: string | null
   shift_end_time?: string | null
   staff?: { employment_type?: string | null } | null
 }) {
-  const roundedIn = roundClockToShiftIso(rec.clock_in, rec.shift_start_time, rec.date)
-  const roundedOut = roundClockToShiftIso(rec.clock_out, rec.shift_end_time, rec.date)
+  // 補正済 (clock_*_rounded) があれば最優先。なければシフト時刻に対するクライアント側丸めを適用。
+  const roundedIn = rec.clock_in_rounded
+    ? rec.clock_in_rounded
+    : roundClockToShiftIso(rec.clock_in, rec.shift_start_time, rec.date)
+  const roundedOut = rec.clock_out_rounded
+    ? rec.clock_out_rounded
+    : roundClockToShiftIso(rec.clock_out, rec.shift_end_time, rec.date)
 
   // 勤務時間: 丸め後clock_in/outベースで再計算
   let roundedWorkMinutes: number | null = null

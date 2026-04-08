@@ -265,11 +265,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           status: 'modified',
         }
 
-        if (parsed.data.clock_in) updateData.clock_in = parsed.data.clock_in
+        // 修正時は実打刻時刻 (clock_in/clock_out) を保持し、
+        // 補正後の値は *_rounded カラムにのみ反映する。
+        // ※ 既存の raw clock_in がない場合のみ補正値を raw にも書き込む。
+        if (parsed.data.clock_in) {
+          updateData.clock_in_rounded = parsed.data.clock_in
+          updateData.rounding_applied = true
+          if (!record.clock_in) updateData.clock_in = parsed.data.clock_in
+        }
         if (parsed.data.clock_out) {
-          updateData.clock_out = parsed.data.clock_out
-          // 勤務時間再計算
-          const ci = new Date(parsed.data.clock_in || record.clock_in!)
+          updateData.clock_out_rounded = parsed.data.clock_out
+          updateData.rounding_applied = true
+          if (!record.clock_out) updateData.clock_out = parsed.data.clock_out
+          // 勤務時間再計算（補正後の値ベース）
+          const ci = new Date(parsed.data.clock_in || record.clock_in_rounded || record.clock_in!)
           const co = new Date(parsed.data.clock_out)
           const totalMin = Math.round((co.getTime() - ci.getTime()) / 60000)
           const breakMin = parsed.data.break_minutes ?? record.break_minutes ?? 0
