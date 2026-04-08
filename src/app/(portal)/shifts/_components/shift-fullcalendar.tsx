@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect, useMemo, memo } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -173,7 +173,7 @@ function renderEventContent(eventInfo: EventContentArg) {
   )
 }
 
-export function ShiftFullCalendar({
+function ShiftFullCalendarImpl({
   shifts,
   googleEvents = [],
   isManager,
@@ -197,9 +197,9 @@ export function ShiftFullCalendar({
     shiftDate: string
   } | null>(null)
 
-  const shiftEvents = toFullCalendarEvents(shifts)
-  const gcalEvents = toGoogleCalendarFCEvents(googleEvents)
-  const events = [...shiftEvents, ...gcalEvents]
+  const shiftEvents = useMemo(() => toFullCalendarEvents(shifts), [shifts])
+  const gcalEvents = useMemo(() => toGoogleCalendarFCEvents(googleEvents), [googleEvents])
+  const events = useMemo(() => [...shiftEvents, ...gcalEvents], [shiftEvents, gcalEvents])
 
   // イベントドラッグ完了（移動）
   const handleEventDrop = useCallback(async (info: EventDropArg) => {
@@ -527,6 +527,8 @@ export function ShiftFullCalendar({
     </div>
   )
 }
+
+export const ShiftFullCalendar = memo(ShiftFullCalendarImpl)
 
 // --- Helpers ---
 

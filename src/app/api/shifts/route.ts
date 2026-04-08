@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('project_id')
     const status = searchParams.get('status')
 
+    const __t0 = Date.now()
     const { user, allowedProjectIds } = await getProjectAccess()
     if (!user) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
@@ -36,7 +37,11 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('shifts')
-      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name, shift_approval_mode)', { count: 'exact' })
+      // 必要最小限のカラムのみ取得（レスポンスサイズ削減）
+      .select(
+        'id, staff_id, project_id, shift_date, start_time, end_time, status, shift_type, title, notes, attendees, google_meet_url, google_calendar_event_id, source, needs_project_assignment, slack_thread_ts, submitted_at, approved_at, staff:staff_id(id, last_name, first_name), project:project_id(id, name, shift_approval_mode)',
+        { count: 'exact' }
+      )
       .is('deleted_at', null)
       .order('shift_date', { ascending: false })
       .order('start_time', { ascending: true })
@@ -53,19 +58,32 @@ export async function GET(request: NextRequest) {
       query = query.lte('shift_date', endDate)
     }
     if (staffId) {
-      const staffIds = staffId.split(',').filter(Boolean)
+      // 'staff_ids' (新) または 'staff_id' (旧/互換) いずれもカンマ区切りを許容
+      const rawIds = (searchParams.get('staff_ids') || staffId)
+      const staffIds = rawIds.split(',').map((s) => s.trim()).filter(Boolean)
       if (staffIds.length > 0) {
         // staff_id 本人のシフト OR attendees に staff_id を含むシフト（招待されたシフト）
+        // NOTE: PostgREST の or() 内で `in.(a,b)` を使うとカンマが or の区切りとして
+        // 解釈されてしまうため、必ず `staff_id.eq.X` を id 毎に並べる。
         const parts: string[] = []
-        if (staffIds.length === 1) {
-          parts.push(`staff_id.eq.${staffIds[0]}`)
-        } else {
-          parts.push(`staff_id.in.(${staffIds.join(',')})`)
+        for (const id of staffIds) {
+          parts.push(`staff_id.eq.${id}`)
         }
         for (const id of staffIds) {
           parts.push(`attendees.cs.[{"staff_id":"${id}"}]`)
         }
         query = query.or(parts.join(','))
+      }
+    } else {
+      const idsParam = searchParams.get('staff_ids')
+      if (idsParam) {
+        const staffIds = idsParam.split(',').map((s) => s.trim()).filter(Boolean)
+        if (staffIds.length > 0) {
+          const parts: string[] = []
+          for (const id of staffIds) parts.push(`staff_id.eq.${id}`)
+          for (const id of staffIds) parts.push(`attendees.cs.[{"staff_id":"${id}"}]`)
+          query = query.or(parts.join(','))
+        }
       }
     }
     if (projectId) {
@@ -81,12 +99,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const result = (data || []).map((shift) => ({
+    const result = ((data || []) as unknown as Array<Record<string, unknown>>).map((shift) => ({
       ...shift,
       staff_name: (() => { const s = shift.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '' })(),
       project_name: (shift.project as { name?: string } | null)?.name || '',
     }))
 
+    const __ms = Date.now() - __t0
+    if (__ms > 300) {
+      console.log(`[shifts.GET] ${__ms}ms rows=${result.length} range=${startDate}~${endDate} staff=${staffId || ''}`)
+    }
     return NextResponse.json({ data: result, total: count || 0 })
   } catch (error) {
     console.error('GET /api/shifts error:', error)

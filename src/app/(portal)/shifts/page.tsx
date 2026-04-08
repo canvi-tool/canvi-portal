@@ -209,8 +209,11 @@ export default function ShiftsPage() {
       if (filterStaffIds.length > 0) params.set('staff_id', filterStaffIds.join(','))
       if (filterStatus !== 'all') params.set('status', filterStatus)
 
+      const __t0 = typeof performance !== 'undefined' ? performance.now() : Date.now()
       const res = await fetch(`/api/shifts?${params}`)
       if (!res.ok) throw new Error('シフトの取得に失敗しました')
+      const __ms = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - __t0
+      if (__ms > 500) console.log(`[shifts] fetch ${Math.round(__ms)}ms (${filterStaffIds.length || 'all'} staff)`)
 
       const data = await res.json()
       const list = data.data || (Array.isArray(data) ? data : [])
@@ -357,7 +360,8 @@ export default function ShiftsPage() {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       syncFromGcal(true)
     }
-    const interval = setInterval(tick, 30_000)
+    // 30秒は重いので 2分に緩和（軽量化）
+    const interval = setInterval(tick, 120_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
