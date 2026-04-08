@@ -589,8 +589,8 @@ export function ShiftBulkDialog({
           {/* 招待者 */}
           <AttendeePicker value={attendees} onChange={setAttendees} />
 
-          {/* 選択済み日程プレビュー */}
-          {sortedDates.length > 0 && (
+          {/* 選択済み日程プレビュー (slotEntriesモードでは上部枠が代替) */}
+          {slotEntries.length === 0 && sortedDates.length > 0 && (
             <div className="space-y-1.5">
               <Label>選択済み日程（{sortedDates.length}件）</Label>
               <div className="border rounded-md max-h-[180px] overflow-y-auto divide-y">
@@ -633,22 +633,27 @@ export function ShiftBulkDialog({
           )}
 
           {/* 送信ボタン */}
-          <div className="flex justify-between items-center pt-2">
-            <span className="text-sm text-muted-foreground">
-              {sortedDates.length > 0 ? `${sortedDates.length}件のシフトを作成` : '日付をクリックして選択'}
-            </span>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                キャンセル
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={submitting || sortedDates.length === 0}
-              >
-                {submitting ? '処理中...' : `一括${isAutoApproval ? '登録' : '申請'}（${sortedDates.length}件）`}
-              </Button>
-            </div>
-          </div>
+          {(() => {
+            const effectiveCount = slotEntries.length > 0 ? slotEntries.length : sortedDates.length
+            return (
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-sm text-muted-foreground">
+                  {effectiveCount > 0 ? `${effectiveCount}件のシフトを作成` : '日付をクリックして選択'}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    キャンセル
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={submitting || effectiveCount === 0}
+                  >
+                    {submitting ? '処理中...' : `一括${isAutoApproval ? '登録' : '申請'}（${effectiveCount}件）`}
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </DialogContent>
     </Dialog>
