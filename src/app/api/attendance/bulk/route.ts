@@ -8,6 +8,7 @@ import {
   buildClockOutNotification,
 } from '@/lib/integrations/slack'
 import { embedSlackThreadTs, extractSlackThreadTs } from '@/lib/utils/slack-thread'
+import { notifyIfDailyReportMissing } from '@/lib/notifications/daily-report-check'
 
 /**
  * 一括出勤 / 一括退勤
@@ -207,6 +208,20 @@ export async function POST(request: NextRequest) {
         } catch (err) {
           console.error('[bulk-clock-out] Slack通知エラー:', err)
         }
+      }
+
+      // 日報提出チェック → 未提出なら本人のみ Slack DM (staff_id+date でdedupe)
+      try {
+        const seen = new Set<string>()
+        for (const rec of updated as Array<{ staff_id?: string | null; date?: string | null }>) {
+          if (!rec?.staff_id || !rec?.date) continue
+          const key = `${rec.staff_id}:${rec.date}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          await notifyIfDailyReportMissing(rec.staff_id, rec.date)
+        }
+      } catch (err) {
+        console.error('[bulk-clock-out] daily-report-check error:', err)
       }
 
       return NextResponse.json({ count: updated.length, records: updated })

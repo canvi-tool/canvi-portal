@@ -11,6 +11,7 @@ import {
 } from '@/lib/integrations/slack'
 import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 import { applyShiftRounding } from '@/lib/attendance/rounding'
+import { notifyIfDailyReportMissing } from '@/lib/notifications/daily-report-check'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -135,6 +136,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           )
         } catch (err) {
           console.error('退勤Slack通知エラー:', err)
+        }
+
+        // 日報提出チェック → 未提出なら本人のみ Slack DM
+        try {
+          if (record.staff_id && record.date) {
+            await notifyIfDailyReportMissing(record.staff_id, record.date)
+          }
+        } catch (err) {
+          console.error('[clock_out] daily-report-check error:', err)
         }
 
         return NextResponse.json(data)
