@@ -42,9 +42,20 @@
   border-color: transparent !important;
 }
 
-/* スロット: 30分刻み */
+/* スロット: 30分刻み(高さを広げて視認性UP) */
 .fc .fc-timegrid-slot {
-  height: 1.5rem;
+  height: 2.25rem;
+}
+
+/* 重なるイベントは横並びで最低幅を確保し、つぶれを防ぐ */
+.fc .fc-timegrid-col-events {
+  margin: 0 1px;
+}
+.fc .fc-timegrid-event-harness {
+  min-width: 56px;
+}
+.fc .fc-timegrid-event {
+  min-height: 18px;
 }
 
 /* 正時（00分）のラインは薄い実線 */

@@ -484,6 +484,9 @@ function ShiftFullCalendarImpl({
           editable={true}
           eventResizableFromStart={false}
           snapDuration="00:15:00"
+          slotEventOverlap={false}
+          eventMinHeight={20}
+          expandRows={true}
           events={events}
           eventContent={renderEventContent}
           eventDrop={handleEventDrop}
