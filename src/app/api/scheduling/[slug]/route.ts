@@ -75,12 +75,34 @@ export async function GET(
 
     const memberNames = (users || []).map((u) => u.display_name || u.email)
 
+    const url = new URL(_request.url)
+    const debug = url.searchParams.get('_debug') === '1'
+
     return NextResponse.json({
       title: link.title,
       memberNames,
       mode: link.mode,
       durationMinutes: link.duration_minutes,
       slots,
+      ...(debug ? {
+        _debug: {
+          dateRangeStart,
+          dateRangeEnd,
+          rawDateRangeStart: link.date_range_start,
+          rawDateRangeEnd: link.date_range_end,
+          timeRangeStart: link.time_range_start,
+          timeRangeEnd: link.time_range_end,
+          weekdays: (link as unknown as { weekdays?: number[] | null }).weekdays,
+          excludeHolidays: (link as unknown as { exclude_holidays?: boolean }).exclude_holidays,
+          memberIds: link.member_ids,
+          busyCounts: Object.fromEntries(
+            Object.entries(memberBusy).map(([k, v]) => [k, v.length])
+          ),
+          firstBusy: Object.fromEntries(
+            Object.entries(memberBusy).map(([k, v]) => [k, v.slice(0, 5)])
+          ),
+        },
+      } : {}),
     })
   } catch (error) {
     console.error('GET /api/scheduling/[slug] error:', error)
