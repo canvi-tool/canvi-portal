@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Users,
   Check,
+  X,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -388,6 +389,34 @@ export default function ShiftsPage() {
   }, [filterStaffIds, staffList, currentUserId])
 
   const gcalTargetsKey = useMemo(() => gcalTargets.map(t => t.userId).join(','), [gcalTargets])
+
+  // 選択スタッフ変更時: 即座に GCal インポート → fetch シフト → 予定再取得
+  const lastImportKeyRef = useRef<string>('')
+  useEffect(() => {
+    if (!isManager) return
+    if (filterStaffIds.length === 0) return
+    if (!dateRange.start || !dateRange.end) return
+    const key = `${filterStaffIds.slice().sort().join(',')}|${dateRange.start}|${dateRange.end}`
+    if (lastImportKeyRef.current === key) return
+    lastImportKeyRef.current = key
+    ;(async () => {
+      try {
+        const res = await fetch('/api/shifts/gcal-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            staff_ids: filterStaffIds,
+            start_date: dateRange.start,
+            end_date: dateRange.end,
+          }),
+        })
+        if (res.ok) {
+          fetchShifts()
+          refreshGoogleEvents()
+        }
+      } catch { /* noop */ }
+    })()
+  }, [filterStaffIds, dateRange.start, dateRange.end, isManager]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Googleカレンダー予定取得（複数ユーザー対応）
   useEffect(() => {
@@ -1112,6 +1141,39 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* 選択中スタッフのチップ表示 */}
+        {filterStaffIds.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {filterStaffIds.map(sid => {
+              const s = staffList.find(st => st.id === sid)
+              if (!s) return null
+              return (
+                <span
+                  key={sid}
+                  className="inline-flex items-center gap-1 rounded-full border bg-muted/60 pl-2 pr-1 py-0.5 text-xs"
+                >
+                  {s.name}
+                  <button
+                    type="button"
+                    aria-label={`${s.name}を選択解除`}
+                    onClick={() => setFilterStaffIds(prev => prev.filter(id => id !== sid))}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-background"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setFilterStaffIds([])}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline ml-1"
+            >
+              全解除
+            </button>
+          </div>
+        )}
 
         {loading && (
           <span className="text-xs text-muted-foreground">読み込み中...</span>
