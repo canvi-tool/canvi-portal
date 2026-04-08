@@ -4,7 +4,6 @@ import {
   sendSlackAlert,
   sendProjectNotification,
   buildMissingClockNotification,
-  buildOvertimeWarningNotification,
 } from '@/lib/integrations/slack'
 
 /**
@@ -225,36 +224,10 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================
-    // 2. 残業警告: 勤務時間10時間超 → PJ別チャンネルに送信
+    // 2. 残業警告: Slack通知は無効化（ユーザー要望により停止）
     // ========================================
-    const { data: longWorkRecords } = await admin
-      .from('attendance_records')
-      .select('user_id, staff_id, work_minutes, project_id, staff:staff_id(last_name, first_name), project:project_id(slack_channel_id)')
-      .eq('date', today)
-      .is('deleted_at', null)
-      .gt('work_minutes', 600)
-
-    if (longWorkRecords) {
-      for (const rec of longWorkRecords) {
-        results.overtime.checked++
-        const staff = rec.staff as unknown as { last_name: string; first_name: string } | null
-        const project = rec.project as unknown as { slack_channel_id: string | null } | null
-        const name = staff ? `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明' : '不明'
-        const hours = Math.round((rec.work_minutes || 0) / 60 * 10) / 10
-        results.overtime.alerted++
-        results.overtime.names.push(name)
-
-        const notification = buildOvertimeWarningNotification(name, hours, today)
-        if (project?.slack_channel_id) {
-          await sendProjectNotification(notification, project.slack_channel_id, {
-            projectId: rec.project_id,
-            staffId: rec.staff_id,
-          })
-        } else {
-          await sendSlackAlert(notification)
-        }
-      }
-    }
+    // 過去に「あほみたいに通知が来る」との指摘があり、残業警告のSlack通知は完全停止。
+    // 必要であれば管理画面で個別に勤務時間を確認すること。
 
     return NextResponse.json({
       success: true,

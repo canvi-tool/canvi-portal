@@ -5,7 +5,6 @@ import {
   sendSlackDM,
   resolveStaffSlackUserId,
   buildClockOutMissingDMNotification,
-  buildOvertimeWarningNotification,
 } from '@/lib/integrations/slack'
 
 /**
@@ -147,65 +146,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================
-    // 2. 残業超過: work_minutes > 600 (10時間)
+    // 2. 残業超過: Slack通知は無効化（ユーザー要望により停止）
     // ========================================
-    try {
-      const { data: overtimeRecords } = await admin
-        .from('attendance_records')
-        .select('user_id, staff_id, work_minutes, project_id, staff:staff_id(id, last_name, first_name), project:project_id(id, name, slack_channel_id)')
-        .eq('date', today)
-        .is('deleted_at', null)
-        .gt('work_minutes', 600)
-
-      if (overtimeRecords) {
-        for (const rec of overtimeRecords) {
-          results.overtime.checked++
-          const staff = rec.staff as unknown as { id: string; last_name: string; first_name: string } | null
-          const project = rec.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
-          const staffName = staff ? `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明' : '不明'
-          const hours = Math.round((rec.work_minutes || 0) / 60 * 10) / 10
-
-          try {
-            results.overtime.alerted++
-            results.overtime.names.push(staffName)
-
-            const notification = buildOvertimeWarningNotification(staffName, hours, today)
-
-            // プロジェクトチャンネルに通知
-            if (project?.slack_channel_id) {
-              await sendProjectNotification(notification, project.slack_channel_id, {
-                projectId: rec.project_id,
-                staffId: rec.staff_id,
-              })
-            }
-
-            // 本人にDM
-            if (rec.staff_id) {
-              const slackUserId = await resolveStaffSlackUserId(rec.staff_id)
-              if (slackUserId) {
-                await sendSlackDM(slackUserId, {
-                  text: `【残業警告】${staffName}さん、本日の勤務時間が${hours}時間を超えています`,
-                  blocks: [
-                    {
-                      type: 'section',
-                      text: {
-                        type: 'mrkdwn',
-                        text: `:warning: *残業警告*\n${staffName}さん、本日(${today})の勤務時間が *${hours}時間* を超えています。\n体調に無理のないようお気をつけください。`,
-                      },
-                    },
-                  ],
-                })
-              }
-            }
-          } catch (err) {
-            console.error(`[attendance-alerts] overtime notification error for ${staffName}:`, err)
-            results.overtime.errors++
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[attendance-alerts] overtime check error:', err)
-    }
+    // 過去に通知が大量送出されたため、残業警告のSlack通知は完全停止。
 
     return NextResponse.json({
       success: true,
