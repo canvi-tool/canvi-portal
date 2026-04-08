@@ -21,6 +21,8 @@ const createSchema = z.object({
   time_range_start: z.string().regex(/^\d{2}:\d{2}$/).default('09:00'),
   time_range_end: z.string().regex(/^\d{2}:\d{2}$/).default('18:00'),
   duration_minutes: z.number().int().min(15).max(480).default(60),
+  weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  exclude_holidays: z.boolean().optional().default(false),
 })
 
 /**
@@ -59,7 +61,8 @@ export async function POST(request: NextRequest) {
         time_range_end: data.time_range_end,
         duration_minutes: data.duration_minutes,
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30日後
-      })
+        ...({ weekdays: data.weekdays ?? null, exclude_holidays: data.exclude_holidays ?? false } as Record<string, unknown>),
+      } as never)
       .select()
       .single()
 

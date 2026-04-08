@@ -14,6 +14,7 @@ import {
   Users,
   Check,
   X,
+  Link2,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,8 @@ import { ShiftCreateDialog } from './_components/shift-create-dialog'
 import { ShiftBulkDialog } from './_components/shift-bulk-dialog'
 import { ShiftEditDialog } from './_components/shift-edit-dialog'
 import { GCalEventDialog, type GCalEventItem } from './_components/gcal-event-dialog'
+import { AvailabilityPanel } from './_components/availability-panel'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { toast } from 'sonner'
 
 // --- Types ---
@@ -86,6 +89,7 @@ export default function ShiftsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  const [availabilitySheetOpen, setAvailabilitySheetOpen] = useState(false)
   // 複製プリフィル（Bulkダイアログで使用）
   const [duplicatePrefill, setDuplicatePrefill] = useState<{
     staffId?: string
@@ -972,6 +976,14 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setAvailabilitySheetOpen(true)}
+            >
+              <Link2 className="h-4 w-4 mr-1" />
+              日程調整URL発行
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => router.push('/shifts/pending')}
             >
               <Clock className="h-4 w-4 mr-1" />
@@ -1236,6 +1248,18 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         isManager={isManager}
         onCreated={fetchShifts}
       />
+
+      {/* Availability Sheet */}
+      <Sheet open={availabilitySheetOpen} onOpenChange={setAvailabilitySheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>日程調整URL発行</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            <AvailabilityPanel selectedStaffIds={filterStaffIds} staffList={staffList} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Bulk Dialog */}
       <ShiftBulkDialog
