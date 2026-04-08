@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
-    const scope = searchParams.get('scope') || 'self' // 'self' | 'manage'
+    const scope = searchParams.get('scope') || 'auto' // 'auto' | 'self' | 'manage'
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
     const staffIdParam = searchParams.get('staff_id')
