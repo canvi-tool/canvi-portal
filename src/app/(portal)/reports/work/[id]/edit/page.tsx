@@ -94,6 +94,17 @@ export default function EditDailyReportPage() {
   const [inboundEscalationNote, setInboundEscalationNote] = useState('')
   const [inboundCondition, setInboundCondition] = useState('')
 
+  // --- Leon IS state ---
+  const [leonSlackNotifiedCount, setLeonSlackNotifiedCount] = useState('')
+  const [leonImmediateCallCount, setLeonImmediateCallCount] = useState('')
+  const [leonFollowupCallCount, setLeonFollowupCallCount] = useState('')
+  const [leonReceivedCallCount, setLeonReceivedCallCount] = useState('')
+  const [leonContractZoomCount, setLeonContractZoomCount] = useState('')
+  const [leonSelfEvaluation, setLeonSelfEvaluation] = useState('')
+  const [leonCurrentIssues, setLeonCurrentIssues] = useState('')
+  const [leonIssueImprovements, setLeonIssueImprovements] = useState('')
+  const [leonConsultations, setLeonConsultations] = useState('')
+
   // Prefill from loaded report
   useEffect(() => {
     if (!report || prefilled) return
@@ -143,6 +154,18 @@ export default function EditDailyReportPage() {
       setInboundTomorrowImprovement(s('tomorrow_improvement'))
       setInboundEscalationNote(s('escalation_items'))
       setInboundCondition(s('condition'))
+    } else if (report.report_type === 'leon_is') {
+      setLeonSlackNotifiedCount(n('slack_notified_count'))
+      setLeonImmediateCallCount(n('immediate_call_count'))
+      setLeonFollowupCallCount(n('followup_call_count'))
+      setLeonReceivedCallCount(n('received_call_count'))
+      setLeonContractZoomCount(n('contract_zoom_count'))
+      setLeonSelfEvaluation(s('self_evaluation'))
+      setLeonCurrentIssues(s('current_issues'))
+      setLeonIssueImprovements(s('issue_improvements'))
+      setLeonConsultations(s('consultations'))
+      setConcentrationLevel(Number(cf.concentration_level) || 0)
+      setConditionComment(s('condition_comment'))
     }
     setPrefilled(true)
   }, [report, prefilled])
@@ -207,7 +230,7 @@ export default function EditDailyReportPage() {
           escalation_items: escalationNote,
           condition: outboundCondition,
         }
-      } else {
+      } else if (reportType === 'inbound') {
         data = {
           report_type: 'inbound',
           report_date: reportDate,
@@ -223,6 +246,23 @@ export default function EditDailyReportPage() {
           tomorrow_improvement: inboundTomorrowImprovement,
           escalation_items: inboundEscalationNote,
           condition: inboundCondition,
+        }
+      } else {
+        data = {
+          report_type: 'leon_is',
+          report_date: reportDate,
+          project_id: projectId,
+          slack_notified_count: Number(leonSlackNotifiedCount) || 0,
+          immediate_call_count: Number(leonImmediateCallCount) || 0,
+          followup_call_count: Number(leonFollowupCallCount) || 0,
+          received_call_count: Number(leonReceivedCallCount) || 0,
+          contract_zoom_count: Number(leonContractZoomCount) || 0,
+          self_evaluation: leonSelfEvaluation,
+          current_issues: leonCurrentIssues,
+          issue_improvements: leonIssueImprovements,
+          consultations: leonConsultations,
+          concentration_level: concentrationLevel,
+          condition_comment: conditionComment,
         }
       }
       await updateReport.mutateAsync(data)
@@ -267,7 +307,7 @@ export default function EditDailyReportPage() {
 
       {/* Report type selector */}
       <div className="flex gap-2">
-        {(['training', 'outbound', 'inbound'] as const).map((type) => (
+        {(['training', 'outbound', 'inbound', 'leon_is'] as const).map((type) => (
           <Button
             key={type}
             variant={reportType === type ? 'default' : 'outline'}
@@ -835,6 +875,126 @@ export default function EditDailyReportPage() {
                   onChange={(e) => setInboundCondition(e.target.value)}
                   rows={3}
                 />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* ===== Leon IS Form ===== */}
+      {reportType === 'leon_is' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="leon-date">日付 {renderRequiredMark()}</Label>
+                <Input
+                  id="leon-date"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-[200px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>プロジェクト {renderRequiredMark()}</Label>
+                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="プロジェクトを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p: { id: string; name: string }) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 定量（当日）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Slack通知された対象数 {renderRequiredMark()}</Label>
+                  <Input type="number" min="0" value={leonSlackNotifiedCount} onChange={(e) => setLeonSlackNotifiedCount(e.target.value)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">広告から流入した予約数</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>即時架電数 {renderRequiredMark()}</Label>
+                  <Input type="number" min="0" value={leonImmediateCallCount} onChange={(e) => setLeonImmediateCallCount(e.target.value)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Slack通知→1分以内の架電</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>通常架電数 {renderRequiredMark()}</Label>
+                  <Input type="number" min="0" value={leonFollowupCallCount} onChange={(e) => setLeonFollowupCallCount(e.target.value)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">即時架電数は含まない</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>受電数 {renderRequiredMark()}</Label>
+                  <Input type="number" min="0" value={leonReceivedCallCount} onChange={(e) => setLeonReceivedCallCount(e.target.value)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">代表番号で電話を受けた数</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>契約入金および伴走 {renderRequiredMark()}</Label>
+                  <Input type="number" min="0" value={leonContractZoomCount} onChange={(e) => setLeonContractZoomCount(e.target.value)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Zoomに入った数</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; 定性</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>自己評価 {renderRequiredMark()}</Label>
+                <Textarea value={leonSelfEvaluation} onChange={(e) => setLeonSelfEvaluation(e.target.value)} rows={4} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>現状の課題 {renderRequiredMark()}</Label>
+                <Textarea value={leonCurrentIssues} onChange={(e) => setLeonCurrentIssues(e.target.value)} rows={3} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>課題に対しての改善 {renderRequiredMark()}</Label>
+                <Textarea value={leonIssueImprovements} onChange={(e) => setLeonIssueImprovements(e.target.value)} rows={3} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>困っていることや相談事</Label>
+                <Textarea value={leonConsultations} onChange={(e) => setLeonConsultations(e.target.value)} rows={3} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">&#9733; コンディション</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>集中度・理解度 {renderRequiredMark()}</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((nn) => (
+                    <Button key={nn} size="sm" variant={concentrationLevel === nn ? 'default' : 'outline'} onClick={() => setConcentrationLevel(nn)}>
+                      {nn}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">1: 低い ～ 5: 高い</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>一言コメント</Label>
+                <Input value={conditionComment} onChange={(e) => setConditionComment(e.target.value)} placeholder="体調や気分など一言" />
               </div>
             </CardContent>
           </Card>

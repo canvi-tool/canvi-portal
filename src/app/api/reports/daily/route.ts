@@ -358,7 +358,7 @@ function buildReportDetailBlocks(
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*定量*\nSlack通知対象数: ${fields.slack_notified_count ?? 0}件\n即時架電: ${fields.immediate_call_count ?? 0}件\n総架電: ${fields.followup_call_count ?? 0}件\n受電: ${fields.received_call_count ?? 0}件\n契約入金/伴走: ${fields.contract_zoom_count ?? 0}件`,
+          text: `*定量*\nSlack通知対象数: ${fields.slack_notified_count ?? 0}件\n即時架電: ${fields.immediate_call_count ?? 0}件\n通常架電: ${fields.followup_call_count ?? 0}件\n受電: ${fields.received_call_count ?? 0}件\n契約入金/伴走: ${fields.contract_zoom_count ?? 0}件`,
         },
       })
       addSection('自己評価', fields.self_evaluation)
@@ -413,7 +413,7 @@ function generateContentSummary(
     case 'leon_is':
       parts.push(`Slack通知対象数: ${fields.slack_notified_count ?? 0}`)
       parts.push(`即時架電: ${fields.immediate_call_count ?? 0}`)
-      parts.push(`総架電: ${fields.followup_call_count ?? 0}`)
+      parts.push(`通常架電: ${fields.followup_call_count ?? 0}`)
       parts.push(`受電: ${fields.received_call_count ?? 0}`)
       parts.push(`契約/伴走: ${fields.contract_zoom_count ?? 0}`)
       if (fields.self_evaluation) parts.push(`自己評価: ${fields.self_evaluation}`)
