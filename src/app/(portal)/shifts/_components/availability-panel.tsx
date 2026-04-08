@@ -189,7 +189,7 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
           merged.push({ s, e })
         }
       }
-      const ranges = merged.map((r) => `${fromMin(r.s)}~${fromMin(r.e)}`).join(' / ')
+      const ranges = merged.map((r) => `${fromMin(r.s)}-${fromMin(r.e)}`).join(' / ')
       lines.push(`●${m}月${d}日（${wd}） ${ranges}`)
     }
     return lines.join('\n')
