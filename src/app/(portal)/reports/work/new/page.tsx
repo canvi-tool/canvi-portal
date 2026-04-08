@@ -981,6 +981,7 @@ export default function NewDailyReportPage() {
                     onChange={(e) => setLeonReceivedCallCount(e.target.value)}
                     placeholder="0"
                   />
+                  <p className="text-xs text-muted-foreground">代表番号で電話を受けた数</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>契約入金および伴走 {renderRequiredMark()}</Label>
