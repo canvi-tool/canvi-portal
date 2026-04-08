@@ -888,8 +888,35 @@ export default function ShiftsPage() {
     const shiftEventIds = new Set(
       shifts.map(s => s.googleEventId).filter((v): v is string => !!v)
     )
-    if (shiftEventIds.size === 0) return googleEvents
-    return googleEvents.filter(e => !shiftEventIds.has(e.id))
+    // 時間+スタッフでのキーも作成（google_calendar_event_id 未反映の同期前シフトを除外するため）
+    const shiftTimeKeys = new Set<string>()
+    for (const s of shifts) {
+      if (s.isVirtualAttendee) continue
+      // staffId|YYYY-MM-DDTHH:mm|HH:mm
+      shiftTimeKeys.add(`${s.staffId}|${s.date}T${s.startTime}|${s.endTime}`)
+    }
+    return googleEvents.filter(e => {
+      if (shiftEventIds.has(e.id)) return false
+      // start/end ISO → date + HH:mm
+      try {
+        const sd = new Date(e.start)
+        const ed = new Date(e.end)
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const dateStr = `${sd.getFullYear()}-${pad(sd.getMonth() + 1)}-${pad(sd.getDate())}`
+        const stStr = `${pad(sd.getHours())}:${pad(sd.getMinutes())}`
+        const enStr = `${pad(ed.getHours())}:${pad(ed.getMinutes())}`
+        if (e.staffId) {
+          if (shiftTimeKeys.has(`${e.staffId}|${dateStr}T${stStr}|${enStr}`)) return false
+        } else {
+          // staffId 未指定（自分のGCal）→ どのスタッフでも一致したら除外
+          for (const s of shifts) {
+            if (s.isVirtualAttendee) continue
+            if (s.date === dateStr && s.startTime === stStr && s.endTime === enStr) return false
+          }
+        }
+      } catch { /* noop */ }
+      return true
+    })
   }, [googleEvents, shifts])
 
   // Filter labels
