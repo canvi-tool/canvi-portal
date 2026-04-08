@@ -122,6 +122,7 @@ export function ShiftBulkDialog({
   const [projectId, setProjectId] = useState('')
   const [shiftType, setShiftType] = useState<ShiftType>('WORK')
   const [notes, setNotes] = useState('')
+  const [title, setTitle] = useState('')
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -284,6 +285,7 @@ export function ShiftBulkDialog({
           staff_id: staffId,
           project_id: projectId,
           shift_type: shiftType,
+          title: title || undefined,
           notes: notes || undefined,
           attendees,
           entries,
@@ -308,6 +310,7 @@ export function ShiftBulkDialog({
   }
 
   const resetForm = () => {
+    setTitle('')
     setNotes('')
     setShiftType('WORK')
     setSelectedDates(new Set())
@@ -386,6 +389,18 @@ export function ShiftBulkDialog({
                   : '承認制: 管理者の承認後にシフトが確定します'}
               </p>
             )}
+          </div>
+
+          {/* タイトル */}
+          <div className="space-y-1.5">
+            <Label>タイトル（任意）</Label>
+            <Input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例: 定例MTG"
+              maxLength={100}
+            />
           </div>
 
           {/* デフォルト時間 */}

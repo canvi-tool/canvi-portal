@@ -189,6 +189,18 @@ export function ShiftCreateDialog({
             )}
           </div>
 
+          {/* タイトル */}
+          <div className="space-y-1.5">
+            <Label>タイトル（任意）</Label>
+            <Input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例: 定例MTG"
+              maxLength={100}
+            />
+          </div>
+
           {/* 日付 */}
           <div className="space-y-1.5">
             <Label>日付</Label>
@@ -223,18 +235,6 @@ export function ShiftCreateDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          {/* タイトル */}
-          <div className="space-y-1.5">
-            <Label>タイトル（任意）</Label>
-            <Input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例: 定例MTG"
-              maxLength={100}
-            />
           </div>
 
           {/* メモ */}

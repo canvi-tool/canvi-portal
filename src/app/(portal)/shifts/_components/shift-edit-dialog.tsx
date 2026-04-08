@@ -250,6 +250,30 @@ export function ShiftEditDialog({
             <span className="font-medium">{shift.staffName}</span>
           </div>
 
+          {/* Title - editable (above date) */}
+          {isEditing ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Pencil className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Label className="text-sm">タイトル</Label>
+              </div>
+              <div className="pl-7">
+                <Input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="タイトル（任意）"
+                  maxLength={100}
+                />
+              </div>
+            </div>
+          ) : shift.title ? (
+            <div className="flex items-start gap-3 text-sm min-w-0">
+              <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <span className="font-medium min-w-0 flex-1 [overflow-wrap:anywhere] break-words">{shift.title}</span>
+            </div>
+          ) : null}
+
           {/* Date */}
           <div className="flex items-center gap-3 text-sm">
             <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -295,30 +319,6 @@ export function ShiftEditDialog({
               </span>
             </div>
           )}
-
-          {/* Title - editable */}
-          {isEditing ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <Pencil className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Label className="text-sm">タイトル</Label>
-              </div>
-              <div className="pl-7">
-                <Input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="タイトル（任意）"
-                  maxLength={100}
-                />
-              </div>
-            </div>
-          ) : shift.title ? (
-            <div className="flex items-start gap-3 text-sm min-w-0">
-              <Pencil className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <span className="font-medium min-w-0 flex-1 [overflow-wrap:anywhere] break-words">{shift.title}</span>
-            </div>
-          ) : null}
 
           {/* Notes - editable */}
           {isEditing ? (
