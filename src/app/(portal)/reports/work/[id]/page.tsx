@@ -347,7 +347,7 @@ function LeonIsContent({ cf }: { cf: Record<string, unknown> }) {
               <p className="text-lg font-medium">{immediate}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">追客架電数</p>
+              <p className="text-xs text-muted-foreground">総架電数（即時除く）</p>
               <p className="text-lg font-medium">{followup}</p>
             </div>
             <div>

@@ -962,7 +962,7 @@ export default function NewDailyReportPage() {
                   <p className="text-xs text-muted-foreground">Slack通知→1分以内の架電</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>追客架電数 {renderRequiredMark()}</Label>
+                  <Label>総架電数 {renderRequiredMark()}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -970,7 +970,7 @@ export default function NewDailyReportPage() {
                     onChange={(e) => setLeonFollowupCallCount(e.target.value)}
                     placeholder="0"
                   />
-                  <p className="text-xs text-muted-foreground">不通顧客への再架電件数</p>
+                  <p className="text-xs text-muted-foreground">※即時架電数は含まない</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>受電数 {renderRequiredMark()}</Label>
