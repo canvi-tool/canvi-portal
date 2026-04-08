@@ -1,0 +1,25 @@
+-- 00056_add_row_type_to_document_items.sql
+--
+-- 請求書 (project_invoices) / 見積書 (project_estimates) / 契約書 (project_contracts)
+-- の品目 (items JSONB) に `row_type` フィールドを追加する。
+--
+-- これらのテーブルでは items は JSONB 配列として保存されているため、
+-- スキーマ上の ALTER は不要である。各要素オブジェクトに
+--   row_type TEXT ('item' | 'text')  -- 省略時は 'item' として扱う
+-- を追加する運用上の変更のみとなる。
+--
+-- row_type='text' の行は「テキストのみ行」として扱い、
+-- UI 上は説明列 (description) のみ全幅で表示し、
+-- quantity/unit/unit_price/amount は 0 として保存される。
+-- 小計・消費税・合計の計算からも除外される。
+--
+-- 既存の items 要素は row_type を持たず、アプリケーション側で 'item' と
+-- して解釈されるため、データ互換性に問題はない。
+--
+-- 参考: 将来 items を正規化テーブルに切り出す場合は、以下のカラムを追加すること:
+--   ALTER TABLE <line_items_table>
+--     ADD COLUMN row_type TEXT NOT NULL DEFAULT 'item'
+--       CHECK (row_type IN ('item','text'));
+
+-- no-op (JSONB schema-less change)
+SELECT 1;

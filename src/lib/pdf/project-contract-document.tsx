@@ -37,6 +37,7 @@ export interface ProjectContractPdfData {
     unit: string
     unit_price: number
     amount: number
+    row_type?: 'item' | 'text'
   }>
   subtotal: number
   taxRate: number
@@ -442,25 +443,42 @@ export function ProjectContractDocument({
               金額
             </Text>
           </View>
-          {data.items.map((item, index) => (
-            <View
-              key={index}
-              style={[
-                styles.tableRow,
-                index % 2 === 1 ? styles.tableRowAlt : {},
-              ]}
-            >
-              <Text style={styles.colNo}>{index + 1}</Text>
-              <Text style={styles.colName}>{item.name}</Text>
-              <Text style={styles.colDesc}>{item.description || ''}</Text>
-              <Text style={styles.colQty}>{item.quantity}</Text>
-              <Text style={styles.colUnit}>{item.unit}</Text>
-              <Text style={styles.colUnitPrice}>
-                {formatYen(item.unit_price)}
-              </Text>
-              <Text style={styles.colAmount}>{formatYen(item.amount)}</Text>
-            </View>
-          ))}
+          {data.items.map((item, index) => {
+            if (item.row_type === 'text') {
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.tableRow,
+                    index % 2 === 1 ? styles.tableRowAlt : {},
+                  ]}
+                >
+                  <Text style={{ width: '100%', fontSize: 9 }}>
+                    {item.description || ''}
+                  </Text>
+                </View>
+              )
+            }
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.tableRow,
+                  index % 2 === 1 ? styles.tableRowAlt : {},
+                ]}
+              >
+                <Text style={styles.colNo}>{index + 1}</Text>
+                <Text style={styles.colName}>{item.name}</Text>
+                <Text style={styles.colDesc}>{item.description || ''}</Text>
+                <Text style={styles.colQty}>{item.quantity}</Text>
+                <Text style={styles.colUnit}>{item.unit}</Text>
+                <Text style={styles.colUnitPrice}>
+                  {formatYen(item.unit_price)}
+                </Text>
+                <Text style={styles.colAmount}>{formatYen(item.amount)}</Text>
+              </View>
+            )
+          })}
         </View>
 
         {/* Summary */}
