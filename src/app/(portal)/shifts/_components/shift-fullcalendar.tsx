@@ -46,6 +46,8 @@ export interface GoogleCalendarEvent {
   description?: string
   location?: string
   meetUrl?: string | null
+  staffId?: string
+  staffName?: string
 }
 
 interface ShiftFullCalendarProps {
@@ -114,61 +116,67 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
 }
 
 function toGoogleCalendarFCEvents(events: GoogleCalendarEvent[]) {
-  return events.map((e) => ({
-    id: `gcal-${e.id}`,
-    title: e.summary || '(予定)',
-    start: e.start,
-    end: e.end,
-    backgroundColor: 'rgba(66, 133, 244, 0.15)',
-    borderColor: '#4285f4',
-    textColor: '#1a73e8',
-    editable: true,
-    extendedProps: {
-      isGoogleEvent: true,
-      gcalEvent: e,
-      summary: e.summary,
-      description: e.description,
-      location: e.location,
-    },
-  }))
+  return events.map((e) => {
+    const bg = e.staffId ? getStaffColorTransparent(e.staffId) : 'rgba(66, 133, 244, 0.15)'
+    const border = e.staffId ? getStaffColor(e.staffId) : '#4285f4'
+    return {
+      id: `gcal-${e.id}${e.staffId ? `-${e.staffId}` : ''}`,
+      title: e.summary || '(予定)',
+      start: e.start,
+      end: e.end,
+      backgroundColor: bg,
+      borderColor: border,
+      textColor: '#1f2937',
+      editable: true,
+      extendedProps: {
+        isGoogleEvent: true,
+        gcalEvent: e,
+        summary: e.summary,
+        description: e.description,
+        location: e.location,
+        staffName: e.staffName,
+      },
+    }
+  })
 }
 
 function renderEventContent(eventInfo: EventContentArg) {
   const isGoogleEvent = eventInfo.event.extendedProps.isGoogleEvent
 
+  // 統一フォーマット: 上から「時間」「予定名」「スタッフ名」
   if (isGoogleEvent) {
-    const summary = eventInfo.event.extendedProps.summary as string || '(予定)'
+    const summary = (eventInfo.event.extendedProps.summary as string) || '(予定)'
     const startStr = eventInfo.event.start ? formatTime(eventInfo.event.start) : ''
     const endStr = eventInfo.event.end ? formatTime(eventInfo.event.end) : ''
     const hasMeet = !!eventInfo.event.extendedProps.gcalEvent?.meetUrl
+    const staffName = eventInfo.event.extendedProps.staffName as string | undefined
     return (
       <div className="flex flex-col h-full p-0.5 overflow-hidden cursor-pointer">
-        <div className="text-[10px] text-blue-500 flex items-center gap-0.5">
+        <div className="text-[10px] opacity-80 flex items-center gap-0.5">
           {startStr}-{endStr}
           {hasMeet && <span title="Google Meet">📹</span>}
         </div>
-        <div className="text-[10px] font-medium text-blue-700 truncate">{summary}</div>
+        <div className="text-[11px] font-medium truncate">{summary}</div>
+        {staffName && <div className="text-[10px] opacity-75 truncate">{staffName}</div>}
       </div>
     )
   }
 
   const shift = eventInfo.event.extendedProps.shift as CalendarShift
   const statusColor = eventInfo.event.extendedProps.statusColor as string
+  const titleLine = shift.title || shift.projectName
 
   return (
     <div className="flex flex-col h-full p-0.5 overflow-hidden">
       <div className="flex items-center gap-0.5">
-        <span
-          className="shift-status-dot"
-          style={{ backgroundColor: statusColor }}
-        />
+        <span className="shift-status-dot" style={{ backgroundColor: statusColor }} />
         <span className="text-[10px] opacity-80">
           {shift.startTime}-{shift.endTime}
         </span>
         {shift.googleMeetUrl && <span className="text-[10px]" title="Google Meet">📹</span>}
       </div>
-      <div className="text-[11px] font-medium truncate">{shift.staffName}</div>
-      <div className="text-[10px] opacity-75 truncate">{shift.title || shift.projectName}</div>
+      <div className="text-[11px] font-medium truncate">{titleLine}</div>
+      <div className="text-[10px] opacity-75 truncate">{shift.staffName}</div>
     </div>
   )
 }

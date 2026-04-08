@@ -372,45 +372,63 @@ export default function ShiftsPage() {
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // フィルター対象のGCalユーザーIDを算出（複数選択時は自分のみ表示）
-  const gcalTargetUserId = useMemo(() => {
-    if (filterStaffIds.length === 0) return currentUserId
-    if (filterStaffIds.length === 1) {
-      const staff = staffList.find(s => s.id === filterStaffIds[0])
-      return staff?.userId || currentUserId
+  // フィルター対象のGCalユーザーID群を算出（複数選択時は全員分取得）
+  const gcalTargets = useMemo(() => {
+    // 0件選択 = 自分のみ
+    if (filterStaffIds.length === 0) {
+      return currentUserId ? [{ userId: currentUserId, staffId: '', staffName: '' }] : []
     }
-    return currentUserId // 複数選択時は自分のGCal
+    return filterStaffIds
+      .map(sid => {
+        const staff = staffList.find(s => s.id === sid)
+        if (!staff?.userId) return null
+        return { userId: staff.userId, staffId: staff.id, staffName: staff.name }
+      })
+      .filter((x): x is { userId: string; staffId: string; staffName: string } => !!x)
   }, [filterStaffIds, staffList, currentUserId])
 
-  // Googleカレンダー予定取得
+  const gcalTargetsKey = useMemo(() => gcalTargets.map(t => t.userId).join(','), [gcalTargets])
+
+  // Googleカレンダー予定取得（複数ユーザー対応）
   useEffect(() => {
-    if (!gcalTargetUserId || !dateRange.start || !dateRange.end) {
+    if (gcalTargets.length === 0 || !dateRange.start || !dateRange.end) {
       setGoogleEvents([])
       return
     }
     const timeMin = `${dateRange.start}T00:00:00+09:00`
     const timeMax = `${dateRange.end}T23:59:59+09:00`
-    const params = new URLSearchParams({ user_ids: gcalTargetUserId, time_min: timeMin, time_max: timeMax })
+    const userIdToMeta = new Map(gcalTargets.map(t => [t.userId, t]))
+    const params = new URLSearchParams({
+      user_ids: gcalTargets.map(t => t.userId).join(','),
+      time_min: timeMin,
+      time_max: timeMax,
+    })
     fetch(`/api/calendar/availability?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
-        const member = data.members[0]
-        const gcEvents: GoogleCalendarEvent[] = (member.busy || [])
-          .filter((b: { source: string }) => b.source === 'google')
-          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }) => ({
-            id: b.eventId || `gcal-${b.start}`,
-            summary: b.summary || '(予定)',
-            start: b.start,
-            end: b.end,
-            description: b.description,
-            location: b.location,
-            meetUrl: b.meetUrl || null,
-          }))
-        setGoogleEvents(gcEvents)
+        const all: GoogleCalendarEvent[] = []
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }> }>) {
+          const meta = userIdToMeta.get(member.id)
+          for (const b of member.busy || []) {
+            if (b.source !== 'google') continue
+            all.push({
+              id: b.eventId || `gcal-${member.id}-${b.start}`,
+              summary: b.summary || '(予定)',
+              start: b.start,
+              end: b.end,
+              description: b.description,
+              location: b.location,
+              meetUrl: b.meetUrl || null,
+              staffId: meta?.staffId || undefined,
+              staffName: meta?.staffName || undefined,
+            })
+          }
+        }
+        setGoogleEvents(all)
       })
       .catch(() => setGoogleEvents([]))
-  }, [gcalTargetUserId, dateRange.start, dateRange.end])
+  }, [gcalTargetsKey, dateRange.start, dateRange.end]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // FullCalendar handlers
 
@@ -724,27 +742,38 @@ export default function ShiftsPage() {
     refreshGoogleEventsRef.current()
   }, [])
   refreshGoogleEventsRef.current = () => {
-    if (!gcalTargetUserId || !dateRange.start || !dateRange.end) return
+    if (gcalTargets.length === 0 || !dateRange.start || !dateRange.end) return
     const timeMin = `${dateRange.start}T00:00:00+09:00`
     const timeMax = `${dateRange.end}T23:59:59+09:00`
-    const params = new URLSearchParams({ user_ids: gcalTargetUserId, time_min: timeMin, time_max: timeMax })
+    const userIdToMeta = new Map(gcalTargets.map(t => [t.userId, t]))
+    const params = new URLSearchParams({
+      user_ids: gcalTargets.map(t => t.userId).join(','),
+      time_min: timeMin,
+      time_max: timeMax,
+    })
     fetch(`/api/calendar/availability?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
-        const member = data.members[0]
-        const gcEvents: GoogleCalendarEvent[] = (member.busy || [])
-          .filter((b: { source: string }) => b.source === 'google')
-          .map((b: { start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }) => ({
-            id: b.eventId || `gcal-${b.start}`,
-            summary: b.summary || '(予定)',
-            start: b.start,
-            end: b.end,
-            description: b.description,
-            location: b.location,
-            meetUrl: b.meetUrl || null,
-          }))
-        setGoogleEvents(gcEvents)
+        const all: GoogleCalendarEvent[] = []
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }> }>) {
+          const meta = userIdToMeta.get(member.id)
+          for (const b of member.busy || []) {
+            if (b.source !== 'google') continue
+            all.push({
+              id: b.eventId || `gcal-${member.id}-${b.start}`,
+              summary: b.summary || '(予定)',
+              start: b.start,
+              end: b.end,
+              description: b.description,
+              location: b.location,
+              meetUrl: b.meetUrl || null,
+              staffId: meta?.staffId || undefined,
+              staffName: meta?.staffName || undefined,
+            })
+          }
+        }
+        setGoogleEvents(all)
       })
       .catch(() => {})
   }
