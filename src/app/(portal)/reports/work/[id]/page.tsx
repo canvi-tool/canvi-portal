@@ -318,6 +318,7 @@ function InboundContent({ cf }: { cf: Record<string, unknown> }) {
 }
 
 function LeonIsContent({ cf }: { cf: Record<string, unknown> }) {
+  const slackNotified = Number(cf.slack_notified_count ?? 0)
   const immediate = Number(cf.immediate_call_count ?? 0)
   const followup = Number(cf.followup_call_count ?? 0)
   const received = Number(cf.received_call_count ?? 0)
@@ -336,7 +337,11 @@ function LeonIsContent({ cf }: { cf: Record<string, unknown> }) {
       <Card>
         <CardHeader><CardTitle className="text-base">定量</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Slack通知対象数</p>
+              <p className="text-lg font-medium">{slackNotified}</p>
+            </div>
             <div>
               <p className="text-xs text-muted-foreground">即時架電数</p>
               <p className="text-lg font-medium">{immediate}</p>

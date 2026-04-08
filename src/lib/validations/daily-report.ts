@@ -113,6 +113,7 @@ export const leonIsReportSchema = z.object({
   project_id: z.string().min(1, 'プロジェクトを選択してください'),
 
   // KPI実績（当日）定量
+  slack_notified_count: z.coerce.number().min(0, 'Slack通知された対象数を入力してください'),
   immediate_call_count: z.coerce.number().min(0, '即時架電数を入力してください'),
   followup_call_count: z.coerce.number().min(0, '追客架電数を入力してください'),
   received_call_count: z.coerce.number().min(0, '受電数を入力してください'),

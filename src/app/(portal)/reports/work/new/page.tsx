@@ -90,6 +90,7 @@ export default function NewDailyReportPage() {
   const [inboundCondition, setInboundCondition] = useState('')
 
   // --- Leon IS state ---
+  const [leonSlackNotifiedCount, setLeonSlackNotifiedCount] = useState('')
   const [leonImmediateCallCount, setLeonImmediateCallCount] = useState('')
   const [leonFollowupCallCount, setLeonFollowupCallCount] = useState('')
   const [leonReceivedCallCount, setLeonReceivedCallCount] = useState('')
@@ -176,6 +177,7 @@ export default function NewDailyReportPage() {
           report_type: 'leon_is',
           report_date: reportDate,
           project_id: projectId,
+          slack_notified_count: Number(leonSlackNotifiedCount) || 0,
           immediate_call_count: Number(leonImmediateCallCount) || 0,
           followup_call_count: Number(leonFollowupCallCount) || 0,
           received_call_count: Number(leonReceivedCallCount) || 0,
@@ -937,6 +939,17 @@ export default function NewDailyReportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Slack通知された対象数 {renderRequiredMark()}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={leonSlackNotifiedCount}
+                    onChange={(e) => setLeonSlackNotifiedCount(e.target.value)}
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-muted-foreground">広告から流入した予約数</p>
+                </div>
                 <div className="space-y-1.5">
                   <Label>即時架電数 {renderRequiredMark()}</Label>
                   <Input

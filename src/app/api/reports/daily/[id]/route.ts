@@ -488,6 +488,7 @@ function generateContentSummary(
       break
 
     case 'leon_is':
+      parts.push(`Slack通知対象数: ${fields.slack_notified_count ?? 0}`)
       parts.push(`即時架電: ${fields.immediate_call_count ?? 0}`)
       parts.push(`追客架電: ${fields.followup_call_count ?? 0}`)
       parts.push(`受電: ${fields.received_call_count ?? 0}`)
@@ -511,7 +512,7 @@ function buildKpiSummary(reportType: string, fields: Record<string, unknown>): s
     case 'training':
       return fields.study_theme ? `テーマ: ${fields.study_theme}` : null
     case 'leon_is':
-      return `即時 ${fields.immediate_call_count ?? 0} | 追客 ${fields.followup_call_count ?? 0} | 受電 ${fields.received_call_count ?? 0} | 契約/伴走 ${fields.contract_zoom_count ?? 0}`
+      return `Slack通知 ${fields.slack_notified_count ?? 0} | 即時 ${fields.immediate_call_count ?? 0} | 追客 ${fields.followup_call_count ?? 0} | 受電 ${fields.received_call_count ?? 0} | 契約/伴走 ${fields.contract_zoom_count ?? 0}`
     default:
       return null
   }
@@ -614,7 +615,7 @@ function buildReportDetailBlocks(
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*定量*\n即時架電: ${fields.immediate_call_count ?? 0}件\n追客架電: ${fields.followup_call_count ?? 0}件\n受電: ${fields.received_call_count ?? 0}件\n契約入金/伴走: ${fields.contract_zoom_count ?? 0}件`,
+          text: `*定量*\nSlack通知対象数: ${fields.slack_notified_count ?? 0}件\n即時架電: ${fields.immediate_call_count ?? 0}件\n追客架電: ${fields.followup_call_count ?? 0}件\n受電: ${fields.received_call_count ?? 0}件\n契約入金/伴走: ${fields.contract_zoom_count ?? 0}件`,
         },
       })
       addSection('自己評価', fields.self_evaluation)
