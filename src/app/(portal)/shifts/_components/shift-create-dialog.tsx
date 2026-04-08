@@ -199,6 +199,7 @@ export function ShiftCreateDialog({
               placeholder="例: 定例MTG"
               maxLength={100}
             />
+            <p className="text-xs text-muted-foreground">未入力の場合はプロジェクト名が表示されます</p>
           </div>
 
           {/* 日付 */}
