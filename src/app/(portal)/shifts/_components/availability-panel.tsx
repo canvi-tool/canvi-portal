@@ -18,6 +18,12 @@ import { toast } from 'sonner'
 interface AvailabilityPanelProps {
   selectedStaffIds: string[]
   staffList: Array<{ id: string; name: string; userId?: string }>
+  onReserveSlots?: (payload: {
+    slots: Array<{ date: string; startTime: string; endTime: string }>
+    memberUserIds: string[]
+    memberStaffIds: string[]
+    durationMinutes: number
+  }) => void
 }
 
 type Period = 3 | 7 | 14 | 28
@@ -34,7 +40,7 @@ interface Slot {
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
-export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityPanelProps) {
+export function AvailabilityPanel({ selectedStaffIds, staffList, onReserveSlots }: AvailabilityPanelProps) {
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5])
   const [excludeHolidays, setExcludeHolidays] = useState<boolean>(true)
   const [periodDays, setPeriodDays] = useState<Period>(7)
@@ -46,6 +52,40 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
   const [slots, setSlots] = useState<Slot[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [issuing, setIssuing] = useState(false)
+  const [selectedSlotKeys, setSelectedSlotKeys] = useState<Set<string>>(new Set())
+
+  const slotKey = (s: { date: string; startTime: string; endTime: string }) =>
+    `${s.date}_${s.startTime}_${s.endTime}`
+
+  const toggleSlot = (s: Slot) => {
+    const key = slotKey(s)
+    setSelectedSlotKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const memberStaffIds = useMemo(() => {
+    return selectedStaffIds.filter((sid) => !!staffList.find((s) => s.id === sid)?.userId)
+  }, [selectedStaffIds, staffList])
+
+  const handleReserve = () => {
+    if (!slots || selectedSlotKeys.size === 0) {
+      toast.error('予約する時間枠を選択してください')
+      return
+    }
+    const picked = slots.filter((s) => selectedSlotKeys.has(slotKey(s)))
+    if (onReserveSlots) {
+      onReserveSlots({
+        slots: picked.map((p) => ({ date: p.date, startTime: p.startTime, endTime: p.endTime })),
+        memberUserIds,
+        memberStaffIds,
+        durationMinutes,
+      })
+    }
+  }
 
   const memberUserIds = useMemo(() => {
     return selectedStaffIds
@@ -70,6 +110,7 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
     }
     setLoading(true)
     setSlots(null)
+    setSelectedSlotKeys(new Set())
     try {
       const res = await fetch('/api/scheduling/availability', {
         method: 'POST',
@@ -346,13 +387,25 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
       {slotsByDate && (
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div className="text-sm font-medium">
                 検索結果: {slots?.length || 0} 枠
+                {selectedSlotKeys.size > 0 && (
+                  <span className="ml-2 text-xs text-primary">
+                    （{selectedSlotKeys.size}枠選択中）
+                  </span>
+                )}
               </div>
-              <Button size="sm" variant="outline" onClick={handleCopyTemplate} disabled={!emailTemplate}>
-                メール用テンプレをコピー
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleCopyTemplate} disabled={!emailTemplate}>
+                  メール用テンプレをコピー
+                </Button>
+                {onReserveSlots && (
+                  <Button size="sm" onClick={handleReserve} disabled={selectedSlotKeys.size === 0}>
+                    予定を抑える{selectedSlotKeys.size > 0 ? `（${selectedSlotKeys.size}）` : ''}
+                  </Button>
+                )}
+              </div>
             </div>
             {emailTemplate && (
               <pre className="mb-3 whitespace-pre-wrap rounded border bg-muted/30 p-2 text-xs">{emailTemplate}</pre>
@@ -365,14 +418,23 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
                   <div key={date}>
                     <div className="text-xs font-semibold text-muted-foreground mb-1">{date}</div>
                     <div className="flex flex-wrap gap-1">
-                      {daySlots.map((s, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center rounded border border-input bg-background px-2 py-0.5 text-xs"
-                        >
-                          {s.startTime}-{s.endTime}
-                        </span>
-                      ))}
+                      {daySlots.map((s, i) => {
+                        const isSelected = selectedSlotKeys.has(slotKey(s))
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => toggleSlot(s)}
+                            className={`inline-flex items-center rounded border px-2 py-0.5 text-xs transition ${
+                              isSelected
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-foreground border-input hover:bg-accent'
+                            }`}
+                          >
+                            {s.startTime}-{s.endTime}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 ))}

@@ -97,7 +97,9 @@ export default function ShiftsPage() {
     startTime?: string
     endTime?: string
     notes?: string
+    title?: string
     attendees?: Array<{ email: string; name?: string; staff_id?: string }>
+    slotEntries?: Array<{ date: string; startTime: string; endTime: string }>
   } | null>(null)
 
   // Edit dialog
@@ -1256,7 +1258,46 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             <SheetTitle>日程調整URL発行</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
-            <AvailabilityPanel selectedStaffIds={filterStaffIds} staffList={staffList} />
+            <AvailabilityPanel
+              selectedStaffIds={filterStaffIds}
+              staffList={staffList}
+              onReserveSlots={async ({ slots, memberStaffIds }) => {
+                // memberStaffIds → staff詳細を取得して attendees 生成
+                let attendeeList: Array<{ email: string; name?: string; staff_id?: string }> = []
+                try {
+                  const res = await fetch('/api/staff?limit=500')
+                  const json = await res.json()
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const items: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []
+                  const byId = new Map<string, { email?: string; name: string }>()
+                  for (const it of items) {
+                    byId.set(it.id, {
+                      email: it.email || undefined,
+                      name: `${it.last_name || ''} ${it.first_name || ''}`.trim() || it.email || '',
+                    })
+                  }
+                  // 予約者（currentStaffId）以外を招待者として追加
+                  attendeeList = memberStaffIds
+                    .filter((sid) => sid !== currentStaffId)
+                    .map((sid) => {
+                      const s = byId.get(sid)
+                      return s?.email ? { email: s.email, name: s.name, staff_id: sid } : null
+                    })
+                    .filter((a): a is { email: string; name: string; staff_id: string } => !!a)
+                } catch (e) {
+                  console.error('Failed to resolve attendees', e)
+                }
+
+                setDuplicatePrefill({
+                  staffId: currentStaffId,
+                  attendees: attendeeList,
+                  title: '日程調整',
+                  slotEntries: slots,
+                })
+                setAvailabilitySheetOpen(false)
+                setBulkDialogOpen(true)
+              }}
+            />
           </div>
         </SheetContent>
       </Sheet>

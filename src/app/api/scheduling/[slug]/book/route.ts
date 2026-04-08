@@ -6,7 +6,8 @@ import { z } from 'zod'
 
 const bookSchema = z.object({
   guest_name: z.string().min(1, 'お名前は必須です').max(100),
-  guest_email: z.string().email('メールアドレスの形式が正しくありません').optional().or(z.literal('')),
+  guest_email: z.string().email('メールアドレスの形式が正しくありません'),
+  guest_phone: z.string().min(1, '電話番号は必須です').max(50),
   guest_company: z.string().max(200).optional(),
   selected_start: z.string().datetime({ offset: true }),
   selected_end: z.string().datetime({ offset: true }),
@@ -64,7 +65,8 @@ export async function POST(
       .insert({
         link_id: link.id,
         guest_name: data.guest_name,
-        guest_email: data.guest_email || null,
+        guest_email: data.guest_email,
+        guest_phone: data.guest_phone,
         guest_company: data.guest_company || null,
         selected_start: data.selected_start,
         selected_end: data.selected_end,
@@ -91,7 +93,7 @@ export async function POST(
           .in('id', link.member_ids)
 
         const attendeeEmails = (members || []).map(m => m.email).filter(Boolean) as string[]
-        if (data.guest_email) attendeeEmails.push(data.guest_email)
+        attendeeEmails.push(data.guest_email)
 
         const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
         const result = await client.createEvent({
@@ -100,7 +102,8 @@ export async function POST(
             `日程調整による予約`,
             data.guest_company ? `会社: ${data.guest_company}` : '',
             `ゲスト: ${data.guest_name}`,
-            data.guest_email ? `Email: ${data.guest_email}` : '',
+            `Email: ${data.guest_email}`,
+            `電話: ${data.guest_phone}`,
             data.message ? `\nメッセージ:\n${data.message}` : '',
           ].filter(Boolean).join('\n'),
           startDateTime: data.selected_start,

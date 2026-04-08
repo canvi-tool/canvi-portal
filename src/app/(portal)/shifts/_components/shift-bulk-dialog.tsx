@@ -52,6 +52,8 @@ interface ShiftBulkDialogProps {
     notes?: string
     attendees?: Attendee[]
     title?: string
+    /** 空き枠検索から予定を抑える時: 個別スロットを直接 entries として送信 */
+    slotEntries?: Array<{ date: string; startTime: string; endTime: string }>
   } | null
 }
 
@@ -148,7 +150,9 @@ export function ShiftBulkDialog({
     setStaffId(currentStaffId)
   }, [currentStaffId])
 
-  // prefill適用（複製時）: ダイアログが開いたときに初期値セット
+  const [slotEntries, setSlotEntries] = useState<Array<{ date: string; startTime: string; endTime: string }>>([])
+
+  // prefill適用（複製時 / 空き枠予約時）: ダイアログが開いたときに初期値セット
   useEffect(() => {
     if (!open || !prefill) return
     if (prefill.staffId) setStaffId(prefill.staffId)
@@ -157,7 +161,15 @@ export function ShiftBulkDialog({
     if (prefill.endTime) setEndTime(prefill.endTime)
     if (prefill.shiftType) setShiftType(prefill.shiftType)
     if (prefill.notes !== undefined) setNotes(prefill.notes)
+    if (prefill.title !== undefined) setTitle(prefill.title)
     if (prefill.attendees) setAttendees(prefill.attendees)
+    if (prefill.slotEntries && prefill.slotEntries.length > 0) {
+      setSlotEntries(prefill.slotEntries)
+      // カレンダー側にも日付だけは反映（表示用）
+      setSelectedDates(new Set(prefill.slotEntries.map((e) => e.date)))
+    } else {
+      setSlotEntries([])
+    }
   }, [open, prefill])
 
   // プロジェクト選択時、アサインされたスタッフを取得（管理者用）
@@ -258,25 +270,35 @@ export function ShiftBulkDialog({
       toast.error('スタッフとプロジェクトを選択してください')
       return
     }
-    if (sortedDates.length === 0) {
+    const useSlotEntries = slotEntries.length > 0
+    if (!useSlotEntries && sortedDates.length === 0) {
       toast.error('申請する日程がありません')
       return
     }
-    if (startTime >= endTime) {
+    if (!useSlotEntries && startTime >= endTime) {
       toast.error('終了時刻は開始時刻より後にしてください')
       return
     }
 
     setSubmitting(true)
     try {
-      const entries = sortedDates.map(date => {
-        const override = timeOverrides[date]
-        return {
-          shift_date: date,
-          start_time: override?.start || startTime,
-          end_time: override?.end || endTime,
-        }
-      })
+      const entries = useSlotEntries
+        ? slotEntries
+            .slice()
+            .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+            .map((s) => ({
+              shift_date: s.date,
+              start_time: s.startTime,
+              end_time: s.endTime,
+            }))
+        : sortedDates.map((date) => {
+            const override = timeOverrides[date]
+            return {
+              shift_date: date,
+              start_time: override?.start || startTime,
+              end_time: override?.end || endTime,
+            }
+          })
 
       const res = await fetch('/api/shifts/bulk', {
         method: 'POST',
@@ -317,6 +339,7 @@ export function ShiftBulkDialog({
     setTimeOverrides({})
     setQuickDays([false, false, false, false, false, false, false])
     setAttendees([])
+    setSlotEntries([])
   }
 
   return (
@@ -325,11 +348,45 @@ export function ShiftBulkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5" />
-            {prefill ? 'シフト複製' : `シフト一括${isAutoApproval ? '登録' : '申請'}`}
+            {slotEntries.length > 0
+              ? `予定を抑える（${slotEntries.length}枠）`
+              : prefill
+                ? 'シフト複製'
+                : `シフト一括${isAutoApproval ? '登録' : '申請'}`}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* 予約スロット一覧（空き枠から予定を抑える時のみ表示） */}
+          {slotEntries.length > 0 && (
+            <div className="space-y-2 rounded border border-primary/30 bg-primary/5 p-3">
+              <Label className="text-xs">確保する枠（{slotEntries.length}件）</Label>
+              <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-auto">
+                {slotEntries.map((s, i) => (
+                  <span
+                    key={`${s.date}-${s.startTime}-${i}`}
+                    className="inline-flex items-center gap-1 rounded border border-primary/50 bg-background px-2 py-0.5 text-xs"
+                  >
+                    {formatDateJP(s.date)} {s.startTime}-{s.endTime}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSlotEntries((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="削除"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Google MeetのURLは作成時に自動発行されます
+              </p>
+            </div>
+          )}
+
           {/* スタッフ選択 */}
           {(isManager || isOwner) ? (
             <div className="space-y-1.5">
