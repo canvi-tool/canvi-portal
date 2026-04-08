@@ -172,6 +172,7 @@ export function AvailabilityPanel({ selectedStaffIds, staffList, onReserveSlots 
           duration_minutes: durationMinutes,
           weekdays,
           exclude_holidays: excludeHolidays,
+          period_days: periodDays,
         }),
       })
       const json = await res.json()

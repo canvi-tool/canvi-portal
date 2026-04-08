@@ -23,6 +23,7 @@ const createSchema = z.object({
   duration_minutes: z.number().int().min(15).max(480).default(60),
   weekdays: z.array(z.number().int().min(0).max(6)).optional(),
   exclude_holidays: z.boolean().optional().default(false),
+  period_days: z.number().int().min(1).max(365).optional(),
 })
 
 /**
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
       time_range_start: data.time_range_start,
       time_range_end: data.time_range_end,
       duration_minutes: data.duration_minutes,
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30日後
+      expires_at: null as string | null,
     }
 
     // 新カラム (weekdays / exclude_holidays) はマイグレーション未適用環境でも動くようフォールバック
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         .from('scheduling_links')
         .insert({
           ...baseInsert,
-          ...({ weekdays: data.weekdays ?? null, exclude_holidays: data.exclude_holidays ?? false } as Record<string, unknown>),
+          ...({ weekdays: data.weekdays ?? null, exclude_holidays: data.exclude_holidays ?? false, period_days: data.period_days ?? null } as Record<string, unknown>),
         } as never)
         .select()
         .single()

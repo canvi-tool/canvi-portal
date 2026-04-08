@@ -3,6 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { computeAvailableSlots } from '@/lib/scheduling/compute-slots'
 import { fetchMemberBusy } from '@/lib/scheduling/fetch-busy'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /**
  * GET /api/scheduling/[slug]
  * 公開API: 日程調整リンクの空き時間を取得
@@ -27,10 +30,7 @@ export async function GET(
       return NextResponse.json({ error: 'このリンクは無効または期限切れです' }, { status: 404 })
     }
 
-    if (link.expires_at && new Date(link.expires_at) < new Date()) {
-      await admin.from('scheduling_links').update({ status: 'expired' }).eq('id', link.id)
-      return NextResponse.json({ error: 'このリンクは期限切れです' }, { status: 410 })
-    }
+    // 有効期限は廃止（常時アクティブ）
 
     const { data: bookings } = await admin
       .from('scheduling_bookings')
@@ -50,8 +50,19 @@ export async function GET(
       const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
       return jst.toISOString().slice(0, 10)
     }
-    const dateRangeStart = toJstYmd(link.date_range_start)
-    const dateRangeEnd = toJstYmd(link.date_range_end)
+    let dateRangeStart = toJstYmd(link.date_range_start)
+    let dateRangeEnd = toJstYmd(link.date_range_end)
+
+    // period_days が設定されていればローリングウィンドウで常に「今日〜今日+period_days-1」を表示
+    const periodDays = (link as unknown as { period_days?: number | null }).period_days
+    if (periodDays && periodDays > 0) {
+      const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+      const startYmd = nowJst.toISOString().slice(0, 10)
+      const endDate = new Date(nowJst.getTime() + (periodDays - 1) * 24 * 60 * 60 * 1000)
+      const endYmd = endDate.toISOString().slice(0, 10)
+      dateRangeStart = startYmd
+      dateRangeEnd = endYmd
+    }
 
     // DB の time 型は "HH:MM:SS" で返るため、compute-slots が期待する "HH:MM" に正規化
     const toHHMM = (t: string): string => (t || '').slice(0, 5)
@@ -86,7 +97,7 @@ export async function GET(
       mode: link.mode,
       durationMinutes: link.duration_minutes,
       slots,
-    })
+    }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (error) {
     console.error('GET /api/scheduling/[slug] error:', error)
     return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 })
