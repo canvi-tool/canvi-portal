@@ -167,17 +167,33 @@ export function AvailabilityPanel({ selectedStaffIds, staffList }: AvailabilityP
     if (!slotsByDate) return ''
     const dates = Object.keys(slotsByDate).sort()
     if (dates.length === 0) return ''
-    const lines = ['■候補日時']
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number)
+      return h * 60 + m
+    }
+    const fromMin = (n: number) =>
+      `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`
+    const lines = [`■候補日時（所要時間${durationMinutes}分）`]
     for (const date of dates) {
       const [, m, d] = date.split('-').map(Number)
       const wd = WEEKDAY_LABELS[new Date(date + 'T00:00:00+09:00').getDay()]
-      const ranges = slotsByDate[date]
-        .map((s) => `${s.startTime}~${s.endTime}`)
-        .join(' / ')
+      const sorted = [...slotsByDate[date]].sort((a, b) => toMin(a.startTime) - toMin(b.startTime))
+      const merged: Array<{ s: number; e: number }> = []
+      for (const slot of sorted) {
+        const s = toMin(slot.startTime)
+        const e = toMin(slot.endTime)
+        const last = merged[merged.length - 1]
+        if (last && s <= last.e) {
+          last.e = Math.max(last.e, e)
+        } else {
+          merged.push({ s, e })
+        }
+      }
+      const ranges = merged.map((r) => `${fromMin(r.s)}~${fromMin(r.e)}`).join(' / ')
       lines.push(`●${m}月${d}日（${wd}） ${ranges}`)
     }
     return lines.join('\n')
-  }, [slotsByDate])
+  }, [slotsByDate, durationMinutes])
 
   const handleCopyTemplate = async () => {
     if (!emailTemplate) {

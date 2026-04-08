@@ -482,6 +482,31 @@ export function ShiftEditDialog({
                   承認
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const WD = ['日','月','火','水','木','金','土']
+                  const d = new Date(shift.date + 'T00:00:00+09:00')
+                  const dateJP = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日(${WD[d.getDay()]})`
+                  const lines: string[] = []
+                  lines.push(shift.title || shift.projectName || 'シフト')
+                  lines.push(`${dateJP} ${shift.startTime}〜${shift.endTime}`)
+                  if (shift.attendees && shift.attendees.length > 0) {
+                    lines.push(`参加者: ${shift.staffName}, ${shift.attendees.map((a) => a.name).join(', ')}`)
+                  }
+                  if (shift.googleMeetUrl) lines.push(`Google Meet: ${shift.googleMeetUrl}`)
+                  if (shift.notes) lines.push('', shift.notes)
+                  const text = lines.join('\n')
+                  navigator.clipboard.writeText(text).then(
+                    () => toast.success('予定をコピーしました'),
+                    () => toast.error('コピーに失敗しました')
+                  )
+                }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" />
+                予定をコピー
+              </Button>
               {onDuplicate && (
                 <Button
                   variant="outline"

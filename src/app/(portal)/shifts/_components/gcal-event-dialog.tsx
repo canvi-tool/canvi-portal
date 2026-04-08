@@ -324,6 +324,29 @@ export function GCalEventDialog({
                 </Button>
               )}
               <div className="flex-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const lines: string[] = []
+                  lines.push(event.summary || '(予定)')
+                  lines.push(`${startParsed.dateJP} ${startParsed.time}〜${endParsed.time}`)
+                  if (event.location) lines.push(`場所: ${event.location}`)
+                  if (meetUrl) lines.push(`Google Meet: ${meetUrl}`)
+                  if (event.description) {
+                    const desc = stripHtmlKeepLinks(event.description)
+                    if (desc) lines.push('', desc)
+                  }
+                  const text = lines.join('\n')
+                  navigator.clipboard.writeText(text).then(
+                    () => toast.success('予定をコピーしました'),
+                    () => toast.error('コピーに失敗しました')
+                  )
+                }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" />
+                予定をコピー
+              </Button>
               {onTimeUpdate && (
                 <Button variant="outline" size="sm" onClick={handleStartEdit}>
                   <Pencil className="h-3.5 w-3.5 mr-1" />
