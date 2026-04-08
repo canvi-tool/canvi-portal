@@ -28,6 +28,8 @@ interface CalendarEvent {
   status?: string
   location?: string
   meetUrl?: string
+  canviShiftId?: string
+  organizerEmail?: string
 }
 
 interface SyncResult {
@@ -119,7 +121,13 @@ export class GoogleCalendarClient {
             status: item.status || undefined,
             location: item.location || undefined,
             meetUrl: item.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || undefined,
-          })
+            // Canvi発のイベント識別用（二重取込防止）
+            canviShiftId:
+              ((item.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId) ||
+              ((item.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId) ||
+              undefined,
+            organizerEmail: item.organizer?.email || undefined,
+          } as CalendarEvent)
         }
 
         pageToken = response.data.nextPageToken || undefined
@@ -279,8 +287,11 @@ export class GoogleCalendarClient {
     }
 
     if (canviShiftId) {
+      // shared 領域に入れることで、招待されたゲストのカレンダーからも canviShiftId が見え、
+      // 招待者側の Canvi 取込で「Canvi発のイベント」として正しくスキップされる（二重取込防止）。
       requestBody.extendedProperties = {
         private: { canviShiftId, canviSource: 'manual' },
+        shared: { canviShiftId, canviSource: 'manual' },
       }
     }
 
@@ -563,7 +574,9 @@ export class GoogleCalendarClient {
           end,
           isAllDay: !!e.start?.date,
           updated: e.updated || undefined,
-          canviShiftId: (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
+          canviShiftId:
+            (e.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId ||
+            (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
           organizerEmail: e.organizer?.email || undefined,
         })
       }

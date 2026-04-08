@@ -3,6 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
+import { openCanviCalendarModal, handleCanviCalendarCreate } from '@/lib/slack/calendar-shortcut'
 
 // Slack 3秒応答ルール対策: Vercel上で応答後も処理を継続させる
 // ローカル/非Vercel環境ではwaitUntilが使えないのでフォールバックでawaitせず実行
@@ -95,6 +96,14 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = JSON.parse(payloadStr)
+
+    // Message shortcut: Canviカレンダーに登録
+    if (payload.type === 'message_action' && payload.callback_id === 'canvi_calendar_create') {
+      after(async () => {
+        try { await openCanviCalendarModal(payload) } catch (e) { console.error('openCanviCalendarModal', e) }
+      })
+      return new Response('', { status: 200 })
+    }
 
     // Handle block_actions → open modal for comment input
     if (payload.type === 'block_actions') {
@@ -191,6 +200,14 @@ export async function POST(request: NextRequest) {
       if (callbackId === 'correction_submit_modal') {
         after(async () => {
           try { await handleCorrectionSubmit(payload) } catch (e) { console.error('after handleCorrectionSubmit', e) }
+        })
+        return new Response('', { status: 200 })
+      }
+
+      // Canviカレンダー登録モーダル送信
+      if (callbackId === 'canvi_calendar_create_modal') {
+        after(async () => {
+          try { await handleCanviCalendarCreate(payload) } catch (e) { console.error('handleCanviCalendarCreate', e) }
         })
         return new Response('', { status: 200 })
       }

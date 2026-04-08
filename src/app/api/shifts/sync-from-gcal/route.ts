@@ -80,9 +80,23 @@ export async function POST(request: NextRequest) {
       }
       if (assignments.length > 0) defaultProjectId = assignments[0].project_id
     }
+    // 他のCanviユーザー発のイベントを除外するための email セットを取得
+    const { data: canviUsersAll } = await admin.from('users').select('email, id')
+    const canviEmailSet = new Set(
+      (canviUsersAll || [])
+        .map((u) => (u as { email?: string | null }).email || '')
+        .filter((e) => !!e)
+        .map((e) => e.toLowerCase())
+    )
+    const myEmailLower = ((canviUsersAll || []).find((u) => (u as { id?: string }).id === user.id) as { email?: string } | undefined)?.email?.toLowerCase() || ''
+
     const shiftEvents = events.filter((event) => {
       // 終日イベントは除外
       if (!event.start.includes('T') || !event.end.includes('T')) return false
+      // Canvi発のイベントは除外（shared extendedProperties経由 or 旧: 別Canviユーザーがオーガナイザー）
+      if (event.canviShiftId) return false
+      const org = (event.organizerEmail || '').toLowerCase()
+      if (org && org !== myEmailLower && canviEmailSet.has(org)) return false
       return true
     })
 

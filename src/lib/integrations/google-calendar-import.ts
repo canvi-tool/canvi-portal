@@ -49,9 +49,29 @@ export async function syncFromGoogleCalendarForStaff(params: {
 
   const admin = createAdminClient()
 
+  // 自分以外のCanviユーザーがオーガナイザーのイベントは、招待された側の再取込による重複生成を避けるためスキップする
+  // （Canvi発のイベントは createEvent で shared extendedProperties に canviShiftId を持つので基本そちらで判定されるが、
+  //  旧イベント互換として organizer のメールドメイン一致もフォールバック）
+  const { data: canviUsers } = await admin.from('users').select('email')
+  const canviEmailSet = new Set(
+    (canviUsers || [])
+      .map((u) => (u as { email?: string | null }).email)
+      .filter((e): e is string => !!e)
+      .map((e) => e.toLowerCase())
+  )
+  // 自分自身の email を取得（除外判定用）
+  const { data: meUser } = await admin.from('users').select('email').eq('id', userId).maybeSingle()
+  const myEmail = ((meUser as { email?: string | null } | null)?.email || '').toLowerCase()
+
   for (const ev of events) {
     // Canvi発のイベント → スキップ
     if (ev.canviShiftId) {
+      result.skipped += 1
+      continue
+    }
+    // 旧イベント互換: 他のCanviユーザーがオーガナイザー → Canvi発の招待なのでスキップ
+    const organizer = (ev.organizerEmail || '').toLowerCase()
+    if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) {
       result.skipped += 1
       continue
     }
