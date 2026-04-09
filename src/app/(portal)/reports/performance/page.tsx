@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Loader2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,6 @@ import { PageHeader } from '@/components/layout/page-header'
 import {
   usePerformanceReports,
   useGeneratePerformanceReport,
-  useDeletePerformanceReport,
 } from '@/hooks/use-reports'
 import { useRouter } from 'next/navigation'
 import { useProjects, useStaffList } from '@/hooks/use-projects'
@@ -49,17 +48,6 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
 
 export default function PerformanceReportsPage() {
   const router = useRouter()
-  const deleteReport = useDeletePerformanceReport()
-
-  const handleDelete = async (id: string) => {
-    if (typeof window !== 'undefined' && !window.confirm('この月次レポートを削除しますか？')) return
-    try {
-      await deleteReport.mutateAsync(id)
-      toast.success('月次レポートを削除しました')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '削除に失敗しました')
-    }
-  }
 
   const [yearMonth, setYearMonth] = useState(
     new Date().toISOString().slice(0, 7)
@@ -275,21 +263,6 @@ export default function PerformanceReportsPage() {
                         >
                           修正
                         </button>
-                        {report.status !== 'approved' && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(report.id)}
-                            disabled={deleteReport.isPending}
-                          >
-                            {deleteReport.isPending ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4 mr-1" />
-                            )}
-                            削除
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>
