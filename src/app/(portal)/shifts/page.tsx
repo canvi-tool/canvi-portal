@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   Clock,
   CheckCircle2,
@@ -394,8 +395,8 @@ export default function ShiftsPage() {
       lastRun = now
       syncFromGcal(true)
     }
-    // GCal複数変更の反映遅延を抑えるため 30秒ごとに軽量sync
-    const interval = setInterval(tick, 30_000)
+    // GCal複数変更の反映遅延を抑えるため 15秒ごとに軽量sync (Realtimeバックアップ)
+    const interval = setInterval(tick, 15_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
@@ -405,6 +406,34 @@ export default function ShiftsPage() {
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Supabase Realtime: shifts テーブルの変更を購読して即時UI更新
+  // これにより GCal webhook → DB 書き込み → 1秒以内に Canvi UI に反映される
+  useEffect(() => {
+    if (!currentUserId) return
+    const supabase = createSupabaseBrowserClient()
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRefetch = () => {
+      if (pendingTimer) return
+      // 連続変更のデバウンス（300msウィンドウでまとめて1回再取得）
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null
+        fetchShiftsRef.current()
+      }, 300)
+    }
+    const channel = supabase
+      .channel('shifts-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shifts' },
+        () => scheduleRefetch()
+      )
+      .subscribe()
+    return () => {
+      if (pendingTimer) clearTimeout(pendingTimer)
+      supabase.removeChannel(channel)
+    }
+  }, [currentUserId])
 
   // フィルター対象のGCalユーザーID群を算出（複数選択時は全員分取得）
   const gcalTargets = useMemo(() => {

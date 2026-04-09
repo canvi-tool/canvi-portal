@@ -575,6 +575,92 @@ export class GoogleCalendarClient {
   }
 
   /**
+   * 増分同期: syncToken ベースで前回取得以降の差分のみを取得する。
+   * 初回呼び出し時（syncToken なし）は timeMin/timeMax で1ページだけ取得して新しい nextSyncToken を払い出す。
+   * 410 (GONE = syncToken 失効) の場合は null を返すので、呼び出し側は再フルシンクすること。
+   */
+  async listEventsIncremental(params: {
+    syncToken?: string
+    timeMin?: string
+    timeMax?: string
+  }): Promise<{
+    events: Array<{
+      id: string
+      status?: string
+      summary?: string
+      description?: string
+      start?: string
+      end?: string
+      isAllDay?: boolean
+      updated?: string
+      canviShiftId?: string
+      organizerEmail?: string
+    }>
+    nextSyncToken: string | null
+    tokenExpired: boolean
+  } | null> {
+    const { syncToken, timeMin, timeMax } = params
+    const out: Array<{
+      id: string; status?: string; summary?: string; description?: string
+      start?: string; end?: string; isAllDay?: boolean; updated?: string
+      canviShiftId?: string; organizerEmail?: string
+    }> = []
+    let pageToken: string | undefined
+    let nextSyncToken: string | null = null
+    try {
+      do {
+        const req: calendar_v3.Params$Resource$Events$List = {
+          calendarId: 'primary',
+          singleEvents: true,
+          maxResults: 250,
+          pageToken,
+          showDeleted: true,
+        }
+        if (syncToken) {
+          req.syncToken = syncToken
+        } else {
+          req.timeMin = timeMin
+          req.timeMax = timeMax
+          req.orderBy = 'startTime'
+        }
+        const response = await this.calendar.events.list(req)
+        const items = response.data.items || []
+        for (const e of items) {
+          if (!e.id) continue
+          const start = e.start?.dateTime || e.start?.date || undefined
+          const end = e.end?.dateTime || e.end?.date || undefined
+          out.push({
+            id: e.id,
+            status: e.status || undefined,
+            summary: e.summary || undefined,
+            description: e.description || undefined,
+            start,
+            end,
+            isAllDay: !!e.start?.date,
+            updated: e.updated || undefined,
+            canviShiftId:
+              (e.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId ||
+              (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
+            organizerEmail: e.organizer?.email || undefined,
+          })
+        }
+        pageToken = response.data.nextPageToken || undefined
+        if (!pageToken && response.data.nextSyncToken) {
+          nextSyncToken = response.data.nextSyncToken
+        }
+      } while (pageToken)
+      return { events: out, nextSyncToken, tokenExpired: false }
+    } catch (error) {
+      const err = error as { code?: number; response?: { status?: number } }
+      const code = err?.code ?? err?.response?.status
+      if (code === 410) {
+        return { events: [], nextSyncToken: null, tokenExpired: true }
+      }
+      throw error
+    }
+  }
+
+  /**
    * Phase 1 取込用: extendedProperties を含む primary カレンダーのイベント一覧
    * Canvi発のイベント（extendedProperties.private.canviShiftId が存在）を識別するため
    */

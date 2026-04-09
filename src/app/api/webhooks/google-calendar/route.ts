@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarClient } from '@/lib/integrations/google-calendar'
 import { getValidTokenForUser } from '@/lib/integrations/google-token'
+import { runIncrementalSyncForStaff } from '@/lib/integrations/gcal-incremental-sync'
 
 /**
  * Google Calendar Push Notification Webhook
@@ -71,6 +72,23 @@ export async function POST(request: NextRequest) {
     if (!staffRecord) {
       console.warn(`[gcal-webhook] No active staff for user ${userId}`)
       return new Response(null, { status: 200 })
+    }
+
+    // 最速パス: syncToken ベースの増分同期 (平均 <1s)
+    // 既に saveしてある syncToken を使って差分だけ取得 → shifts/pending を更新
+    // Supabase Realtime で /shifts ページに即時反映される。
+    try {
+      const incResult = await runIncrementalSyncForStaff({
+        userId,
+        staffId: staffRecord.id as string,
+      })
+      console.log(
+        `[gcal-webhook] Incremental sync (${incResult.mode}): ${incResult.changed} changed, ${incResult.deleted} deleted, errors=${incResult.errors.length}`
+      )
+      // 増分同期で主要差分は反映済み。以下の legacy パスはシフト化ルール（project 名マッチ）を
+      // 担っているので残すが、ここで早期 return できるケースも将来的に検討可能。
+    } catch (e) {
+      console.error('[gcal-webhook] Incremental sync failed:', e)
     }
 
     const client = new GoogleCalendarClient(
