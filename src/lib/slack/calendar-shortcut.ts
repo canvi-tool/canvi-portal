@@ -13,6 +13,39 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 import { waitUntil } from '@vercel/functions'
 
+const PERSONAL_PROJECT_NAME = '個人予定（プロジェクトなし）'
+
+/**
+ * Slack発起の「プロジェクトなし」予定用の共通プロジェクトを取得/作成する。
+ * Canviのshifts.project_idがNOT NULLのため、実プロジェクトに紐付けたくない
+ * 個人予定はこのシステムプロジェクトに格納する。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensurePersonalProject(admin: any): Promise<string | null> {
+  try {
+    const { data: existing } = await admin
+      .from('projects')
+      .select('id')
+      .eq('name', PERSONAL_PROJECT_NAME)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (existing?.id) return existing.id
+    const { data: created } = await admin
+      .from('projects')
+      .insert({
+        name: PERSONAL_PROJECT_NAME,
+        status: 'active',
+        shift_approval_mode: 'AUTO',
+      } as never)
+      .select('id')
+      .single()
+    return created?.id || null
+  } catch (e) {
+    console.error('[ensurePersonalProject] failed', e)
+    return null
+  }
+}
+
 function runBackground(fn: () => Promise<unknown>): void {
   try {
     waitUntil(fn().catch((e) => console.error('[calendar-shortcut bg]', e)))
@@ -258,8 +291,15 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   try {
     const admin = createAdminClient()
     let projectOptions: Array<{ id: string; name: string }> = []
+    // 個人予定（Slack発起のデフォルト）用プロジェクトを先頭に
+    const personalProjectId = await ensurePersonalProject(admin)
+    if (personalProjectId) {
+      projectOptions.push({ id: personalProjectId, name: '個人予定（プロジェクトなし）' })
+    }
     const { data: all } = await admin.from('projects').select('id, name').is('deleted_at', null).limit(50)
-    projectOptions = all || []
+    for (const p of all || []) {
+      if (p.id !== personalProjectId) projectOptions.push(p)
+    }
     if (projectOptions.length > 0 && viewId) {
       const opts = projectOptions.slice(0, 100).map((p) => ({
         text: { type: 'plain_text', text: p.name.slice(0, 75) },
@@ -343,10 +383,10 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     return
   }
 
-  // project_block が views.update 前に送信された場合のフォールバック: 任意の1件を選択
+  // project未選択時は「個人予定」システムプロジェクトにフォールバック
   if (!projectId) {
-    const { data: fallbackProj } = await admin.from('projects').select('id').is('deleted_at', null).limit(1).maybeSingle()
-    if (fallbackProj?.id) projectId = fallbackProj.id
+    const personalId = await ensurePersonalProject(admin)
+    if (personalId) projectId = personalId
   }
 
   if (!projectId || !date || !startTime || !endTime) {
