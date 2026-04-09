@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     // Googleカレンダーからbusy時間を取得
     // 各メンバーの自分のトークンで自分のカレンダーを取得
-    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
+    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
 
     const busyPromises = users.map(async (u) => {
       const token = await getValidTokenForUser(u.id)
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ユーザーごとのbusy時間を統合
-    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
+    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
 
     for (const u of users) {
       const userId = u.id
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       // Googleカレンダーのbusy時間
       const gcalBusy = googleBusy[u.email] || []
       for (const b of gcalBusy) {
-        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary, eventId: b.eventId, description: b.description, location: b.location, meetUrl: b.meetUrl, attendees: b.attendees })
+        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary, eventId: b.eventId, description: b.description, location: b.location, meetUrl: b.meetUrl, canviShiftId: b.canviShiftId, attendees: b.attendees })
       }
 
       // シフトをbusy時間として追加（Mapルックアップ O(1)）
@@ -125,6 +125,39 @@ export async function GET(request: NextRequest) {
           end: `${shift.shift_date}T${shift.end_time}:00+09:00`,
           source: 'shift',
         })
+      }
+    }
+
+    // 招待者の email → Canvi staff 名前に変換（表示用）
+    const allAttendeeEmails = new Set<string>()
+    for (const uid of Object.keys(busyByUser)) {
+      for (const b of busyByUser[uid]) {
+        for (const a of b.attendees || []) {
+          if (a.email) allAttendeeEmails.add(a.email.toLowerCase())
+        }
+      }
+    }
+    if (allAttendeeEmails.size > 0) {
+      const emailList = Array.from(allAttendeeEmails)
+      const { data: staffRows } = await admin
+        .from('users')
+        .select('email, display_name, staff:staff!staff_user_id_fkey(last_name, first_name)')
+        .in('email', emailList)
+      const nameByEmail = new Map<string, string>()
+      for (const r of (staffRows || []) as Array<{ email: string; display_name: string | null; staff: Array<{ last_name: string | null; first_name: string | null }> | null }>) {
+        const s = Array.isArray(r.staff) ? r.staff[0] : r.staff
+        const fullName = s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+        const name = fullName || r.display_name || ''
+        if (name) nameByEmail.set(r.email.toLowerCase(), name)
+      }
+      for (const uid of Object.keys(busyByUser)) {
+        for (const b of busyByUser[uid]) {
+          if (!b.attendees) continue
+          b.attendees = b.attendees.map((a) => ({
+            ...a,
+            displayName: a.displayName || (a.email ? nameByEmail.get(a.email.toLowerCase()) : undefined) || a.displayName,
+          }))
+        }
       }
     }
 

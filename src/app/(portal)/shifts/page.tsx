@@ -443,10 +443,12 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
-        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
+            // Canvi発のイベントはスキップ（Canvi側の表示を優先）
+            if (b.canviShiftId) continue
             all.push({
               id: b.eventId || `gcal-${member.id}-${b.start}`,
               summary: b.summary || '(予定)',
@@ -817,10 +819,12 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
-        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
+            // Canvi発のイベントはスキップ（Canvi側の表示を優先）
+            if (b.canviShiftId) continue
             all.push({
               id: b.eventId || `gcal-${member.id}-${b.start}`,
               summary: b.summary || '(予定)',

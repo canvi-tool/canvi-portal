@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AttendeePicker, type Attendee } from './attendee-picker'
 import {
   Dialog,
   DialogContent,
@@ -124,7 +125,7 @@ export function GCalEventDialog({
   const [editEndTime, setEditEndTime] = useState('')
   const [editSummary, setEditSummary] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editAttendees, setEditAttendees] = useState('')
+  const [editAttendeeList, setEditAttendeeList] = useState<Attendee[]>([])
   const [meetLoading, setMeetLoading] = useState(false)
   const [currentMeetUrl, setCurrentMeetUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -140,7 +141,11 @@ export function GCalEventDialog({
     setEditEndTime(endParsed.time)
     setEditSummary(event.summary || '')
     setEditDescription(event.description ? stripHtmlKeepLinks(event.description) : '')
-    setEditAttendees((event.attendees || []).map((a) => a.email).join(', '))
+    setEditAttendeeList(
+      (event.attendees || [])
+        .filter((a) => !!a.email)
+        .map((a) => ({ email: a.email, name: a.displayName || undefined }))
+    )
     setIsEditing(true)
   }
 
@@ -151,9 +156,8 @@ export function GCalEventDialog({
       const endDateTime = `${startParsed.date}T${editEndTime}:00+09:00`
       let success = false
       if (onUpdate) {
-        const attendeesList = editAttendees
-          .split(/[,\s;]+/)
-          .map((s) => s.trim())
+        const attendeesList = editAttendeeList
+          .map((a) => a.email.trim())
           .filter((s) => /.+@.+\..+/.test(s))
         success = await onUpdate(event.id, {
           summary: editSummary,
@@ -265,13 +269,8 @@ export function GCalEventDialog({
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">招待者（カンマ区切りメール）</Label>
-                    <Textarea
-                      value={editAttendees}
-                      onChange={(e) => setEditAttendees(e.target.value)}
-                      rows={2}
-                      placeholder="user1@example.com, user2@example.com"
-                    />
+                    <Label className="text-xs text-muted-foreground">招待者</Label>
+                    <AttendeePicker value={editAttendeeList} onChange={setEditAttendeeList} />
                   </div>
                 </>
               )}

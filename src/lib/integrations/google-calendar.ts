@@ -514,7 +514,7 @@ export class GoogleCalendarClient {
     timeMin: string
     timeMax: string
     timeZone?: string
-  }): Promise<Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> {
+  }): Promise<Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> {
     const { timeMin, timeMax } = params
 
     const response = await this.calendar.events.list({
@@ -537,6 +537,10 @@ export class GoogleCalendarClient {
         description: e.description || undefined,
         location: e.location || undefined,
         meetUrl: e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || undefined,
+        canviShiftId:
+          ((e.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId) ||
+          ((e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId) ||
+          undefined,
         attendees: (e.attendees || [])
           .filter((a) => !!a.email)
           .map((a) => ({
