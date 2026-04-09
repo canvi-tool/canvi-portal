@@ -176,14 +176,25 @@ export async function GET(request: NextRequest) {
         })
 
         // このスタッフの今日〜2週間の既存シフト（google_calendar_event_idあり）を取得
-        const { data: existingShifts } = await admin
-          .from('shifts')
-          .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const existingShiftsRes = await (admin.from('shifts') as any)
+          .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status, source')
           .eq('staff_id', staffRecord.id)
           .gte('shift_date', rangeStartStr)
           .lte('shift_date', twoWeeksLaterStr)
           .is('deleted_at', null)
           .not('google_calendar_event_id', 'is', null)
+        const existingShifts = existingShiftsRes.data as Array<{
+          id: string
+          shift_date: string
+          start_time: string
+          end_time: string
+          google_calendar_event_id: string | null
+          google_meet_url: string | null
+          notes: string | null
+          status: string | null
+          source: string | null
+        }> | null
 
         // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一
         const toHHMM = (t: string) => t.slice(0, 5)
@@ -309,13 +320,35 @@ export async function GET(request: NextRequest) {
         }
 
         // 削除検知: google_calendar_event_id があるがイベントが存在しなくなったシフト
+        //
+        // 重要:
+        // - Canvi発のシフト (source != 'google_calendar', 例えば source=null) は
+        //   Canvi側が正であり、GCal上で summary を変更されてPJマッチに外れただけでも
+        //   processedEventIds に入らないため、ここで誤って削除してはいけない。
+        // - GCal発シフト (source='google_calendar') のみ対象にする。
+        // - さらに保険として getEventById で実際に 404/cancelled を確認してから soft-delete する
+        //   (リスト範囲漏れ等による誤削除防止)。
         if (existingShifts) {
           for (const shift of existingShifts) {
             const eventId = shift.google_calendar_event_id
             if (!eventId) continue
             if (processedEventIds.has(eventId)) continue
+            // Canvi起点のシフトは対象外（source厳密判定）
+            if ((shift as { source?: string | null }).source !== 'google_calendar') continue
 
-            // イベントが消えた → シフトをソフト削除
+            // GCal API で実在確認（誤削除防止）
+            let gone = false
+            try {
+              const ev = await client.getEventById('primary', eventId)
+              gone = ev === null
+            } catch (verifyErr) {
+              userResult.errors.push(
+                `Verify error (shift ${shift.id}): ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`
+              )
+              continue
+            }
+            if (!gone) continue
+
             const nowIso = new Date().toISOString()
             const { error: deleteError } = await admin
               .from('shifts')

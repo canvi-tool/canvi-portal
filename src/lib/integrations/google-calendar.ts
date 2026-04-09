@@ -83,6 +83,27 @@ export class GoogleCalendarClient {
     }
   }
 
+  /**
+   * 指定eventIdのイベントを取得する。削除済み/存在しない場合は null を返す。
+   * 削除検知での確実な確認用（listでは取りこぼすことがあるため使用）。
+   */
+  async getEventById(
+    calendarId: string,
+    eventId: string
+  ): Promise<{ id: string; status?: string } | null> {
+    try {
+      const response = await this.calendar.events.get({ calendarId, eventId })
+      const status = response.data.status || undefined
+      if (status === 'cancelled') return null
+      return { id: response.data.id || eventId, status }
+    } catch (error) {
+      const err = error as { code?: number; response?: { status?: number } }
+      const code = err?.code ?? err?.response?.status
+      if (code === 404 || code === 410) return null
+      throw error
+    }
+  }
+
   async getEvents(
     calendarId: string,
     timeMin: string,

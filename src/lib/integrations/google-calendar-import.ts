@@ -16,6 +16,7 @@ export interface ImportResult {
   created: number
   updated: number
   skipped: number
+  deleted: number
   errors: string[]
 }
 
@@ -29,7 +30,7 @@ export async function syncFromGoogleCalendarForStaff(params: {
   timeMax: string // ISO8601
 }): Promise<ImportResult> {
   const { staffId, userId, timeMin, timeMax } = params
-  const result: ImportResult = { created: 0, updated: 0, skipped: 0, errors: [] }
+  const result: ImportResult = { created: 0, updated: 0, skipped: 0, deleted: 0, errors: [] }
 
   const token = await getValidTokenForUser(userId)
   if (!token) {
@@ -63,18 +64,26 @@ export async function syncFromGoogleCalendarForStaff(params: {
   const { data: meUser } = await admin.from('users').select('email').eq('id', userId).maybeSingle()
   const myEmail = ((meUser as { email?: string | null } | null)?.email || '').toLowerCase()
 
+  // 今回listEventsForImportで見えた(かつCanvi発でない)GCalイベントIDを記録する。
+  // これに含まれない既存取込(pending / 昇格済みshifts)はGCal側で削除/非公開された可能性があり、
+  // getEventById で確実に確認してから soft-delete する。
+  const seenExternalIds = new Set<string>()
+
   for (const ev of events) {
     // Canvi発のイベント → スキップ
     if (ev.canviShiftId) {
+      seenExternalIds.add(ev.id)
       result.skipped += 1
       continue
     }
     // 旧イベント互換: 他のCanviユーザーがオーガナイザー → Canvi発の招待なのでスキップ
     const organizer = (ev.organizerEmail || '').toLowerCase()
     if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) {
+      seenExternalIds.add(ev.id)
       result.skipped += 1
       continue
     }
+    seenExternalIds.add(ev.id)
     // 終日予定 → Phase 1ではスキップ
     if (ev.isAllDay) {
       result.skipped += 1
@@ -159,6 +168,89 @@ export async function syncFromGoogleCalendarForStaff(params: {
     const { error } = await (admin as any).from('gcal_pending_events').insert(insertPayload)
     if (error) result.errors.push(`INSERT失敗 ${ev.id}: ${error.message}`)
     else result.created += 1
+  }
+
+  // --- 削除検知 ---
+  // listEventsForImport の対象期間内で、前回以前に取込済みの external_event_id のうち、
+  // 今回のリストに存在しないもの = GCal側で削除/非公開された可能性あり。
+  // ただし list は showDeleted=false で取るので、保険として getEventById で 404/cancelled を確認してから soft-delete する。
+  //
+  // 対象:
+  // 1) shifts (source='google_calendar' かつ external_event_id がある) → ソフト削除
+  // 2) gcal_pending_events (未昇格の pending) → 物理削除
+  //
+  // Canvi発のシフト (source != 'google_calendar', 例えば source=null / 'canvi') は対象外。
+  try {
+    const timeMinDate = toJstDateStr(new Date(timeMin))
+    const timeMaxDate = toJstDateStr(new Date(timeMax))
+
+    // 既存の昇格済みshifts（このスタッフ×期間×GCal由来）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const promotedRes = await (admin.from('shifts') as any)
+      .select('id, external_event_id, source, shift_date')
+      .eq('staff_id', staffId)
+      .eq('source', 'google_calendar')
+      .not('external_event_id', 'is', null)
+      .is('deleted_at', null)
+      .gte('shift_date', timeMinDate)
+      .lte('shift_date', timeMaxDate)
+    const promotedShifts = promotedRes.data as Array<{ id: string; external_event_id: string | null; source: string | null; shift_date: string }> | null
+
+    const candidateShifts = (promotedShifts || []).filter(
+      (s) => s.external_event_id && !seenExternalIds.has(s.external_event_id)
+    )
+
+    for (const s of candidateShifts) {
+      if (!s.external_event_id) continue
+      try {
+        const ev = await client.getEventById('primary', s.external_event_id)
+        if (ev === null) {
+          // GCal側で削除 or cancelled
+          const nowIso = new Date().toISOString()
+          const { error: delErr } = await admin
+            .from('shifts')
+            .update({ deleted_at: nowIso, updated_at: nowIso })
+            .eq('id', s.id)
+            .is('deleted_at', null)
+          if (delErr) result.errors.push(`DELETE shift失敗 ${s.id}: ${delErr.message}`)
+          else result.deleted += 1
+        }
+      } catch (e) {
+        // 一過性エラーは無視して次へ（誤削除防止）
+        result.errors.push(`GCal verify失敗 ${s.external_event_id}: ${(e as Error).message}`)
+      }
+    }
+
+    // pending_events の掃除
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pendingAll } = await (admin as any).from('gcal_pending_events')
+      .select('id, external_event_id, event_date, excluded')
+      .eq('staff_id', staffId)
+      .gte('event_date', timeMinDate)
+      .lte('event_date', timeMaxDate) as { data: Array<{ id: string; external_event_id: string; event_date: string; excluded: boolean }> | null }
+
+    const candidatePending = (pendingAll || []).filter(
+      (p) => !p.excluded && p.external_event_id && !seenExternalIds.has(p.external_event_id)
+    )
+
+    for (const p of candidatePending) {
+      try {
+        const ev = await client.getEventById('primary', p.external_event_id)
+        if (ev === null) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: delErr } = await (admin as any)
+            .from('gcal_pending_events')
+            .delete()
+            .eq('id', p.id)
+          if (delErr) result.errors.push(`DELETE pending失敗 ${p.id}: ${delErr.message}`)
+          else result.deleted += 1
+        }
+      } catch (e) {
+        result.errors.push(`GCal verify失敗 pending ${p.external_event_id}: ${(e as Error).message}`)
+      }
+    }
+  } catch (e) {
+    result.errors.push(`削除検知処理エラー: ${(e as Error).message}`)
   }
 
   return result

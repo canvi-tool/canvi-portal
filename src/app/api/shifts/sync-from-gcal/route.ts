@@ -101,14 +101,25 @@ export async function POST(request: NextRequest) {
     })
 
     // 既存シフト（google_calendar_event_idあり）を取得
-    const { data: existingShifts } = await admin
-      .from('shifts')
-      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingShiftsRes = await (admin.from('shifts') as any)
+      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status, source')
       .eq('staff_id', staffRecord.id)
       .gte('shift_date', today)
       .lte('shift_date', endDate)
       .is('deleted_at', null)
       .not('google_calendar_event_id', 'is', null)
+    const existingShifts = existingShiftsRes.data as Array<{
+      id: string
+      shift_date: string
+      start_time: string
+      end_time: string
+      google_calendar_event_id: string | null
+      google_meet_url: string | null
+      notes: string | null
+      status: string | null
+      source: string | null
+    }> | null
 
     // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
     const toHHMM = (t: string) => t.slice(0, 5)
@@ -195,12 +206,23 @@ export async function POST(request: NextRequest) {
     }
 
     // GCalから削除されたイベントの検知
+    // Canvi発(source != 'google_calendar')のシフトは Canvi が正なのでGCal不在だけで削除しない。
+    // GCal発(source='google_calendar')のシフトのみ getEventById で実在を確認してから soft-delete する。
     if (existingShifts) {
       for (const shift of existingShifts) {
         if (!shift.google_calendar_event_id) continue
         if (processedEventIds.has(shift.google_calendar_event_id)) continue
+        if ((shift as { source?: string | null }).source !== 'google_calendar') continue
 
-        // Canviで作成してGCalに同期したシフトがGCalから削除された → ソフト削除
+        let gone = false
+        try {
+          const ev = await client.getEventById('primary', shift.google_calendar_event_id)
+          gone = ev === null
+        } catch {
+          continue
+        }
+        if (!gone) continue
+
         const nowIso = new Date().toISOString()
         await admin.from('shifts').update({
           deleted_at: nowIso,
