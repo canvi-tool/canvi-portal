@@ -11,6 +11,16 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
+import { waitUntil } from '@vercel/functions'
+
+function runBackground(fn: () => Promise<unknown>): void {
+  try {
+    waitUntil(fn().catch((e) => console.error('[calendar-shortcut bg]', e)))
+  } catch {
+    // 非Vercel環境フォールバック
+    fn().catch((e) => console.error('[calendar-shortcut bg fallback]', e))
+  }
+}
 
 const SLACK_API = 'https://slack.com/api'
 
@@ -244,7 +254,7 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
 
   // views.open 成功後に DB からプロジェクト一覧を取得して views.update で差し替え
   // fire-and-forget: 呼び出し側の await を早めに返すために await しない
-  void (async () => {
+  runBackground(async () => {
   try {
     const admin = createAdminClient()
     let projectOptions: Array<{ id: string; name: string }> = []
@@ -284,7 +294,7 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   } catch (e) {
     console.error('[canvi_calendar_create] project fetch / views.update exception', e)
   }
-  })()
+  })
 }
 
 /** モーダル送信 → シフト作成 + GCal 同期 + 結果をスレッド返信 */
@@ -520,7 +530,7 @@ export async function openCanviCalendarCancelModal(payload: ShortcutPayload): Pr
   const viewId = openJson.view?.id
   if (!viewId) return
 
-  void (async () => {
+  runBackground(async () => {
     try {
       const admin = createAdminClient()
       const { email: requesterEmail } = await slackUserIdToEmail(payload.user.id, botToken)
@@ -614,7 +624,7 @@ export async function openCanviCalendarCancelModal(payload: ShortcutPayload): Pr
       console.error('[canvi_calendar_cancel] enrichment exception', e)
       await updateViewWithError(botToken, viewId, '予定の読み込み中にエラーが発生しました')
     }
-  })()
+  })
 }
 
 async function updateViewWithError(botToken: string, viewId: string, msg: string): Promise<void> {
