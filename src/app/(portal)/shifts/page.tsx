@@ -10,7 +10,6 @@ import {
   CalendarDays,
   CalendarPlus,
   Plus,
-  RefreshCw,
   ChevronDown,
   Users,
   Check,
@@ -137,8 +136,6 @@ export default function ShiftsPage() {
   const [currentStaffId, setCurrentStaffId] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
   const [userRoles, setUserRoles] = useState<string[]>([])
-  const [syncing, setSyncing] = useState(false)
-  const [lastSynced, setLastSynced] = useState<string | null>(null)
 
   const [filterInitialized, setFilterInitialized] = useState(false)
   useEffect(() => {
@@ -168,7 +165,6 @@ export default function ShiftsPage() {
   }, [])
   syncFromGcalRef.current = async (silent: boolean) => {
     if (!dateRange.start || !dateRange.end) return
-    setSyncing(true)
     try {
       // Phase 1: 新取込パス (PJ未割当モデル)
       let pendingCreated = 0
@@ -201,7 +197,6 @@ export default function ShiftsPage() {
         // 常にシフトとGCalイベントの両方を再取得
         fetchShifts()
         refreshGoogleEvents()
-        setLastSynced(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
       } else if (!silent) {
         const err = await res.json().catch(() => ({}))
         if (err.error !== 'Googleカレンダーが未連携です') {
@@ -210,8 +205,6 @@ export default function ShiftsPage() {
       }
     } catch {
       if (!silent) toast.error('同期に失敗しました')
-    } finally {
-      setSyncing(false)
     }
   }
 
@@ -1059,17 +1052,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         description="ドラッグ&リサイズでシフトを直感的に管理"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => syncFromGcal(false)}
-              disabled={syncing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? '同期中...' : 'GCal同期'}
-              {lastSynced && <span className="ml-1 text-[10px] text-muted-foreground">{lastSynced}</span>}
-            </Button>
-            <Button
+<Button
               size="sm"
               onClick={() => {
                 const today = new Date()
