@@ -84,10 +84,17 @@ export async function POST(request: NextRequest) {
     // Check for duplicate
     const { data: existing } = await supabase
       .from('performance_reports')
-      .select('id')
+      .select('id, status')
       .eq('staff_id', parsed.data.staff_id)
       .eq('year_month', parsed.data.year_month)
       .maybeSingle()
+
+    if (existing && existing.status === 'approved') {
+      return NextResponse.json(
+        { error: '承認済みの月次レポートは編集できません' },
+        { status: 400 }
+      )
+    }
 
     if (existing) {
       // Update existing

@@ -477,14 +477,14 @@ export default function DailyReportDetailPage() {
               <ArrowLeft className="h-4 w-4 mr-1" />
               一覧に戻る
             </Button>
-            {(report.status === 'draft' || report.status === 'rejected') && (
+            {report.status !== 'approved' && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => router.push(`/reports/work/${id}/edit`)}
               >
                 <Pencil className="h-4 w-4 mr-1" />
-                編集
+                修正
               </Button>
             )}
             {report.status !== 'approved' && (

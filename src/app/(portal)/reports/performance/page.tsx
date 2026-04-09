@@ -256,13 +256,23 @@ export default function PerformanceReportsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/reports/performance/${report.id}`)}
-                          className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
-                        >
-                          修正
-                        </button>
+                        {report.status === 'approved' ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/reports/performance/${report.id}`)}
+                            className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            閲覧
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/reports/performance/${report.id}`)}
+                            className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                          >
+                            修正
+                          </button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

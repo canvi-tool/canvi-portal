@@ -223,6 +223,46 @@ export async function sendSlackBotMessage(
 }
 
 /**
+ * Bot Token方式でSlackメッセージを編集（chat.update）
+ */
+export async function updateSlackBotMessage(
+  channelId: string,
+  ts: string,
+  message: SlackMessage
+): Promise<{ success: boolean; error?: string }> {
+  const token = getBotToken()
+  if (!token) {
+    return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/chat.update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        ts,
+        text: message.text,
+        blocks: message.blocks,
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      console.error('Slack chat.update error:', data.error)
+      return { success: false, error: `Slack API error: ${data.error}` }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('Slack chat.update send error:', err)
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/**
  * プロジェクトの管理者以上（admin/owner）のSlack User IDを取得
  * + 指定されたスタッフ本人のSlack User IDも取得
  * メンション文字列を生成して返す

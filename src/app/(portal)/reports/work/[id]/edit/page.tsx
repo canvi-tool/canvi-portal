@@ -173,8 +173,8 @@ export default function EditDailyReportPage() {
   // Guard: only draft/rejected can be edited
   useEffect(() => {
     if (!report) return
-    if (report.status !== 'draft' && report.status !== 'rejected') {
-      toast.error('提出済みまたは承認済みの日報は編集できません')
+    if (report.status === 'approved') {
+      toast.error('承認済みの日報は修正できません')
       router.replace(`/reports/work/${id}`)
     }
   }, [report, id, router])
@@ -291,8 +291,8 @@ export default function EditDailyReportPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="日報編集"
-        description="日報を編集して再提出します"
+        title="日報修正"
+        description="日報を修正して再提出します"
         actions={
           <Button
             variant="outline"

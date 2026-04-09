@@ -4,7 +4,7 @@ import { dailyReportSchema, workReportApprovalSchema, DAILY_REPORT_TYPE_LABELS }
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isAdmin } from '@/lib/auth/rbac'
-import { sendProjectNotificationIfEnabled, sendSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
+import { sendProjectNotificationIfEnabled, sendSlackBotMessage, updateSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -64,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // 既存レコードを取得してステータスチェック
     const { data: existing, error: fetchError } = await supabase
       .from('work_reports')
-      .select('id, status, staff_id')
+      .select('id, status, staff_id, project_id, slack_thread_ts')
       .eq('id', id)
       .single()
 
@@ -75,10 +75,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
-    // 下書き・差戻しのみ編集可能
-    if (existing.status !== 'draft' && existing.status !== 'rejected') {
+    // 承認済みは編集不可（二重防御）
+    if (existing.status === 'approved') {
       return NextResponse.json(
-        { error: '提出済みまたは承認済みの日報は編集できません' },
+        { error: '承認済みの日報は編集できません' },
+        { status: 400 }
+      )
+    }
+    // draft/rejected/submitted のみ編集可能
+    if (
+      existing.status !== 'draft' &&
+      existing.status !== 'rejected' &&
+      existing.status !== 'submitted'
+    ) {
+      return NextResponse.json(
+        { error: 'この日報は編集できません' },
         { status: 400 }
       )
     }
@@ -125,8 +136,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Slack通知（再提出 → 既存スレッドにリプライ）
-    if (!isDraft && existing.status === 'rejected' && data.project_id) {
+    // 提出済を修正した場合: 前回のSlack通知を「差戻し」に書き換え（ボタン削除）
+    if (existing.status === 'submitted' && existing.slack_thread_ts && existing.project_id) {
+      try {
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('slack_channel_id')
+          .eq('id', existing.project_id)
+          .single()
+        if (proj?.slack_channel_id) {
+          await updateSlackBotMessage(
+            proj.slack_channel_id,
+            existing.slack_thread_ts,
+            {
+              text: '日報は修正のため差し戻されました',
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: ':leftwards_arrow_with_hook: *修正のため差し戻されました*\n提出者が内容を修正中です。',
+                  },
+                },
+              ],
+            }
+          )
+        }
+      } catch (e) {
+        console.warn('Failed to update prior Slack message (daily):', e)
+      }
+      // 旧スレッドTSをクリアして新規通知させる
+      await supabase
+        .from('work_reports')
+        .update({ slack_thread_ts: null })
+        .eq('id', id)
+    }
+
+    // Slack通知（再提出 → 既存スレッドにリプライ or 新規トップレベル）
+    if (!isDraft && (existing.status === 'rejected' || existing.status === 'submitted') && data.project_id) {
       const staffName = (() => {
         const s = data.staff as { last_name?: string; first_name?: string } | null
         return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''

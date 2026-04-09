@@ -194,15 +194,25 @@ export default function WorkReportsPage() {
       header: '',
       accessor: () => null,
       sortable: false,
-      cell: (row) => (
-        <button
-          type="button"
-          onClick={() => router.push(`/reports/work/${row.id}`)}
-          className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
-        >
-          修正
-        </button>
-      ),
+      cell: (row) => {
+        const isApproved = row.status === 'approved'
+        const href = isApproved
+          ? `/reports/work/${row.id}`
+          : `/reports/work/${row.id}/edit`
+        return (
+          <button
+            type="button"
+            onClick={() => router.push(href)}
+            className={
+              isApproved
+                ? 'inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors'
+                : 'inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors'
+            }
+          >
+            {isApproved ? '閲覧' : '修正'}
+          </button>
+        )
+      },
       className: 'w-[80px]',
     },
   ]
@@ -263,6 +273,7 @@ export default function WorkReportsPage() {
               placeholder="全ステータス"
               labels={{
                 all: '全ステータス',
+                draft: '下書き',
                 submitted: '提出済',
                 approved: '承認済',
                 rejected: '差戻し',
@@ -271,6 +282,7 @@ export default function WorkReportsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ステータス</SelectItem>
+            <SelectItem value="draft">下書き</SelectItem>
             <SelectItem value="submitted">提出済</SelectItem>
             <SelectItem value="approved">承認済</SelectItem>
             <SelectItem value="rejected">差戻し</SelectItem>
