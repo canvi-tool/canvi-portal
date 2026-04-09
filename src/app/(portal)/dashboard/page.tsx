@@ -83,6 +83,7 @@ interface DashboardData {
     startTime: string
     endTime: string
     status: string
+    title?: string | null
   }>
   recentAlerts: Array<{
     id: string
@@ -431,6 +432,9 @@ export default function DashboardPage() {
                                 <span className={cn('w-2 h-2 rounded-full shrink-0', statusCfg.color)} />
                                 <div className="flex-1 min-w-0">
                                   <span className="font-medium">{shift.staffName}</span>
+                                  {shift.title && shift.title !== projectName && (
+                                    <span className="ml-2 text-xs text-muted-foreground truncate">- {shift.title}</span>
+                                  )}
                                 </div>
                                 {isActive && (
                                   <span className="text-[10px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">

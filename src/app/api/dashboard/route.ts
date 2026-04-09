@@ -45,7 +45,7 @@ export async function GET() {
     // 本日のシフト（スコープ適用）
     let shiftQuery = supabase
       .from('shifts')
-      .select('id, start_time, end_time, status, staff:staff_id(last_name, first_name), project:project_id(name)')
+      .select('id, start_time, end_time, status, title, staff:staff_id(last_name, first_name), project:project_id(name)')
       .eq('shift_date', today)
       .is('deleted_at', null)
       .order('start_time', { ascending: true })
@@ -69,6 +69,7 @@ export async function GET() {
       startTime: s.start_time?.slice(0, 5) || '00:00',
       endTime: s.end_time?.slice(0, 5) || '00:00',
       status: s.status || 'SUBMITTED',
+      title: s.title || null,
     }))
 
     // アラート（alertsテーブルにはproject_idがないため、related_staff_idでスコープ）
