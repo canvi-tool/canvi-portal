@@ -13,6 +13,7 @@ const updateEventSchema = z.object({
   description: z.string().max(5000).optional(),
   start_datetime: z.string().datetime({ offset: true }).optional(),
   end_datetime: z.string().datetime({ offset: true }).optional(),
+  attendees: z.array(z.string().email()).optional(),
 })
 
 /**
@@ -37,7 +38,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const { summary, description, start_datetime, end_datetime } = parsed.data
+    const { summary, description, start_datetime, end_datetime, attendees } = parsed.data
 
     const token = await getValidTokenForUser(user.id)
     if (!token) {
@@ -55,6 +56,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       description,
       startDateTime: start_datetime,
       endDateTime: end_datetime,
+      attendees,
     })
 
     return NextResponse.json({ success: true })

@@ -48,6 +48,7 @@ export interface GoogleCalendarEvent {
   meetUrl?: string | null
   staffId?: string
   staffName?: string
+  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }>
 }
 
 interface ShiftFullCalendarProps {

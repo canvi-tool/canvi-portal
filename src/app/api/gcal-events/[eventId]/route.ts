@@ -21,10 +21,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const { startDateTime, endDateTime, summary, description } = body
+    const { startDateTime, endDateTime, summary, description, attendees } = body as {
+      startDateTime?: string
+      endDateTime?: string
+      summary?: string
+      description?: string
+      attendees?: string[]
+    }
 
-    if (!startDateTime || !endDateTime) {
-      return NextResponse.json({ error: 'startDateTime と endDateTime は必須です' }, { status: 400 })
+    const attendeesProvided = Array.isArray(attendees)
+    if (!startDateTime && !endDateTime && summary === undefined && description === undefined && !attendeesProvided) {
+      return NextResponse.json({ error: '更新フィールドがありません' }, { status: 400 })
     }
 
     const token = await getValidTokenForUser(user.id)
@@ -41,8 +48,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       eventId,
       startDateTime,
       endDateTime,
-      summary: summary || undefined,
-      description: description || undefined,
+      summary: summary !== undefined ? summary : undefined,
+      description: description !== undefined ? description : undefined,
+      attendees: attendeesProvided ? (attendees as string[]) : undefined,
     })
 
     return NextResponse.json({ success: true })

@@ -443,7 +443,7 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
-        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }> }>) {
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
@@ -457,6 +457,7 @@ export default function ShiftsPage() {
               meetUrl: b.meetUrl || null,
               staffId: meta?.staffId || undefined,
               staffName: meta?.staffName || undefined,
+              attendees: b.attendees,
             })
           }
         }
@@ -672,9 +673,34 @@ export default function ShiftsPage() {
       description: event.description,
       location: event.location,
       meetUrl: event.meetUrl,
+      attendees: event.attendees,
     })
     setGcalDialogOpen(true)
   }, [])
+
+  const handleGcalEventUpdate = useCallback(async (
+    eventId: string,
+    payload: { summary?: string; description?: string; startDateTime?: string; endDateTime?: string; attendees?: string[] }
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/gcal-events/${encodeURIComponent(eventId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Googleカレンダーの更新に失敗しました')
+        return false
+      }
+      toast.success('Googleカレンダーの予定を更新しました')
+      refreshGoogleEvents()
+      return true
+    } catch {
+      toast.error('Googleカレンダーの更新に失敗しました')
+      return false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGoogleEventDragUpdate = useCallback(async (
     eventId: string, startDateTime: string, endDateTime: string
@@ -791,7 +817,7 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
-        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }> }>) {
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
@@ -805,6 +831,7 @@ export default function ShiftsPage() {
               meetUrl: b.meetUrl || null,
               staffId: meta?.staffId || undefined,
               staffName: meta?.staffName || undefined,
+              attendees: b.attendees,
             })
           }
         }
@@ -1347,6 +1374,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         open={gcalDialogOpen}
         onOpenChange={setGcalDialogOpen}
         onTimeUpdate={handleGcalEventTimeUpdate}
+        onUpdate={handleGcalEventUpdate}
         onDelete={handleGcalEventDelete}
         onMeetCreate={handleGcalMeetCreate}
         onMeetDelete={handleGcalMeetDelete}

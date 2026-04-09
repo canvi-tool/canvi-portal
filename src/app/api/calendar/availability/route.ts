@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     // Googleカレンダーからbusy時間を取得
     // 各メンバーの自分のトークンで自分のカレンダーを取得
-    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }>> = {}
+    const googleBusy: Record<string, Array<{ start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
 
     const busyPromises = users.map(async (u) => {
       const token = await getValidTokenForUser(u.id)
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ユーザーごとのbusy時間を統合
-    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string }>> = {}
+    const busyByUser: Record<string, Array<{ start: string; end: string; source: 'shift' | 'google'; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>> = {}
 
     for (const u of users) {
       const userId = u.id
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       // Googleカレンダーのbusy時間
       const gcalBusy = googleBusy[u.email] || []
       for (const b of gcalBusy) {
-        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary, eventId: b.eventId, description: b.description, location: b.location, meetUrl: b.meetUrl })
+        busyByUser[userId].push({ start: b.start, end: b.end, source: 'google', summary: b.summary, eventId: b.eventId, description: b.description, location: b.location, meetUrl: b.meetUrl, attendees: b.attendees })
       }
 
       // シフトをbusy時間として追加（Mapルックアップ O(1)）

@@ -5,6 +5,7 @@ import { Clock, Calendar, Video, Copy, MapPin, FileText, Trash2, Pencil, XCircle
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,15 @@ export interface GCalEventItem {
   description?: string
   location?: string
   meetUrl?: string | null
+  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }>
+}
+
+export interface GCalEventUpdatePayload {
+  summary?: string
+  description?: string
+  startDateTime?: string
+  endDateTime?: string
+  attendees?: string[]
 }
 
 interface GCalEventDialogProps {
@@ -30,6 +40,7 @@ interface GCalEventDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onTimeUpdate?: (eventId: string, startDateTime: string, endDateTime: string) => Promise<boolean>
+  onUpdate?: (eventId: string, payload: GCalEventUpdatePayload) => Promise<boolean>
   onDelete?: (eventId: string) => void
   onMeetCreate?: (eventId: string) => Promise<string | null>
   onMeetDelete?: (eventId: string) => Promise<boolean>
@@ -103,6 +114,7 @@ export function GCalEventDialog({
   open,
   onOpenChange,
   onTimeUpdate,
+  onUpdate,
   onDelete,
   onMeetCreate,
   onMeetDelete,
@@ -110,6 +122,9 @@ export function GCalEventDialog({
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
+  const [editSummary, setEditSummary] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editAttendees, setEditAttendees] = useState('')
   const [meetLoading, setMeetLoading] = useState(false)
   const [currentMeetUrl, setCurrentMeetUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -123,16 +138,33 @@ export function GCalEventDialog({
   const handleStartEdit = () => {
     setEditStartTime(startParsed.time)
     setEditEndTime(endParsed.time)
+    setEditSummary(event.summary || '')
+    setEditDescription(event.description ? stripHtmlKeepLinks(event.description) : '')
+    setEditAttendees((event.attendees || []).map((a) => a.email).join(', '))
     setIsEditing(true)
   }
 
   const handleSave = async () => {
-    if (!onTimeUpdate) return
     setSaving(true)
     try {
       const startDateTime = `${startParsed.date}T${editStartTime}:00+09:00`
       const endDateTime = `${startParsed.date}T${editEndTime}:00+09:00`
-      const success = await onTimeUpdate(event.id, startDateTime, endDateTime)
+      let success = false
+      if (onUpdate) {
+        const attendeesList = editAttendees
+          .split(/[,\s;]+/)
+          .map((s) => s.trim())
+          .filter((s) => /.+@.+\..+/.test(s))
+        success = await onUpdate(event.id, {
+          summary: editSummary,
+          description: editDescription,
+          startDateTime,
+          endDateTime,
+          attendees: attendeesList,
+        })
+      } else if (onTimeUpdate) {
+        success = await onTimeUpdate(event.id, startDateTime, endDateTime)
+      }
       if (success) {
         setIsEditing(false)
         onOpenChange(false)
@@ -192,28 +224,57 @@ export function GCalEventDialog({
             <span>{startParsed.dateJP}</span>
           </div>
 
-          {/* Time - editable */}
+          {/* Edit form */}
           {isEditing ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Label className="text-sm">時間</Label>
+            <div className="space-y-3">
+              {onUpdate && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">タイトル</Label>
+                  <Input value={editSummary} onChange={(e) => setEditSummary(e.target.value)} />
+                </div>
+              )}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Label className="text-sm">時間</Label>
+                </div>
+                <div className="flex items-center gap-2 pl-7">
+                  <Input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-[120px]"
+                  />
+                  <span className="text-muted-foreground">〜</span>
+                  <Input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-[120px]"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2 pl-7">
-                <Input
-                  type="time"
-                  value={editStartTime}
-                  onChange={(e) => setEditStartTime(e.target.value)}
-                  className="w-[120px]"
-                />
-                <span className="text-muted-foreground">〜</span>
-                <Input
-                  type="time"
-                  value={editEndTime}
-                  onChange={(e) => setEditEndTime(e.target.value)}
-                  className="w-[120px]"
-                />
-              </div>
+              {onUpdate && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">説明</Label>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">招待者（カンマ区切りメール）</Label>
+                    <Textarea
+                      value={editAttendees}
+                      onChange={(e) => setEditAttendees(e.target.value)}
+                      rows={2}
+                      placeholder="user1@example.com, user2@example.com"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-3 text-sm">
@@ -241,6 +302,33 @@ export function GCalEventDialog({
               <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="text-muted-foreground whitespace-pre-wrap min-w-0 flex-1 [overflow-wrap:anywhere] break-all">
                 {renderWithLinks(stripHtmlKeepLinks(event.description))}
+              </div>
+            </div>
+          )}
+
+          {/* Attendees */}
+          {!isEditing && event.attendees && event.attendees.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">
+                招待者 ({event.attendees.length})
+              </div>
+              <div className="space-y-1 pl-1">
+                {event.attendees.map((a) => {
+                  const statusLabel =
+                    a.responseStatus === 'accepted' ? '✓ 参加' :
+                    a.responseStatus === 'declined' ? '✗ 不参加' :
+                    a.responseStatus === 'tentative' ? '? 未定' :
+                    '・未回答'
+                  return (
+                    <div key={a.email} className="flex items-center gap-2 text-sm min-w-0">
+                      <span className="truncate min-w-0 flex-1">
+                        {a.displayName || a.email}
+                        {a.organizer && <span className="ml-1 text-xs text-muted-foreground">(主催)</span>}
+                      </span>
+                      <span className="text-xs text-muted-foreground shrink-0">{statusLabel}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -347,7 +435,7 @@ export function GCalEventDialog({
                 <Copy className="h-3.5 w-3.5 mr-1" />
                 予定をコピー
               </Button>
-              {onTimeUpdate && (
+              {(onUpdate || onTimeUpdate) && (
                 <Button variant="outline" size="sm" onClick={handleStartEdit}>
                   <Pencil className="h-3.5 w-3.5 mr-1" />
                   編集
