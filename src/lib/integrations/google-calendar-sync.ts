@@ -17,7 +17,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
         id, staff_id, project_id, shift_date, start_time, end_time,
         shift_type, title, notes, attendees, google_calendar_event_id,
         staff!inner(user_id, last_name, first_name),
-        projects!inner(name, custom_fields)
+        projects(name, custom_fields)
       `)
       .eq('id', shiftId)
       .single()
@@ -27,7 +27,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
     const shift = shiftRaw as any
 
     const staffData = shift.staff as unknown as { user_id: string; last_name: string; first_name: string }
-    const projectData = shift.projects as unknown as { name: string; custom_fields: Record<string, unknown> | null }
+    const projectData = (shift.projects as unknown as { name: string; custom_fields: Record<string, unknown> | null } | null) || { name: '個人予定', custom_fields: null }
     const userId = staffData.user_id
     if (!userId) return
 
