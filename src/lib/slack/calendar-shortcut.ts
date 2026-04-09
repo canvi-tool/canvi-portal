@@ -355,14 +355,20 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
   }
 
   // 招待者: Slackユーザー → email → Canvi staff (自分以外)
-  const attendees: Array<{ email: string; name?: string; staff_id?: string }> = []
+  // ポリシー: Canvi未登録でもemailが取得できれば attendees に追加し、GCal招待を送る
+  const attendees: Array<{ email: string; name?: string; staff_id?: string; external?: boolean }> = []
+  const unresolvedSlackIds: string[] = []
   for (const sid of slackUserIds) {
     if (sid === payload.user.id) continue
     const { email, realName } = await slackUserIdToEmail(sid, botToken)
-    if (!email) continue
+    if (!email) {
+      unresolvedSlackIds.push(sid)
+      continue
+    }
     const { data: u } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
     let staffId: string | undefined
     let name: string | undefined = realName || undefined
+    let external = true
     if (u?.id) {
       const { data: s } = await admin
         .from('staff')
@@ -372,9 +378,10 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
       if (s?.id) {
         staffId = s.id
         name = `${s.last_name || ''} ${s.first_name || ''}`.trim() || name
+        external = false
       }
     }
-    attendees.push({ email, name, staff_id: staffId })
+    attendees.push({ email, name, staff_id: staffId, external })
   }
 
   // AUTO 承認でシフト登録
@@ -427,11 +434,22 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     return `${mo}/${d}(${wd})`
   })()
 
+  const canviLinked = attendees.filter((a) => !a.external)
+  const externalOnly = attendees.filter((a) => a.external)
   const lines = [
     `:white_check_mark: *Canviカレンダーに登録しました*`,
     `*${title}*`,
     `${dateJP} ${startTime} 〜 ${endTime}`,
-    attendees.length > 0 ? `招待: ${attendees.map((a) => a.name || a.email).join(', ')}` : '',
+    canviLinked.length > 0
+      ? `Canvi連携済み招待: ${canviLinked.map((a) => a.name || a.email).join(', ')}`
+      : '',
+    externalOnly.length > 0
+      ? `外部Google招待: ${externalOnly.map((a) => a.name || a.email).join(', ')}`
+      : '',
+    attendees.length > 0 ? `:calendar: Googleカレンダー招待メールを送信しました` : '',
+    unresolvedSlackIds.length > 0
+      ? `:warning: Email未取得のSlackユーザー: ${unresolvedSlackIds.map((id) => `<@${id}>`).join(', ')} (users:read.email スコープ未付与の可能性)`
+      : '',
     meetUrl ? `Google Meet: ${meetUrl}` : '',
   ].filter(Boolean)
 
