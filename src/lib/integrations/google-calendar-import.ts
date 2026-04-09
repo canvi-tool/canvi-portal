@@ -96,17 +96,56 @@ export async function syncFromGoogleCalendarForStaff(params: {
     const startTime = toJstTimeStr(startDate)
     const endTime = toJstTimeStr(endDate)
 
-    // 既にshiftsに昇格済みならスキップ
+    // 既にshiftsに昇格済みなら → GCal発シフト(source='google_calendar')のみ時間/タイトル差分を反映し、
+    // Canvi発シフト(source != 'google_calendar')はCanvi側が真実ソースなので触らない。
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: promotedList } = await admin
-      .from('shifts')
-      .select('id')
+    const { data: promotedList } = await (admin.from('shifts') as any)
+      .select('id, source, shift_date, start_time, end_time, title, notes, external_updated_at')
       .eq('staff_id', staffId)
       .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
       .is('deleted_at', null)
-      .limit(1) as { data: { id: string }[] | null }
+      .limit(1) as { data: Array<{ id: string; source: string | null; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; external_updated_at: string | null }> | null }
     if (promotedList && promotedList[0]) {
-      result.skipped += 1
+      const promoted = promotedList[0]
+      // Canvi発シフトは触らない
+      if (promoted.source !== 'google_calendar') {
+        result.skipped += 1
+        continue
+      }
+      const curStart = (promoted.start_time || '').slice(0, 5)
+      const curEnd = (promoted.end_time || '').slice(0, 5)
+      const newTitle = ev.summary || null
+      const newDesc = ev.description || null
+      // notes に "gcal:" プレフィックスが付いている旧データは無視して比較
+      const cleanNotes = promoted.notes && promoted.notes.startsWith('gcal:') ? null : promoted.notes
+      const changed =
+        promoted.shift_date !== shiftDate ||
+        curStart !== startTime ||
+        curEnd !== endTime ||
+        (promoted.title || null) !== newTitle ||
+        cleanNotes !== newDesc ||
+        (ev.updated && promoted.external_updated_at !== ev.updated)
+      if (changed) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updatePayload: any = {
+          shift_date: shiftDate,
+          start_time: startTime,
+          end_time: endTime,
+          title: newTitle,
+          notes: newDesc,
+          external_updated_at: ev.updated || null,
+          google_calendar_synced: true,
+          updated_at: new Date().toISOString(),
+        }
+        const { error: upErr } = await admin
+          .from('shifts')
+          .update(updatePayload)
+          .eq('id', promoted.id)
+        if (upErr) result.errors.push(`昇格済shift UPDATE失敗 ${ev.id}: ${upErr.message}`)
+        else result.updated += 1
+      } else {
+        result.skipped += 1
+      }
       continue
     }
 

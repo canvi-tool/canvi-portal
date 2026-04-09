@@ -386,8 +386,8 @@ export default function ShiftsPage() {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       syncFromGcal(true)
     }
-    // 30秒は重いので 2分に緩和（軽量化）
-    const interval = setInterval(tick, 120_000)
+    // GCal複数変更の反映遅延を抑えるため 30秒ごとに軽量sync
+    const interval = setInterval(tick, 30_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
