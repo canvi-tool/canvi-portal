@@ -385,13 +385,19 @@ export default function ShiftsPage() {
     if (filterStaffIds.length === 0) {
       return currentUserId ? [{ userId: currentUserId, staffId: '', staffName: '' }] : []
     }
-    return filterStaffIds
+    const picked = filterStaffIds
       .map(sid => {
         const staff = staffList.find(s => s.id === sid)
         if (!staff?.userId) return null
         return { userId: staff.userId, staffId: staff.id, staffName: staff.name }
       })
       .filter((x): x is { userId: string; staffId: string; staffName: string } => !!x)
+    // 自分のカレンダーも常に含める（organizer/attendee として招待されている
+    // GCal予定を確実に取得するため。dedup は userId で行う）
+    if (currentUserId && !picked.some(p => p.userId === currentUserId)) {
+      picked.push({ userId: currentUserId, staffId: '', staffName: '' })
+    }
+    return picked
   }, [filterStaffIds, staffList, currentUserId])
 
   const gcalTargetsKey = useMemo(() => gcalTargets.map(t => t.userId).join(','), [gcalTargets])
@@ -443,13 +449,14 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
+        const seen = new Map<string, number>()
         for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
             // Canvi発のイベントはスキップ（Canvi側の表示を優先）
             if (b.canviShiftId) continue
-            all.push({
+            const ev: GoogleCalendarEvent = {
               id: b.eventId || `gcal-${member.id}-${b.start}`,
               summary: b.summary || '(予定)',
               start: b.start,
@@ -460,7 +467,17 @@ export default function ShiftsPage() {
               staffId: meta?.staffId || undefined,
               staffName: meta?.staffName || undefined,
               attendees: b.attendees,
-            })
+            }
+            // 複数メンバーで同じGCalイベント(eventId)が返るケースを dedup
+            // staffIdを持つ（=フィルタ選択スタッフ）方を優先表示
+            const key = ev.id
+            const prevIdx = seen.get(key)
+            if (prevIdx === undefined) {
+              seen.set(key, all.length)
+              all.push(ev)
+            } else if (!all[prevIdx].staffId && ev.staffId) {
+              all[prevIdx] = ev
+            }
           }
         }
         setGoogleEvents(all)
@@ -819,13 +836,13 @@ export default function ShiftsPage() {
       .then(data => {
         if (!data?.members?.length) { setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
+        const seen = new Map<string, number>()
         for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
           const meta = userIdToMeta.get(member.id)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
-            // Canvi発のイベントはスキップ（Canvi側の表示を優先）
             if (b.canviShiftId) continue
-            all.push({
+            const ev: GoogleCalendarEvent = {
               id: b.eventId || `gcal-${member.id}-${b.start}`,
               summary: b.summary || '(予定)',
               start: b.start,
@@ -836,7 +853,15 @@ export default function ShiftsPage() {
               staffId: meta?.staffId || undefined,
               staffName: meta?.staffName || undefined,
               attendees: b.attendees,
-            })
+            }
+            const key = ev.id
+            const prevIdx = seen.get(key)
+            if (prevIdx === undefined) {
+              seen.set(key, all.length)
+              all.push(ev)
+            } else if (!all[prevIdx].staffId && ev.staffId) {
+              all[prevIdx] = ev
+            }
           }
         }
         setGoogleEvents(all)
