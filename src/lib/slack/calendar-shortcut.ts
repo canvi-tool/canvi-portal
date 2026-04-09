@@ -294,7 +294,7 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
     // 個人予定（Slack発起のデフォルト）用プロジェクトを先頭に
     const personalProjectId = await ensurePersonalProject(admin)
     if (personalProjectId) {
-      projectOptions.push({ id: personalProjectId, name: '個人予定（プロジェクトなし）' })
+      projectOptions.push({ id: personalProjectId, name: '指定なし' })
     }
     const { data: all } = await admin.from('projects').select('id, name').is('deleted_at', null).limit(50)
     for (const p of all || []) {
