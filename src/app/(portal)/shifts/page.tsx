@@ -213,6 +213,12 @@ export default function ShiftsPage() {
   const fetchShifts = useCallback(async () => {
     await fetchShiftsRef.current()
   }, [])
+  // ローカルミューテーション後の保険リフェッチ（即時 + 400ms後）
+  // Realtimeの健全性に依存せず、操作ユーザー側で確実に最新状態を反映する
+  const fetchShiftsSafe = useCallback(() => {
+    fetchShiftsRef.current()
+    setTimeout(() => { fetchShiftsRef.current() }, 400)
+  }, [])
   const fetchShiftsImpl = useCallback(async () => {
     if (!dateRange.start || !dateRange.end) return
     // 初回フィルタ初期化（自分=デフォルト）が完了するまで待機
@@ -461,9 +467,18 @@ export default function ShiftsPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'shifts' },
-        () => scheduleRefetch()
+        (payload) => {
+          console.log('[shifts-realtime] postgres_changes', payload.eventType)
+          scheduleRefetch()
+        }
       )
-      .subscribe()
+      .on('broadcast', { event: 'shifts-changed' }, () => {
+        console.log('[shifts-realtime] broadcast received')
+        scheduleRefetch()
+      })
+      .subscribe((status, err) => {
+        console.log('[shifts-realtime] status:', status, err || '')
+      })
     return () => {
       if (pendingTimer) clearTimeout(pendingTimer)
       supabase.removeChannel(channel)
@@ -648,13 +663,13 @@ export default function ShiftsPage() {
         return false
       }
       toast.success('シフトを移動しました')
-      fetchShifts()
+      fetchShiftsSafe()
       return true
     } catch {
       toast.error('シフトの更新に失敗しました')
       return false
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   const handleShiftCopy = useCallback(async (shiftId: string, targetDate: string) => {
     const resolvedId = shiftId.includes('__att__') ? shiftId.split('__att__')[0] : shiftId
@@ -677,11 +692,11 @@ export default function ShiftsPage() {
       })
       if (!res.ok) throw new Error()
       toast.success(`${targetDate} にシフトをコピーしました`)
-      fetchShifts()
+      fetchShiftsSafe()
     } catch {
       toast.error('シフトのコピーに失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   const handleShiftDelete = useCallback(async (shiftId: string) => {
     if (shiftId.startsWith('gcal_pending__')) {
@@ -699,7 +714,7 @@ export default function ShiftsPage() {
       const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
       if (res.ok) {
         toast.success('シフトを削除しました')
-        fetchShifts()
+        fetchShiftsSafe()
       } else {
         setShifts(prev)
         toast.error('シフトの削除に失敗しました')
@@ -708,7 +723,7 @@ export default function ShiftsPage() {
       setShifts(prev)
       toast.error('シフトの削除に失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   const handleSlotSelect = useCallback((date: string, startTime: string, endTime: string) => {
     setCreateInitial({ date, startTime, endTime })
@@ -734,7 +749,7 @@ export default function ShiftsPage() {
       })
       if (res.ok) {
         toast.success(`${updated.staffName}のシフトを更新しました`)
-        fetchShifts()
+        fetchShiftsSafe()
       } else {
         const err = await res.json().catch(() => ({}))
         toast.error(err.error || 'シフトの更新に失敗しました')
@@ -742,7 +757,7 @@ export default function ShiftsPage() {
     } catch {
       toast.error('シフトの更新に失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   const handleShiftApprove = useCallback(async (shiftId: string) => {
     try {
@@ -753,12 +768,12 @@ export default function ShiftsPage() {
       })
       if (res.ok) {
         toast.success('シフトを承認しました')
-        fetchShifts()
+        fetchShiftsSafe()
       }
     } catch {
       toast.error('シフトの承認に失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   const handleShiftReject = useCallback(async (shiftId: string) => {
     try {
@@ -769,12 +784,12 @@ export default function ShiftsPage() {
       })
       if (res.ok) {
         toast.success('シフトを却下しました')
-        fetchShifts()
+        fetchShiftsSafe()
       }
     } catch {
       toast.error('シフトの却下に失敗しました')
     }
-  }, [fetchShifts])
+  }, [fetchShiftsSafe])
 
   // --- Google Calendar event handlers ---
 
@@ -1389,7 +1404,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         staffList={staffList}
         currentStaffId={currentStaffId}
         isManager={isManager}
-        onCreated={fetchShifts}
+        onCreated={fetchShiftsSafe}
       />
 
       {/* Availability Sheet */}
@@ -1452,7 +1467,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         currentStaffId={currentStaffId}
         isManager={isManager}
         userRoles={userRoles}
-        onCreated={fetchShifts}
+        onCreated={fetchShiftsSafe}
         prefill={duplicatePrefill}
       />
 
