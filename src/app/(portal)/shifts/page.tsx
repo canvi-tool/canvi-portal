@@ -236,7 +236,13 @@ export default function ShiftsPage() {
       if (filterStatus !== 'all') params.set('status', filterStatus)
 
       const __t0 = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      const res = await fetch(`/api/shifts?${params}`)
+      // shifts と gcal-pending を並列取得（直列だとRTTが倍になる）
+      const pendingParams = new URLSearchParams({ start_date: dateRange.start, end_date: dateRange.end })
+      if (filterStaffIds.length > 0) pendingParams.set('staff_id', filterStaffIds.join(','))
+      const [res, pendingRes] = await Promise.all([
+        fetch(`/api/shifts?${params}`),
+        fetch(`/api/shifts/gcal-pending?${pendingParams}`).catch(() => null),
+      ])
       if (!res.ok) throw new Error('シフトの取得に失敗しました')
       const __ms = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - __t0
       if (__ms > 500) console.log(`[shifts] fetch ${Math.round(__ms)}ms (${filterStaffIds.length || 'all'} staff)`)
@@ -292,12 +298,9 @@ export default function ShiftsPage() {
           })
         }
       }
-      // PJ未割当のGCal取込イベントを取得し、仮想シフトとして追加
+      // PJ未割当のGCal取込イベント（上の Promise.all で並列取得済）
       try {
-        const pendingParams = new URLSearchParams({ start_date: dateRange.start, end_date: dateRange.end })
-        if (filterStaffIds.length > 0) pendingParams.set('staff_id', filterStaffIds.join(','))
-        const pendingRes = await fetch(`/api/shifts/gcal-pending?${pendingParams}`)
-        if (pendingRes.ok) {
+        if (pendingRes && pendingRes.ok) {
           const pending = await pendingRes.json()
           if (Array.isArray(pending)) {
             for (const p of pending) {
@@ -382,8 +385,13 @@ export default function ShiftsPage() {
   // 30秒ごとに自動再取得 + ウィンドウフォーカス時に再取得（near-instant同期）
   useEffect(() => {
     if (!dateRange.start || !dateRange.end || !currentUserId) return
+    let lastRun = 0
+    const MIN_INTERVAL = 10_000 // 10秒以内の重複トリガーは無視（focus/visibilitychange同時発火対策）
     const tick = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastRun < MIN_INTERVAL) return
+      lastRun = now
       syncFromGcal(true)
     }
     // GCal複数変更の反映遅延を抑えるため 30秒ごとに軽量sync
@@ -510,6 +518,10 @@ export default function ShiftsPage() {
     setDateRange({ start, end })
   }, [])
 
+  // shifts を ref で持ち、ハンドラの識別子を安定化（FullCalendar の不要な再レンダを削減）
+  const shiftsRef = useRef<CalendarShift[]>([])
+  useEffect(() => { shiftsRef.current = shifts }, [shifts])
+
   const handleShiftClick = useCallback((shift: CalendarShift) => {
     // GCal pending: PJ割当ダイアログを開く
     if (shift.id.startsWith('gcal_pending__')) {
@@ -524,7 +536,7 @@ export default function ShiftsPage() {
     // 仮想招待行クリック → オーナーシフトを開く（同じデータを参照するため情報は同一）
     const realId = shift.isVirtualAttendee && shift.ownerShiftId ? shift.ownerShiftId : shift.id
     const owner = shift.isVirtualAttendee
-      ? shifts.find((s) => s.id === realId) || shift
+      ? shiftsRef.current.find((s) => s.id === realId) || shift
       : shift
     setEditingShift({
       id: owner.id,
@@ -542,7 +554,7 @@ export default function ShiftsPage() {
       attendees: owner.attendees || [],
     })
     setEditDialogOpen(true)
-  }, [shifts]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isManager]) // shifts は ref 経由で参照
 
   const handleShiftDragUpdate = useCallback(async (
     shiftId: string, date: string, startTime: string, endTime: string
@@ -582,7 +594,7 @@ export default function ShiftsPage() {
 
   const handleShiftCopy = useCallback(async (shiftId: string, targetDate: string) => {
     const resolvedId = shiftId.includes('__att__') ? shiftId.split('__att__')[0] : shiftId
-    const source = shifts.find(s => s.id === resolvedId)
+    const source = shiftsRef.current.find(s => s.id === resolvedId)
     if (!source || !targetDate) return
 
     try {
@@ -605,7 +617,7 @@ export default function ShiftsPage() {
     } catch {
       toast.error('シフトのコピーに失敗しました')
     }
-  }, [shifts, fetchShifts])
+  }, [fetchShifts])
 
   const handleShiftDelete = useCallback(async (shiftId: string) => {
     if (shiftId.startsWith('gcal_pending__')) {
@@ -617,7 +629,7 @@ export default function ShiftsPage() {
       return
     }
     // 楽観的UI: ローカルstateからすぐに削除
-    const prev = shifts
+    const prev = shiftsRef.current
     setShifts(curr => curr.filter(s => s.id !== shiftId))
     try {
       const res = await fetch(`/api/shifts/${shiftId}`, { method: 'DELETE' })
@@ -632,7 +644,7 @@ export default function ShiftsPage() {
       setShifts(prev)
       toast.error('シフトの削除に失敗しました')
     }
-  }, [fetchShifts, shifts])
+  }, [fetchShifts])
 
   const handleSlotSelect = useCallback((date: string, startTime: string, endTime: string) => {
     setCreateInitial({ date, startTime, endTime })

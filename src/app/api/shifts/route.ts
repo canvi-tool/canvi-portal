@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
       .from('shifts')
       // 必要最小限のカラムのみ取得（レスポンスサイズ削減）
       .select(
-        'id, staff_id, project_id, shift_date, start_time, end_time, status, shift_type, title, notes, attendees, google_meet_url, google_calendar_event_id, source, needs_project_assignment, slack_thread_ts, submitted_at, approved_at, staff:staff_id(id, last_name, first_name), project:project_id(id, name, shift_approval_mode)',
-        { count: 'exact' }
+        'id, staff_id, project_id, shift_date, start_time, end_time, status, shift_type, title, notes, attendees, google_meet_url, google_calendar_event_id, source, needs_project_assignment, slack_thread_ts, submitted_at, approved_at, staff:staff_id(id, last_name, first_name), project:project_id(id, name, shift_approval_mode)'
       )
       .is('deleted_at', null)
       .order('shift_date', { ascending: false })
@@ -93,7 +92,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status as 'SUBMITTED' | 'APPROVED' | 'NEEDS_REVISION')
     }
 
-    const { data, error, count } = await query
+    const { data, error } = await query
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -109,7 +108,7 @@ export async function GET(request: NextRequest) {
     if (__ms > 300) {
       console.log(`[shifts.GET] ${__ms}ms rows=${result.length} range=${startDate}~${endDate} staff=${staffId || ''}`)
     }
-    return NextResponse.json({ data: result, total: count || 0 })
+    return NextResponse.json({ data: result, total: result.length })
   } catch (error) {
     console.error('GET /api/shifts error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
