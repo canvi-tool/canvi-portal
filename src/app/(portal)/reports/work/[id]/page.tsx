@@ -421,8 +421,12 @@ export default function DailyReportDetailPage() {
   }, [])
 
   const handleApprove = async (newStatus: 'approved' | 'rejected') => {
-    if (newStatus === 'rejected' && !approvalComment.trim()) {
-      toast.error('差戻し理由を入力してください')
+    if (!approvalComment.trim()) {
+      toast.error(
+        newStatus === 'rejected'
+          ? '差戻し理由を入力してください'
+          : '承認コメントを入力してください'
+      )
       return
     }
     try {
@@ -593,11 +597,15 @@ export default function DailyReportDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
-              placeholder="コメント（任意）"
+              placeholder="コメント（必須）"
               value={approvalComment}
               onChange={(e) => setApprovalComment(e.target.value)}
               rows={3}
+              required
             />
+            <p className="text-xs text-muted-foreground">
+              承認・差戻しどちらの場合もコメントの入力が必須です
+            </p>
             <div className="flex gap-2">
               <Button
                 onClick={() => handleApprove('approved')}

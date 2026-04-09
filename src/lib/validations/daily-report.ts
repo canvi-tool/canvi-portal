@@ -3,7 +3,11 @@ import { z } from 'zod'
 // ---- 承認スキーマ ----
 export const workReportApprovalSchema = z.object({
   status: z.enum(['approved', 'rejected'], { message: 'ステータスを選択してください' }),
-  comment: z.string().max(2000, 'コメントは2000文字以内で入力してください').optional().or(z.literal('')),
+  comment: z
+    .string()
+    .trim()
+    .min(1, 'コメントを入力してください')
+    .max(2000, 'コメントは2000文字以内で入力してください'),
 })
 
 export type WorkReportApprovalValues = z.infer<typeof workReportApprovalSchema>

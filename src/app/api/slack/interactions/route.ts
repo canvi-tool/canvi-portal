@@ -169,18 +169,25 @@ export async function POST(request: NextRequest) {
     if (payload.type === 'view_submission') {
       const callbackId = payload.view?.callback_id
 
-      // 差戻しコメント必須バリデーション（同期で返す必要あり）
-      if (
-        ['report_reject_modal', 'shift_reject_modal', 'correction_reject_modal'].includes(callbackId)
-      ) {
+      // コメント必須バリデーション（同期で返す必要あり）
+      // - 差戻し系（report/shift/correction）は常にコメント必須
+      // - 日報の承認もコメント必須（運用ルール）
+      const rejectModals = ['report_reject_modal', 'shift_reject_modal', 'correction_reject_modal']
+      const reportApproveRequiresComment = callbackId === 'report_approve_modal'
+      if (rejectModals.includes(callbackId) || reportApproveRequiresComment) {
         const state = payload.view?.state as
           | { values?: { comment_block?: { comment_input?: { value?: string } } } }
           | undefined
         const comment = state?.values?.comment_block?.comment_input?.value || ''
         if (!comment.trim()) {
+          const isApprove = callbackId === 'report_approve_modal'
           return NextResponse.json({
             response_action: 'errors',
-            errors: { comment_block: '差戻し理由を入力してください' },
+            errors: {
+              comment_block: isApprove
+                ? '承認コメントを入力してください'
+                : '差戻し理由を入力してください',
+            },
           })
         }
       }
@@ -294,24 +301,32 @@ async function openCommentModal(
         submit: { type: 'plain_text', text: submitText },
         close: { type: 'plain_text', text: 'キャンセル' },
         blocks: [
-          {
-            type: 'input',
-            block_id: 'comment_block',
-            optional: isApprove,
-            element: {
-              type: 'plain_text_input',
-              action_id: 'comment_input',
-              multiline: true,
-              placeholder: {
-                type: 'plain_text',
-                text: isApprove ? 'コメントを入力（任意）' : '差戻し理由を入力（必須）',
+          (() => {
+            // 日報は承認/差戻し どちらもコメント必須
+            const commentRequired = entityType === 'report' ? true : !isApprove
+            const placeholder = commentRequired
+              ? isApprove
+                ? '承認コメントを入力（必須）'
+                : '差戻し理由を入力（必須）'
+              : 'コメントを入力（任意）'
+            const labelText = commentRequired
+              ? isApprove
+                ? '承認コメント（必須）'
+                : '差戻し理由（必須）'
+              : 'コメント（任意）'
+            return {
+              type: 'input',
+              block_id: 'comment_block',
+              optional: !commentRequired,
+              element: {
+                type: 'plain_text_input',
+                action_id: 'comment_input',
+                multiline: true,
+                placeholder: { type: 'plain_text', text: placeholder },
               },
-            },
-            label: {
-              type: 'plain_text',
-              text: isApprove ? 'コメント（任意）' : '差戻し理由（必須）',
-            },
-          },
+              label: { type: 'plain_text', text: labelText },
+            }
+          })(),
         ],
       },
     }),
