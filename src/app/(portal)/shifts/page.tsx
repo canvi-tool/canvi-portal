@@ -312,12 +312,27 @@ export default function ShiftsPage() {
       // 招待者（attendees.staff_id）を別スタッフの仮想シフトとして展開
       //   - 岡林のシフトに後藤が招待されていれば、後藤カレンダーにも「後藤優衣」名義で表示
       //   - 仮想行は編集/ドラッグ/削除不可（オーナーシフトの参照のみ）
+      //
+      // ★重複表示防止: 仮想行は「現在フィルタで表示対象になっているスタッフ」のみ生成する。
+      // フィルタ未指定（自分のみ）の場合は currentStaffId のみ対象。
+      // そうしないと、自分のカレンダーを見ているだけで、招待した相手の仮想行まで
+      // 追加されてしまい、同じ時刻・同じタイトルの「二重表示」が発生する。
+      const visibleStaffSet = new Set<string>(
+        filterStaffIds.length > 0
+          ? filterStaffIds
+          : (currentStaffId ? [currentStaffId] : [])
+      )
       const expanded: CalendarShift[] = []
       for (const s of mapped) {
-        expanded.push(s)
+        // オーナー行: オーナー staffId がフィルタ対象外なら非表示
+        // （API は attendees 経由でも返すため、対象外オーナーが混ざる）
+        const ownerVisible = visibleStaffSet.size === 0 || visibleStaffSet.has(s.staffId)
+        if (ownerVisible) expanded.push(s)
         if (!s.attendees || s.attendees.length === 0) continue
         for (const a of s.attendees) {
           if (!a.staff_id || a.staff_id === s.staffId) continue
+          // 現在表示中のスタッフでないなら仮想行を作らない
+          if (visibleStaffSet.size > 0 && !visibleStaffSet.has(a.staff_id)) continue
           // staffList から名前を引ける場合はそれを優先、なければ attendee.name
           const staffInfo = staffListRef.current.find((x) => x.id === a.staff_id)
           const displayName = staffInfo?.name || a.name || a.email
@@ -368,7 +383,7 @@ export default function ShiftsPage() {
     } finally {
       setLoading(false)
     }
-  }, [dateRange, filterProject, filterStaffIds, filterStatus, filterInitialized])
+  }, [dateRange, filterProject, filterStaffIds, filterStatus, filterInitialized, currentStaffId])
 
   // 最新のfetchShiftsImplをrefに同期（stale closure対策）
   useEffect(() => {
