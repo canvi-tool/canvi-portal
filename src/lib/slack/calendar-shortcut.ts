@@ -190,19 +190,16 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
         label: { type: 'plain_text', text: '日付' },
       },
       {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: '*開始時刻*' },
-          { type: 'mrkdwn', text: '*終了時刻*' },
-        ],
+        type: 'input',
+        block_id: 'start_time_block',
+        element: { type: 'timepicker', action_id: 'start_time', initial_time: startTime },
+        label: { type: 'plain_text', text: '開始時刻' },
       },
       {
-        type: 'actions',
-        block_id: 'time_block',
-        elements: [
-          { type: 'timepicker', action_id: 'start_time', initial_time: startTime },
-          { type: 'timepicker', action_id: 'end_time', initial_time: endTime },
-        ],
+        type: 'input',
+        block_id: 'end_time_block',
+        element: { type: 'timepicker', action_id: 'end_time', initial_time: endTime },
+        label: { type: 'plain_text', text: '終了時刻' },
       },
       {
         type: 'input',
@@ -303,12 +300,10 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
   }
 
   const title = values.title_block?.title_input?.value?.trim() || 'Slack発起の予定'
-  const projectId = values.project_block?.project_select?.selected_option?.value
+  let projectId = values.project_block?.project_select?.selected_option?.value
   const date = values.date_block?.date_select?.selected_date
-  // actions block の timepicker は block_id ではなく action_id で取り出す必要あり
-  const timeState = values.time_block as Record<string, { selected_time?: string }> | undefined
-  const startTime = timeState?.start_time?.selected_time
-  const endTime = timeState?.end_time?.selected_time
+  const startTime = values.start_time_block?.start_time?.selected_time
+  const endTime = values.end_time_block?.end_time?.selected_time
   const slackUserIds = values.attendees_block?.attendees_select?.selected_users || []
   const notes = values.notes_block?.notes_input?.value || metadata.originalText || ''
 
@@ -338,8 +333,20 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     return
   }
 
+  // project_block が views.update 前に送信された場合のフォールバック: 任意の1件を選択
+  if (!projectId) {
+    const { data: fallbackProj } = await admin.from('projects').select('id').is('deleted_at', null).limit(1).maybeSingle()
+    if (fallbackProj?.id) projectId = fallbackProj.id
+  }
+
   if (!projectId || !date || !startTime || !endTime) {
-    await postSlackThread(metadata.channelId, metadata.messageTs, ':warning: 必要項目が未入力です')
+    const missing = [
+      !projectId && 'プロジェクト',
+      !date && '日付',
+      !startTime && '開始時刻',
+      !endTime && '終了時刻',
+    ].filter(Boolean).join('/')
+    await postSlackThread(metadata.channelId, metadata.messageTs, `:warning: 必要項目が未入力です (${missing})`)
     return
   }
   if (startTime >= endTime) {
