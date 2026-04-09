@@ -139,7 +139,7 @@ export default function ShiftsPage() {
   const [syncing, setSyncing] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
 
-  const didInitFilterRef = useRef(false)
+  const [filterInitialized, setFilterInitialized] = useState(false)
   useEffect(() => {
     fetch('/api/user/current')
       .then(r => r.json())
@@ -148,15 +148,16 @@ export default function ShiftsPage() {
         if (data.staffId) {
           setCurrentStaffId(data.staffId)
           // 初回ロード時のみ自分自身を選択状態にする
-          if (!didInitFilterRef.current) {
-            didInitFilterRef.current = true
-            setFilterStaffIds([data.staffId])
-          }
+          setFilterStaffIds(prev => (prev.length === 0 ? [data.staffId] : prev))
         }
         if (data.roles) setUserRoles(data.roles)
         if (data.id) setCurrentUserId(data.id)
       })
       .catch(() => {})
+      .finally(() => {
+        // 初期化完了（staffId 取得に失敗した場合も fetch を解禁）
+        setFilterInitialized(true)
+      })
   }, [])
 
   // GCal→Canvi オンデマンド同期（refで最新のfetchShifts/refreshGoogleEventsを参照）
@@ -220,6 +221,10 @@ export default function ShiftsPage() {
   }, [])
   const fetchShiftsImpl = useCallback(async () => {
     if (!dateRange.start || !dateRange.end) return
+    // 初回フィルタ初期化（自分=デフォルト）が完了するまで待機
+    // こうしないと currentUser 取得前に「全員」fetch が走り、後から自分 fetch と
+    // レース状態になって全員分が残る事故が起きる
+    if (!filterInitialized) return
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -327,7 +332,7 @@ export default function ShiftsPage() {
     } finally {
       setLoading(false)
     }
-  }, [dateRange, filterProject, filterStaffIds, filterStatus])
+  }, [dateRange, filterProject, filterStaffIds, filterStatus, filterInitialized])
 
   // 最新のfetchShiftsImplをrefに同期（stale closure対策）
   useEffect(() => {
