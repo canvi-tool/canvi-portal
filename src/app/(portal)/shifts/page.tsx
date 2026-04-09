@@ -242,7 +242,40 @@ export default function ShiftsPage() {
       if (__ms > 500) console.log(`[shifts] fetch ${Math.round(__ms)}ms (${filterStaffIds.length || 'all'} staff)`)
 
       const data = await res.json()
-      const list = data.data || (Array.isArray(data) ? data : [])
+      let list = data.data || (Array.isArray(data) ? data : [])
+
+      // 安全網: Canvi発シフトの重複排除（同一 google_calendar_event_id / external_event_id）
+      // GCal webhook 経由で稀に同一イベントに対して2行生成される事故が報告されたため、
+      // 最も古い (created_at が古い) 1行だけを残す。
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const byKey = new Map<string, any>()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const deduped: any[] = []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const s of list as any[]) {
+          const key = s.google_calendar_event_id || s.external_event_id || null
+          if (!key) {
+            deduped.push(s)
+            continue
+          }
+          const prev = byKey.get(key)
+          if (!prev) {
+            byKey.set(key, s)
+            deduped.push(s)
+          } else {
+            // 既存より古い方を残す
+            const prevTs = new Date(prev.created_at || 0).getTime()
+            const curTs = new Date(s.created_at || 0).getTime()
+            if (curTs < prevTs) {
+              const idx = deduped.indexOf(prev)
+              if (idx >= 0) deduped[idx] = s
+              byKey.set(key, s)
+            }
+          }
+        }
+        list = deduped
+      } catch { /* noop */ }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mapped: CalendarShift[] = list.map((s: any) => {

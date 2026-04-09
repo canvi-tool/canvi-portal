@@ -127,6 +127,9 @@ export async function syncFromGoogleCalendarForStaff(params: {
             google_meet_url: newMeetUrl,
             external_updated_at: ev.updated || null,
             google_calendar_synced: true,
+            // external_event_id を常にセット（重複生成防止の要）
+            external_event_id: ev.id,
+            google_calendar_event_id: ev.id,
             updated_at: new Date().toISOString(),
           }
           const { error: upErr } = await admin
@@ -136,6 +139,12 @@ export async function syncFromGoogleCalendarForStaff(params: {
           if (upErr) result.errors.push(`Canvi発shift UPDATE失敗 ${ev.id}: ${upErr.message}`)
           else result.updated += 1
         } else {
+          // 変更なしでも external_event_id が未設定なら埋める
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin.from('shifts') as any)
+            .update({ external_event_id: ev.id, google_calendar_event_id: ev.id })
+            .eq('id', canviShift.id)
+            .is('external_event_id', null)
           result.skipped += 1
         }
       } catch (e) {

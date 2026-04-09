@@ -174,6 +174,10 @@ export async function runIncrementalSyncForStaff(params: {
             google_meet_url: newMeetUrl,
             external_updated_at: ev.updated || null,
             google_calendar_synced: true,
+            // external_event_id / google_calendar_event_id を常にセットする
+            // (syncShiftToCalendar の update が webhook 到着後になるレースを塞ぐ)
+            external_event_id: ev.id,
+            google_calendar_event_id: ev.id,
             updated_at: new Date().toISOString(),
           }
           await admin
@@ -181,6 +185,13 @@ export async function runIncrementalSyncForStaff(params: {
             .update(updatePayload)
             .eq('id', canviShift.id)
           result.changed += 1
+        } else {
+          // 変更なしでも external_event_id が未設定なら埋める（重複防止の要）
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin.from('shifts') as any)
+            .update({ external_event_id: ev.id, google_calendar_event_id: ev.id })
+            .eq('id', canviShift.id)
+            .is('external_event_id', null)
         }
         return
       }

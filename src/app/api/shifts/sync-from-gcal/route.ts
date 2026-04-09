@@ -213,7 +213,8 @@ export async function POST(request: NextRequest) {
             cleanNotes !== newDescription ||
             (canviShift.google_meet_url || null) !== newMeetUrl
           ) {
-            await admin.from('shifts').update({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (admin.from('shifts') as any).update({
               shift_date: shiftDate,
               start_time: startTime,
               end_time: endTime,
@@ -221,12 +222,22 @@ export async function POST(request: NextRequest) {
               notes: newDescription,
               google_meet_url: newMeetUrl,
               google_calendar_event_id: event.id,
+              external_event_id: event.id,
               google_calendar_synced: true,
               updated_at: new Date().toISOString(),
             }).eq('id', canviShift.id)
             updated++
+          } else {
+            // 差分なしでも external_event_id が未設定なら埋める
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (admin.from('shifts') as any)
+              .update({ external_event_id: event.id, google_calendar_event_id: event.id })
+              .eq('id', canviShift.id)
+              .is('external_event_id', null)
           }
         }
+        // canviShiftId を持つ Canvi 発イベントは決して新規 INSERT しない
+        continue
       } else if (defaultProjectId) {
         // GCalにあるがCanviにない → 新規作成
         await admin.from('shifts').insert({

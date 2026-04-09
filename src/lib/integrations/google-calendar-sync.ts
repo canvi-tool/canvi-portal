@@ -78,8 +78,12 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       })
 
       // DB更新: event_id + meet_url保存
-      await admin.from('shifts').update({
+      // external_event_id も同時に set することで、webhook 由来の増分同期が
+      // 「同じイベント」として認識でき、重複 INSERT を防ぐ。
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin.from('shifts') as any).update({
         google_calendar_event_id: eventId,
+        external_event_id: eventId,
         google_meet_url: meetUrl,
         google_calendar_synced: true,
       }).eq('id', shiftId)
