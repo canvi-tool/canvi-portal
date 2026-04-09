@@ -411,10 +411,15 @@ export class GoogleCalendarClient {
     })
   }
 
-  async deleteEvent(calendarId: string = 'primary', eventId: string): Promise<void> {
+  async deleteEvent(
+    calendarId: string = 'primary',
+    eventId: string,
+    options: { notifyAttendees?: boolean } = {},
+  ): Promise<void> {
     await this.calendar.events.delete({
       calendarId,
       eventId,
+      sendUpdates: options.notifyAttendees ? 'all' : 'none',
     })
   }
 

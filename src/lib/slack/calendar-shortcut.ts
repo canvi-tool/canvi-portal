@@ -10,7 +10,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { syncShiftToCalendar } from '@/lib/integrations/google-calendar-sync'
+import { syncShiftToCalendar, deleteShiftFromCalendar } from '@/lib/integrations/google-calendar-sync'
 
 const SLACK_API = 'https://slack.com/api'
 
@@ -484,4 +484,227 @@ async function postSlackThread(channelId: string | undefined, threadTs: string |
   } catch (e) {
     console.error('[postSlackThread] failed:', e)
   }
+}
+
+// ================= 予定キャンセル =================
+
+/** 予定キャンセル用モーダルを開く（Slack shortcut: callback_id=canvi_calendar_cancel） */
+export async function openCanviCalendarCancelModal(payload: ShortcutPayload): Promise<void> {
+  const botToken = process.env.SLACK_BOT_TOKEN
+  if (!botToken) return
+
+  // 先に views.open で最小ビューを開く（trigger_id失効対策）
+  const initialView = {
+    type: 'modal',
+    callback_id: 'canvi_calendar_cancel_modal',
+    title: { type: 'plain_text', text: '予定をキャンセル' },
+    close: { type: 'plain_text', text: '閉じる' },
+    private_metadata: JSON.stringify({
+      channelId: payload.channel.id,
+      messageTs: payload.message.ts,
+    }),
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: ':hourglass_flowing_sand: 予定を読み込んでいます…' } },
+    ],
+  }
+  const openRes = await fetch(`${SLACK_API}/views.open`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${botToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trigger_id: payload.trigger_id, view: initialView }),
+  })
+  const openJson = await openRes.json().catch(() => null) as { ok?: boolean; view?: { id?: string }; error?: string } | null
+  if (!openJson?.ok) {
+    console.error('[canvi_calendar_cancel] views.open failed', openJson)
+    return
+  }
+  const viewId = openJson.view?.id
+  if (!viewId) return
+
+  void (async () => {
+    try {
+      const admin = createAdminClient()
+      const { email: requesterEmail } = await slackUserIdToEmail(payload.user.id, botToken)
+      if (!requesterEmail) {
+        await updateViewWithError(botToken, viewId, 'Slackユーザーのメールアドレスが取得できませんでした (users:read.emailスコープを確認)')
+        return
+      }
+      const { data: requester } = await admin.from('users').select('id').ilike('email', requesterEmail).maybeSingle()
+      if (!requester?.id) {
+        await updateViewWithError(botToken, viewId, 'Canvi Portalに紐付くユーザーが見つかりません')
+        return
+      }
+      const { data: staff } = await admin
+        .from('staff')
+        .select('id')
+        .eq('user_id', requester.id)
+        .maybeSingle()
+      if (!staff?.id) {
+        await updateViewWithError(botToken, viewId, 'スタッフ情報が見つかりません')
+        return
+      }
+
+      // 今日〜+30日 の自分のシフトを取得
+      const todayYmd = jstYmd(0)
+      const endYmd = jstYmd(30)
+      const { data: shifts } = await admin
+        .from('shifts')
+        .select('id, shift_date, start_time, end_time, title, project:project_id(name)')
+        .eq('staff_id', staff.id)
+        .gte('shift_date', todayYmd)
+        .lte('shift_date', endYmd)
+        .is('deleted_at', null)
+        .order('shift_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(50)
+
+      if (!shifts || shifts.length === 0) {
+        await updateViewWithError(botToken, viewId, '直近30日以内にキャンセル可能な予定がありません')
+        return
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const options = (shifts as any[]).map((s) => {
+        const projectName = s.project?.name || ''
+        const titleText = s.title || projectName || '(無題)'
+        const label = `${s.shift_date} ${String(s.start_time).slice(0, 5)}-${String(s.end_time).slice(0, 5)} ${titleText}`.slice(0, 75)
+        return {
+          text: { type: 'plain_text', text: label },
+          value: s.id,
+        }
+      })
+
+      const updatedView = {
+        type: 'modal',
+        callback_id: 'canvi_calendar_cancel_modal',
+        title: { type: 'plain_text', text: '予定をキャンセル' },
+        submit: { type: 'plain_text', text: 'キャンセルする' },
+        close: { type: 'plain_text', text: '閉じる' },
+        private_metadata: initialView.private_metadata,
+        blocks: [
+          {
+            type: 'input',
+            block_id: 'shift_block',
+            element: {
+              type: 'static_select',
+              action_id: 'shift_select',
+              options,
+              initial_option: options[0],
+            },
+            label: { type: 'plain_text', text: '予定' },
+          },
+          {
+            type: 'input',
+            block_id: 'reason_block',
+            optional: true,
+            element: { type: 'plain_text_input', action_id: 'reason_input', multiline: true },
+            label: { type: 'plain_text', text: 'キャンセル理由（招待者へ通知されます）' },
+          },
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: ':warning: Googleカレンダーのイベントも削除され、招待者にキャンセル通知メールが自動送信されます。' },
+          },
+        ],
+      }
+      await fetch(`${SLACK_API}/views.update`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${botToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view_id: viewId, view: updatedView }),
+      })
+    } catch (e) {
+      console.error('[canvi_calendar_cancel] enrichment exception', e)
+      await updateViewWithError(botToken, viewId, '予定の読み込み中にエラーが発生しました')
+    }
+  })()
+}
+
+async function updateViewWithError(botToken: string, viewId: string, msg: string): Promise<void> {
+  const view = {
+    type: 'modal',
+    callback_id: 'canvi_calendar_cancel_modal_error',
+    title: { type: 'plain_text', text: '予定をキャンセル' },
+    close: { type: 'plain_text', text: '閉じる' },
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: `:warning: ${msg}` } },
+    ],
+  }
+  await fetch(`${SLACK_API}/views.update`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${botToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ view_id: viewId, view }),
+  }).catch(() => {})
+}
+
+/** キャンセルモーダル送信 → シフト論理削除 + GCalイベント削除（招待者通知あり） */
+export async function handleCanviCalendarCancel(payload: ViewSubmissionPayload): Promise<void> {
+  const botToken = process.env.SLACK_BOT_TOKEN
+  if (!botToken) return
+
+  const values = payload.view.state.values
+  const metadata = JSON.parse(payload.view.private_metadata || '{}') as {
+    channelId?: string
+    messageTs?: string
+  }
+  const shiftId = values.shift_block?.shift_select?.selected_option?.value
+  const reason = values.reason_block?.reason_input?.value?.trim() || ''
+  if (!shiftId) {
+    await postSlackThread(metadata.channelId, metadata.messageTs, ':warning: 予定が選択されていません')
+    return
+  }
+
+  const admin = createAdminClient()
+  const { email: requesterEmail } = await slackUserIdToEmail(payload.user.id, botToken)
+  if (!requesterEmail) {
+    await postSlackThread(metadata.channelId, metadata.messageTs, ':warning: Slackユーザーのemail取得失敗')
+    return
+  }
+  const { data: requester } = await admin.from('users').select('id').ilike('email', requesterEmail).maybeSingle()
+  if (!requester?.id) {
+    await postSlackThread(metadata.channelId, metadata.messageTs, ':warning: Canviユーザーが見つかりません')
+    return
+  }
+
+  // 対象シフト取得（所有権チェック）
+  const { data: shift } = await admin
+    .from('shifts')
+    .select('id, shift_date, start_time, end_time, title, staff:staff_id(user_id), project:project_id(name)')
+    .eq('id', shiftId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!shift) {
+    await postSlackThread(metadata.channelId, metadata.messageTs, ':warning: 対象の予定が見つかりません')
+    return
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ownerUserId = (shift as any).staff?.user_id
+  if (ownerUserId !== requester.id) {
+    await postSlackThread(metadata.channelId, metadata.messageTs, ':no_entry: 他のスタッフの予定はキャンセルできません')
+    return
+  }
+
+  // GCal削除（招待者通知あり）
+  try {
+    await deleteShiftFromCalendar(shiftId, { notifyAttendees: true })
+  } catch (e) {
+    console.error('[canvi_calendar_cancel] gcal delete failed', e)
+  }
+
+  // Canviシフト論理削除
+  const now = new Date().toISOString()
+  await admin
+    .from('shifts')
+    .update({ deleted_at: now, status: 'CANCELLED', notes: reason ? `キャンセル理由: ${reason}` : undefined } as never)
+    .eq('id', shiftId)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sAny = shift as any
+  const titleText = sAny.title || sAny.project?.name || '(無題)'
+  const dateStr = `${sAny.shift_date} ${String(sAny.start_time).slice(0, 5)}-${String(sAny.end_time).slice(0, 5)}`
+  const lines = [
+    `:wastebasket: *予定をキャンセルしました*`,
+    `*${titleText}*`,
+    dateStr,
+    reason ? `理由: ${reason}` : '',
+    ':email: Googleカレンダーの招待者にキャンセル通知メールを送信しました',
+  ].filter(Boolean)
+  await postSlackThread(metadata.channelId, metadata.messageTs, lines.join('\n'))
 }

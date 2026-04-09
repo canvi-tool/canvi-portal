@@ -92,7 +92,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
 /**
  * シフト削除時にGoogleカレンダーからイベントを削除する
  */
-export async function deleteShiftFromCalendar(shiftId: string): Promise<void> {
+export async function deleteShiftFromCalendar(shiftId: string, options: { notifyAttendees?: boolean } = {}): Promise<void> {
   try {
     const admin = createAdminClient()
 
@@ -115,7 +115,7 @@ export async function deleteShiftFromCalendar(shiftId: string): Promise<void> {
     if (!token) return
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
-    await client.deleteEvent('primary', shift.google_calendar_event_id)
+    await client.deleteEvent('primary', shift.google_calendar_event_id, { notifyAttendees: !!options.notifyAttendees })
 
     // GCalイベントIDをクリア（再提出時に新規イベント作成されるように）
     await admin.from('shifts').update({

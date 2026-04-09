@@ -3,7 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
-import { openCanviCalendarModal, handleCanviCalendarCreate } from '@/lib/slack/calendar-shortcut'
+import { openCanviCalendarModal, handleCanviCalendarCreate, openCanviCalendarCancelModal, handleCanviCalendarCancel } from '@/lib/slack/calendar-shortcut'
 
 // Slack 3秒応答ルール対策: Vercel上で応答後も処理を継続させる
 // ローカル/非Vercel環境ではwaitUntilが使えないのでフォールバックでawaitせず実行
@@ -104,6 +104,16 @@ export async function POST(request: NextRequest) {
         await openCanviCalendarModal(payload)
       } catch (e) {
         console.error('[slack] openCanviCalendarModal sync error', e)
+      }
+      return new Response('', { status: 200 })
+    }
+
+    // Message shortcut: Canviカレンダーの予定をキャンセル
+    if (payload.type === 'message_action' && payload.callback_id === 'canvi_calendar_cancel') {
+      try {
+        await openCanviCalendarCancelModal(payload)
+      } catch (e) {
+        console.error('[slack] openCanviCalendarCancelModal sync error', e)
       }
       return new Response('', { status: 200 })
     }
@@ -211,6 +221,14 @@ export async function POST(request: NextRequest) {
       if (callbackId === 'canvi_calendar_create_modal') {
         after(async () => {
           try { await handleCanviCalendarCreate(payload) } catch (e) { console.error('handleCanviCalendarCreate', e) }
+        })
+        return new Response('', { status: 200 })
+      }
+
+      // Canviカレンダー予定キャンセル モーダル送信
+      if (callbackId === 'canvi_calendar_cancel_modal') {
+        after(async () => {
+          try { await handleCanviCalendarCancel(payload) } catch (e) { console.error('handleCanviCalendarCancel', e) }
         })
         return new Response('', { status: 200 })
       }
