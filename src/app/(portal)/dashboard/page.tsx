@@ -161,6 +161,10 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
   REPORT_OVERDUE: '未報告',
   PAYMENT_ISSUE: '支払',
   CUSTOM: 'その他',
+  ATTENDANCE_ERROR: '勤怠エラー',
+  ATTENDANCE_CORRECTION_PENDING: '勤怠修正依頼',
+  REPORT_MISSING: '日報送付漏れ',
+  REPORT_REJECTED: '日報差戻し',
 }
 
 // --- Attendance Summary Card ---

@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { isOwner } from '@/lib/auth/rbac'
 import { isFreelanceType } from '@/lib/validations/staff'
+import { getRecentDerivedAlerts } from '@/lib/alerts/recent-alerts'
 
 function todayStr() {
   // JST (Asia/Tokyo) で本日の YYYY-MM-DD を返す（Vercel UTC環境対応）
@@ -103,13 +104,43 @@ export async function GET() {
     const alertListRes = await alertListQuery
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recentAlerts = (alertListRes.data || []).map((a: any) => ({
+    const legacyAlerts = (alertListRes.data || []).map((a: any) => ({
       id: a.id,
       type: a.alert_type || 'その他',
       message: a.message || '',
       severity: a.severity || 'info',
       createdAt: a.created_at?.split('T')[0] || today,
+      projectManagerName: null as string | null,
     }))
+
+    // 派生アラート (勤怠エラー / 勤怠修正依頼 / 日報送付漏れ / 日報差戻し)
+    let derivedAlerts: Array<{
+      id: string
+      type: string
+      message: string
+      severity: string
+      createdAt: string
+      projectManagerName: string | null
+    }> = []
+    try {
+      const derived = await getRecentDerivedAlerts(user, allowedProjectIds, { limit: 20 })
+      derivedAlerts = derived.map((d) => ({
+        id: d.id,
+        type: d.type,
+        message: d.description,
+        severity: d.severity,
+        createdAt: d.createdAt.split('T')[0] || today,
+        projectManagerName: d.projectManagerName || null,
+      }))
+    } catch (e) {
+      console.error('getRecentDerivedAlerts error:', e)
+    }
+
+    const recentAlerts = [...derivedAlerts, ...legacyAlerts]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, 10)
+
+    const unresolvedAlerts = (alertCountRes.count || 0) + derivedAlerts.length
 
     // --- オーナー専用データ ---
     let staffCount = 0
@@ -220,7 +251,7 @@ export async function GET() {
     return NextResponse.json({
       staffCount,
       activeProjects: activeProjectCount,
-      unresolvedAlerts: alertCountRes.count || 0,
+      unresolvedAlerts,
       pendingForms,
       staffMissingFields,
       todaysShifts,
