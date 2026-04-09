@@ -404,15 +404,9 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     return
   }
 
-  // project未選択時は「個人予定」システムプロジェクトにフォールバック
-  if (!projectId) {
-    const personalId = await ensurePersonalProject(admin)
-    if (personalId) projectId = personalId
-  }
-
-  if (!projectId || !date || !startTime || !endTime) {
+  // project未選択時は project_id=null で登録（DBは nullable）
+  if (!date || !startTime || !endTime) {
     const missing = [
-      !projectId && 'プロジェクト',
       !date && '日付',
       !startTime && '開始時刻',
       !endTime && '終了時刻',
@@ -470,7 +464,7 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     .from('shifts')
     .insert({
       staff_id: staff.id,
-      project_id: projectId,
+      project_id: projectId || null,
       shift_date: date,
       start_time: startTime,
       end_time: endTime,
