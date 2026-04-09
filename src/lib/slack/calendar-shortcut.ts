@@ -290,7 +290,7 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   runBackground(async () => {
   try {
     const admin = createAdminClient()
-    let projectOptions: Array<{ id: string; name: string }> = []
+    const projectOptions: Array<{ id: string; name: string }> = []
     // 個人予定（Slack発起のデフォルト）用プロジェクトを先頭に
     const personalProjectId = await ensurePersonalProject(admin)
     if (personalProjectId) {

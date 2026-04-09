@@ -504,7 +504,7 @@ export default function ShiftsPage() {
       attendees: owner.attendees || [],
     })
     setEditDialogOpen(true)
-  }, [shifts])
+  }, [shifts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleShiftDragUpdate = useCallback(async (
     shiftId: string, date: string, startTime: string, endTime: string
