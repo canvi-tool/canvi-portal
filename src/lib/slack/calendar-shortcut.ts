@@ -376,7 +376,9 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
   const startTime = values.start_time_block?.start_time?.selected_time
   const endTime = values.end_time_block?.end_time?.selected_time
   const slackUserIds = values.attendees_block?.attendees_select?.selected_users || []
-  const notes = values.notes_block?.notes_input?.value || metadata.originalText || ''
+  // ユーザーが空にした場合は空文字を尊重する（originalText にフォールバックしない）
+  const notesRaw = values.notes_block?.notes_input?.value
+  const notes = typeof notesRaw === 'string' ? notesRaw : ''
 
   const admin = createAdminClient()
 
