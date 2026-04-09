@@ -93,8 +93,9 @@ export async function POST(request: NextRequest) {
     const shiftEvents = events.filter((event) => {
       // 終日イベントは除外
       if (!event.start.includes('T') || !event.end.includes('T')) return false
-      // Canvi発のイベントは除外（shared extendedProperties経由 or 旧: 別Canviユーザーがオーガナイザー）
-      if (event.canviShiftId) return false
+      // Canvi発(別ユーザー発行)のイベントは除外 (旧互換: 別Canviユーザーがオーガナイザー)
+      // 自分自身のCanvi発イベント(event.canviShiftId)は、GCal側で加えられた変更を
+      // Canviに取り込むために処理対象とする（下で google_calendar_event_id で既存シフトを更新）
       const org = (event.organizerEmail || '').toLowerCase()
       if (org && org !== myEmailLower && canviEmailSet.has(org)) return false
       return true
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     // 既存シフト（google_calendar_event_idあり）を取得
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existingShiftsRes = await (admin.from('shifts') as any)
-      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status, source')
+      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, title, status, source')
       .eq('staff_id', staffRecord.id)
       .gte('shift_date', today)
       .lte('shift_date', endDate)
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
       google_calendar_event_id: string | null
       google_meet_url: string | null
       notes: string | null
+      title: string | null
       status: string | null
       source: string | null
     }> | null
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
     // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
     const toHHMM = (t: string) => t.slice(0, 5)
 
-    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null; notes: string | null }>()
+    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null; notes: string | null; title: string | null; source: string | null }>()
     if (existingShifts) {
       for (const shift of existingShifts) {
         if (shift.google_calendar_event_id) {
@@ -135,6 +137,8 @@ export async function POST(request: NextRequest) {
             end_time: toHHMM(shift.end_time),
             google_meet_url: shift.google_meet_url || null,
             notes: shift.notes || null,
+            title: shift.title || null,
+            source: shift.source || null,
           })
         }
       }
@@ -162,25 +166,66 @@ export async function POST(request: NextRequest) {
       const newMeetUrl = event.meetUrl || null
 
       if (existing) {
-        // GCal側で時刻/Meet URL/説明が変更された場合、Canviシフトを更新
+        // GCal側で時刻/Meet URL/説明/タイトルが変更された場合、Canviシフトを更新
         const cleanExistingNotes = existing.notes && existing.notes.startsWith('gcal:') ? null : existing.notes
+        const newTitle = event.summary || null
         if (
           existing.shift_date !== shiftDate ||
           existing.start_time !== startTime ||
           existing.end_time !== endTime ||
           existing.google_meet_url !== newMeetUrl ||
-          cleanExistingNotes !== newDescription
+          cleanExistingNotes !== newDescription ||
+          (existing.title || null) !== newTitle
         ) {
           await admin.from('shifts').update({
             shift_date: shiftDate,
             start_time: startTime,
             end_time: endTime,
+            title: newTitle,
             google_meet_url: newMeetUrl,
             notes: newDescription,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),
           }).eq('id', existing.id)
           updated++
+        }
+      } else if (event.canviShiftId) {
+        // Canvi発イベントだが既存shiftが google_calendar_event_id で見つからない
+        // → canviShiftId から直接引いて更新 (ev.id と DB 側 google_calendar_event_id が
+        //    ずれた旧データ救済)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: canviShiftList } = await (admin.from('shifts') as any)
+          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url')
+          .eq('id', event.canviShiftId)
+          .is('deleted_at', null)
+          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null }> | null }
+        const canviShift = canviShiftList && canviShiftList[0]
+        if (canviShift) {
+          const curStart = (canviShift.start_time || '').slice(0, 5)
+          const curEnd = (canviShift.end_time || '').slice(0, 5)
+          const newTitle = event.summary || null
+          const cleanNotes = canviShift.notes && canviShift.notes.startsWith('gcal:') ? null : canviShift.notes
+          if (
+            canviShift.shift_date !== shiftDate ||
+            curStart !== startTime ||
+            curEnd !== endTime ||
+            (canviShift.title || null) !== newTitle ||
+            cleanNotes !== newDescription ||
+            (canviShift.google_meet_url || null) !== newMeetUrl
+          ) {
+            await admin.from('shifts').update({
+              shift_date: shiftDate,
+              start_time: startTime,
+              end_time: endTime,
+              title: newTitle,
+              notes: newDescription,
+              google_meet_url: newMeetUrl,
+              google_calendar_event_id: event.id,
+              google_calendar_synced: true,
+              updated_at: new Date().toISOString(),
+            }).eq('id', canviShift.id)
+            updated++
+          }
         }
       } else if (defaultProjectId) {
         // GCalにあるがCanviにない → 新規作成

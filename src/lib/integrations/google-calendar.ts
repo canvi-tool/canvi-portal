@@ -595,6 +595,7 @@ export class GoogleCalendarClient {
       updated?: string
       canviShiftId?: string
       organizerEmail?: string
+      meetUrl?: string
     }>
     nextSyncToken: string | null
     tokenExpired: boolean
@@ -603,7 +604,7 @@ export class GoogleCalendarClient {
     const out: Array<{
       id: string; status?: string; summary?: string; description?: string
       start?: string; end?: string; isAllDay?: boolean; updated?: string
-      canviShiftId?: string; organizerEmail?: string
+      canviShiftId?: string; organizerEmail?: string; meetUrl?: string
     }> = []
     let pageToken: string | undefined
     let nextSyncToken: string | null = null
@@ -642,6 +643,10 @@ export class GoogleCalendarClient {
               (e.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId ||
               (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
             organizerEmail: e.organizer?.email || undefined,
+            meetUrl:
+              e.hangoutLink ||
+              e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ||
+              undefined,
           })
         }
         pageToken = response.data.nextPageToken || undefined
@@ -677,12 +682,14 @@ export class GoogleCalendarClient {
     updated?: string
     canviShiftId?: string
     organizerEmail?: string
+    meetUrl?: string
   }>> {
     const { timeMin, timeMax } = params
     const out: Array<{
       id: string; summary: string; description?: string
       start: string; end: string; isAllDay: boolean
       updated?: string; canviShiftId?: string; organizerEmail?: string
+      meetUrl?: string
     }> = []
     let pageToken: string | undefined
     do {
@@ -713,6 +720,10 @@ export class GoogleCalendarClient {
             (e.extendedProperties?.shared as Record<string, string> | undefined)?.canviShiftId ||
             (e.extendedProperties?.private as Record<string, string> | undefined)?.canviShiftId,
           organizerEmail: e.organizer?.email || undefined,
+          meetUrl:
+            e.hangoutLink ||
+            e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ||
+            undefined,
         })
       }
       pageToken = response.data.nextPageToken || undefined

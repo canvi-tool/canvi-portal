@@ -70,10 +70,77 @@ export async function syncFromGoogleCalendarForStaff(params: {
   const seenExternalIds = new Set<string>()
 
   for (const ev of events) {
-    // Canvi発のイベント → スキップ
+    // Canvi発のイベント → shifts.id を直接検索して
+    // GCal 側で変更された title/notes/start/end/meet_url を反映する
     if (ev.canviShiftId) {
       seenExternalIds.add(ev.id)
-      result.skipped += 1
+      if (ev.isAllDay) {
+        result.skipped += 1
+        continue
+      }
+      try {
+        const startDate = new Date(ev.start)
+        const endDate = new Date(ev.end)
+        const shiftDate = toJstDateStr(startDate)
+        const startTime = toJstTimeStr(startDate)
+        const endTime = toJstTimeStr(endDate)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: canviShiftList } = await (admin.from('shifts') as any)
+          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at')
+          .eq('id', ev.canviShiftId)
+          .is('deleted_at', null)
+          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
+        const canviShift = canviShiftList && canviShiftList[0]
+        if (!canviShift) {
+          result.skipped += 1
+          continue
+        }
+        if (
+          ev.updated &&
+          canviShift.external_updated_at &&
+          new Date(ev.updated).getTime() <= new Date(canviShift.external_updated_at).getTime()
+        ) {
+          result.skipped += 1
+          continue
+        }
+        const curStart = (canviShift.start_time || '').slice(0, 5)
+        const curEnd = (canviShift.end_time || '').slice(0, 5)
+        const newTitle = ev.summary || null
+        const newDesc = ev.description || null
+        const newMeetUrl = ev.meetUrl || null
+        const cleanNotes = canviShift.notes && canviShift.notes.startsWith('gcal:') ? null : canviShift.notes
+        const changed =
+          canviShift.shift_date !== shiftDate ||
+          curStart !== startTime ||
+          curEnd !== endTime ||
+          (canviShift.title || null) !== newTitle ||
+          cleanNotes !== newDesc ||
+          (canviShift.google_meet_url || null) !== newMeetUrl
+        if (changed) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updatePayload: any = {
+            shift_date: shiftDate,
+            start_time: startTime,
+            end_time: endTime,
+            title: newTitle,
+            notes: newDesc,
+            google_meet_url: newMeetUrl,
+            external_updated_at: ev.updated || null,
+            google_calendar_synced: true,
+            updated_at: new Date().toISOString(),
+          }
+          const { error: upErr } = await admin
+            .from('shifts')
+            .update(updatePayload)
+            .eq('id', canviShift.id)
+          if (upErr) result.errors.push(`Canvi発shift UPDATE失敗 ${ev.id}: ${upErr.message}`)
+          else result.updated += 1
+        } else {
+          result.skipped += 1
+        }
+      } catch (e) {
+        result.errors.push(`Canvi発shift処理失敗 ${ev.id}: ${(e as Error).message}`)
+      }
       continue
     }
     // 旧イベント互換: 他のCanviユーザーがオーガナイザー → Canvi発の招待なのでスキップ

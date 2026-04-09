@@ -122,8 +122,66 @@ export async function runIncrementalSyncForStaff(params: {
         continue
       }
 
-      // Canvi 発（extendedProperties に canviShiftId）→ スキップ
-      if (ev.canviShiftId) continue
+      // Canvi 発（extendedProperties に canviShiftId）→ shifts.id 直接検索し、
+      // GCal 側で加えられた title/notes/start/end/meet_url の変更だけ UPDATE する
+      // (逆上書き防止のため external_updated_at を比較)
+      if (ev.canviShiftId) {
+        if (ev.isAllDay || !ev.start || !ev.end) continue
+        const startDate = new Date(ev.start)
+        const endDate = new Date(ev.end)
+        const shiftDate = toJstDateStr(startDate)
+        const startTime = toJstTimeStr(startDate)
+        const endTime = toJstTimeStr(endDate)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: canviShiftList } = await (admin.from('shifts') as any)
+          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at')
+          .eq('id', ev.canviShiftId)
+          .is('deleted_at', null)
+          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
+        const canviShift = canviShiftList && canviShiftList[0]
+        if (!canviShift) continue
+        // 逆上書き防止: GCal 側の更新時刻が古ければ何もしない
+        if (
+          ev.updated &&
+          canviShift.external_updated_at &&
+          new Date(ev.updated).getTime() <= new Date(canviShift.external_updated_at).getTime()
+        ) {
+          continue
+        }
+        const curStart = (canviShift.start_time || '').slice(0, 5)
+        const curEnd = (canviShift.end_time || '').slice(0, 5)
+        const newTitle = ev.summary || null
+        const newDesc = ev.description || null
+        const newMeetUrl = ev.meetUrl || null
+        const cleanNotes = canviShift.notes && canviShift.notes.startsWith('gcal:') ? null : canviShift.notes
+        const changed =
+          canviShift.shift_date !== shiftDate ||
+          curStart !== startTime ||
+          curEnd !== endTime ||
+          (canviShift.title || null) !== newTitle ||
+          cleanNotes !== newDesc ||
+          (canviShift.google_meet_url || null) !== newMeetUrl
+        if (changed) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updatePayload: any = {
+            shift_date: shiftDate,
+            start_time: startTime,
+            end_time: endTime,
+            title: newTitle,
+            notes: newDesc,
+            google_meet_url: newMeetUrl,
+            external_updated_at: ev.updated || null,
+            google_calendar_synced: true,
+            updated_at: new Date().toISOString(),
+          }
+          await admin
+            .from('shifts')
+            .update(updatePayload)
+            .eq('id', canviShift.id)
+          result.changed += 1
+        }
+        continue
+      }
       // 旧互換: 他の Canvi ユーザー organizer
       const organizer = (ev.organizerEmail || '').toLowerCase()
       if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) continue
@@ -139,11 +197,11 @@ export async function runIncrementalSyncForStaff(params: {
       // 既に昇格済み shifts（source='google_calendar'）なら UPDATE
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: promotedList } = await (admin.from('shifts') as any)
-        .select('id, source, shift_date, start_time, end_time, title, notes, external_updated_at')
+        .select('id, source, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at')
         .eq('staff_id', staffId)
         .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
         .is('deleted_at', null)
-        .limit(1) as { data: Array<{ id: string; source: string | null; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; external_updated_at: string | null }> | null }
+        .limit(1) as { data: Array<{ id: string; source: string | null; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
 
       if (promotedList && promotedList[0]) {
         const promoted = promotedList[0]
@@ -152,6 +210,7 @@ export async function runIncrementalSyncForStaff(params: {
         const curEnd = (promoted.end_time || '').slice(0, 5)
         const newTitle = ev.summary || null
         const newDesc = ev.description || null
+        const newMeetUrl = ev.meetUrl || null
         const cleanNotes = promoted.notes && promoted.notes.startsWith('gcal:') ? null : promoted.notes
         const changed =
           promoted.shift_date !== shiftDate ||
@@ -159,6 +218,7 @@ export async function runIncrementalSyncForStaff(params: {
           curEnd !== endTime ||
           (promoted.title || null) !== newTitle ||
           cleanNotes !== newDesc ||
+          (promoted.google_meet_url || null) !== newMeetUrl ||
           (ev.updated && promoted.external_updated_at !== ev.updated)
         if (changed) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +228,7 @@ export async function runIncrementalSyncForStaff(params: {
             end_time: endTime,
             title: newTitle,
             notes: newDesc,
+            google_meet_url: newMeetUrl,
             external_updated_at: ev.updated || null,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),

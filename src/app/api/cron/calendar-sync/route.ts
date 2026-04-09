@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
         // このスタッフの今日〜2週間の既存シフト（google_calendar_event_idあり）を取得
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const existingShiftsRes = await (admin.from('shifts') as any)
-          .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, status, source')
+          .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, title, status, source')
           .eq('staff_id', staffRecord.id)
           .gte('shift_date', rangeStartStr)
           .lte('shift_date', twoWeeksLaterStr)
@@ -192,6 +192,7 @@ export async function GET(request: NextRequest) {
           google_calendar_event_id: string | null
           google_meet_url: string | null
           notes: string | null
+          title: string | null
           status: string | null
           source: string | null
         }> | null
@@ -206,6 +207,8 @@ export async function GET(request: NextRequest) {
           end_time: string
           google_meet_url: string | null
           notes: string | null
+          title: string | null
+          source: string | null
         }>()
 
         if (existingShifts) {
@@ -218,6 +221,8 @@ export async function GET(request: NextRequest) {
                 end_time: toHHMM(shift.end_time),
                 google_meet_url: shift.google_meet_url || null,
                 notes: shift.notes || null,
+                title: (shift as { title?: string | null }).title || null,
+                source: shift.source || null,
               })
             }
           }
@@ -243,43 +248,40 @@ export async function GET(request: NextRequest) {
             continue
           }
 
-          // イベントIDに対応するプロジェクトを特定
-          // サマリーからPJが特定できないイベントはシフト化しない（個人予定の誤取込防止）
-          const projectId = matchProjectFromSummary(event.summary, projectMap)
-          if (!projectId) {
-            userResult.skipped++
-            continue
-          }
-          // PJマッチしたイベントのみ「処理済み」として扱う
-          // (マッチしないイベントに紐づく既存シフトは削除検知で自動削除される)
-          processedEventIds.add(event.id)
-
           // 既存シフトとのマッチング (google_calendar_event_id のみ)
+          // 既存シフトがあればPJマッチ不要で更新する
+          // (Canvi発シフトのタイトルがGCal側で変更されPJマッチ外になっても反映されるように)
           const existingShift = existingByEventId.get(event.id)
           const newMeetUrl = event.meetUrl || null
           const newDescription = event.description || null
+          const newTitle = event.summary || null
 
           if (existingShift) {
+            processedEventIds.add(event.id)
             const cleanExistingNotes = existingShift.notes && existingShift.notes.startsWith('gcal:') ? null : existingShift.notes
             if (
               existingShift.shift_date !== shiftDate ||
               existingShift.start_time !== startTime ||
               existingShift.end_time !== endTime ||
               existingShift.google_meet_url !== newMeetUrl ||
-              cleanExistingNotes !== newDescription
+              cleanExistingNotes !== newDescription ||
+              (existingShift.title || null) !== newTitle
             ) {
+              // project_id はタイトル変更に追随しない（Canvi発シフトの staff/project は触らない）
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const updatePayload: any = {
+                shift_date: shiftDate,
+                start_time: startTime,
+                end_time: endTime,
+                title: newTitle,
+                google_meet_url: newMeetUrl,
+                notes: newDescription,
+                google_calendar_synced: true,
+                updated_at: new Date().toISOString(),
+              }
               const { error: updateError } = await admin
                 .from('shifts')
-                .update({
-                  shift_date: shiftDate,
-                  start_time: startTime,
-                  end_time: endTime,
-                  project_id: projectId,
-                  google_meet_url: newMeetUrl,
-                  notes: newDescription,
-                  google_calendar_synced: true,
-                  updated_at: new Date().toISOString(),
-                })
+                .update(updatePayload)
                 .eq('id', existingShift.id)
 
               if (updateError) {
@@ -292,7 +294,19 @@ export async function GET(request: NextRequest) {
             } else {
               userResult.skipped++
             }
-          } else {
+            continue
+          }
+
+          // 新規: イベントIDに対応するプロジェクトを特定
+          // サマリーからPJが特定できないイベントはシフト化しない（個人予定の誤取込防止）
+          const projectId = matchProjectFromSummary(event.summary, projectMap)
+          if (!projectId) {
+            userResult.skipped++
+            continue
+          }
+          processedEventIds.add(event.id)
+
+          {
             // 新規シフト作成
             const { error: insertError } = await admin.from('shifts').insert({
               staff_id: staffRecord.id,
