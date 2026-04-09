@@ -155,6 +155,19 @@ async function slackUserIdToEmail(slackUserId: string, botToken: string): Promis
   }
 }
 
+async function slackUserIdFromEmail(email: string, botToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${SLACK_API}/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    })
+    const json = await res.json()
+    if (!json.ok) return null
+    return json.user?.id || null
+  } catch {
+    return null
+  }
+}
+
 // ========== メインエントリ ==========
 
 /** ショートカットを受け取ってモーダルを開く */
@@ -503,7 +516,10 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
 
   const canviLinked = attendees.filter((a) => !a.external)
   const externalOnly = attendees.filter((a) => a.external)
+  const mentionIds = Array.from(new Set([payload.user.id, ...slackUserIds]))
+  const mentionLine = mentionIds.map((id) => `<@${id}>`).join(' ')
   const lines = [
+    mentionLine,
     `:white_check_mark: *Canviカレンダーに登録しました*`,
     `*${title}*`,
     `${dateJP} ${startTime} 〜 ${endTime}`,
@@ -724,7 +740,7 @@ export async function handleCanviCalendarCancel(payload: ViewSubmissionPayload):
   // 対象シフト取得（所有権チェック）
   const { data: shift } = await admin
     .from('shifts')
-    .select('id, shift_date, start_time, end_time, title, staff:staff_id(user_id), project:project_id(name)')
+    .select('id, shift_date, start_time, end_time, title, attendees, staff:staff_id(user_id), project:project_id(name)')
     .eq('id', shiftId)
     .is('deleted_at', null)
     .maybeSingle()
@@ -757,7 +773,21 @@ export async function handleCanviCalendarCancel(payload: ViewSubmissionPayload):
   const sAny = shift as any
   const titleText = sAny.title || sAny.project?.name || '(無題)'
   const dateStr = `${sAny.shift_date} ${String(sAny.start_time).slice(0, 5)}-${String(sAny.end_time).slice(0, 5)}`
+
+  // 招待者のSlackアカウントを email から解決してメンション
+  const mentionIds = new Set<string>([payload.user.id])
+  const attendeesArr = Array.isArray(sAny.attendees) ? (sAny.attendees as Array<{ email?: string }>) : []
+  const emails = attendeesArr.map((a) => a?.email).filter((e): e is string => !!e)
+  await Promise.all(emails.map(async (email) => {
+    try {
+      const sid = await slackUserIdFromEmail(email, botToken)
+      if (sid) mentionIds.add(sid)
+    } catch { /* noop */ }
+  }))
+  const mentionLine = Array.from(mentionIds).map((id) => `<@${id}>`).join(' ')
+
   const lines = [
+    mentionLine,
     `:wastebasket: *予定をキャンセルしました*`,
     `*${titleText}*`,
     dateStr,
