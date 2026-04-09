@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import Link from 'next/link'
-import { Plus, FileText } from 'lucide-react'
+import { Plus, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -35,7 +34,9 @@ import { PageHeader } from '@/components/layout/page-header'
 import {
   usePerformanceReports,
   useGeneratePerformanceReport,
+  useDeletePerformanceReport,
 } from '@/hooks/use-reports'
+import { useRouter } from 'next/navigation'
 import { useProjects, useStaffList } from '@/hooks/use-projects'
 import { REPORT_STATUS_LABELS } from '@/lib/constants'
 
@@ -47,6 +48,19 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
 }
 
 export default function PerformanceReportsPage() {
+  const router = useRouter()
+  const deleteReport = useDeletePerformanceReport()
+
+  const handleDelete = async (id: string) => {
+    if (typeof window !== 'undefined' && !window.confirm('この月次レポートを削除しますか？')) return
+    try {
+      await deleteReport.mutateAsync(id)
+      toast.success('月次レポートを削除しました')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '削除に失敗しました')
+    }
+  }
+
   const [yearMonth, setYearMonth] = useState(
     new Date().toISOString().slice(0, 7)
   )
@@ -88,7 +102,7 @@ export default function PerformanceReportsPage() {
     return { totalCalls, totalAppts, avgConversion, reportCount: reports.length }
   }, [reports])
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (asDraft = false) => {
     if (!genStaffId || !yearMonth) {
       toast.error('スタッフと対象月を選択してください')
       return
@@ -101,8 +115,9 @@ export default function PerformanceReportsPage() {
         year_month: yearMonth,
         call_count: 0,
         appointment_count: 0,
+        asDraft,
       })
-      toast.success('月次実績レポートを生成しました')
+      toast.success(asDraft ? '下書きを保存しました' : '月次実績レポートを生成しました')
       setShowGenerateDialog(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'エラーが発生しました')
@@ -216,7 +231,7 @@ export default function PerformanceReportsPage() {
                 <TableHead className="text-right">アポ件数</TableHead>
                 <TableHead className="text-right">アポ率</TableHead>
                 <TableHead>ステータス</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -252,12 +267,30 @@ export default function PerformanceReportsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/reports/performance/${report.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <FileText className="h-4 w-4 mr-1" />
-                          詳細
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/reports/performance/${report.id}`)}
+                          className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                        >
+                          修正
+                        </button>
+                        {report.status !== 'approved' && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(report.id)}
+                            disabled={deleteReport.isPending}
+                          >
+                            {deleteReport.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 mr-1" />
+                            )}
+                            削除
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -321,7 +354,14 @@ export default function PerformanceReportsPage() {
                 キャンセル
               </Button>
               <Button
-                onClick={handleGenerate}
+                variant="secondary"
+                onClick={() => handleGenerate(true)}
+                disabled={generateReport.isPending}
+              >
+                下書き保存
+              </Button>
+              <Button
+                onClick={() => handleGenerate(false)}
                 disabled={generateReport.isPending}
               >
                 {generateReport.isPending ? '生成中...' : '生成'}

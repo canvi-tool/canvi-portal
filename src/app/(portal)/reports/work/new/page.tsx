@@ -112,7 +112,7 @@ export default function NewDailyReportPage() {
   )
 
   // --- Submit ---
-  const handleSubmit = async () => {
+  const handleSubmit = async (asDraft = false) => {
     setIsSubmitting(true)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,11 +190,11 @@ export default function NewDailyReportPage() {
           condition_comment: conditionComment,
         }
       }
-      await createReport.mutateAsync(data)
-      toast.success('日報を提出しました')
+      await createReport.mutateAsync({ ...data, asDraft })
+      toast.success(asDraft ? '下書きを保存しました' : '日報を提出しました')
       router.push('/reports/work')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '提出に失敗しました')
+      toast.error(error instanceof Error ? error.message : '保存に失敗しました')
     } finally {
       setIsSubmitting(false)
     }
@@ -1087,7 +1087,14 @@ export default function NewDailyReportPage() {
           キャンセル
         </Button>
         <Button
-          onClick={handleSubmit}
+          variant="secondary"
+          onClick={() => handleSubmit(true)}
+          disabled={isSubmitting}
+        >
+          下書き保存
+        </Button>
+        <Button
+          onClick={() => handleSubmit(false)}
           disabled={isSubmitting}
         >
           {isSubmitting ? (

@@ -69,6 +69,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
     const body = await request.json()
+    const { searchParams } = new URL(request.url)
+    const isDraft = searchParams.get('draft') === '1'
+    const targetStatus = isDraft ? 'draft' : 'submitted'
 
     const parsed = performanceReportFormSchema.safeParse(body)
     if (!parsed.success) {
@@ -96,6 +99,7 @@ export async function POST(request: NextRequest) {
           appointment_count: parsed.data.appointment_count,
           other_counts: parsed.data.other_counts || null,
           notes: parsed.data.notes || null,
+          status: targetStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
@@ -118,7 +122,7 @@ export async function POST(request: NextRequest) {
         call_count: parsed.data.call_count,
         appointment_count: parsed.data.appointment_count,
         other_counts: parsed.data.other_counts || null,
-        status: 'draft',
+        status: targetStatus,
         notes: parsed.data.notes || null,
       })
       .select()

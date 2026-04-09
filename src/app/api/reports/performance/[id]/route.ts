@@ -1,5 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getProjectAccess } from '@/lib/auth/project-access'
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { user } = await getProjectAccess()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+    const supabase = await createServerSupabaseClient()
+    const { id } = params
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('performance_reports')
+      .select('id, status')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: '月次レポートが見つかりません' }, { status: 404 })
+      }
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    }
+
+    if (existing.status === 'approved') {
+      return NextResponse.json(
+        { error: '承認済みの月次レポートは削除できません' },
+        { status: 400 }
+      )
+    }
+
+    const { error } = await supabase
+      .from('performance_reports')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('DELETE /api/reports/performance/[id] error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
 
 export async function GET(
   _request: NextRequest,

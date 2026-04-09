@@ -44,11 +44,13 @@ async function fetchDailyReport(id: string): Promise<DailyReport> {
   return res.json()
 }
 
-async function createDailyReport(data: DailyReportFormValues): Promise<DailyReport> {
-  const res = await fetch('/api/reports/daily', {
+async function createDailyReport(data: DailyReportFormValues & { asDraft?: boolean }): Promise<DailyReport> {
+  const { asDraft, ...payload } = data as DailyReportFormValues & { asDraft?: boolean }
+  const qs = asDraft ? '?draft=1' : ''
+  const res = await fetch(`/api/reports/daily${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -57,11 +59,13 @@ async function createDailyReport(data: DailyReportFormValues): Promise<DailyRepo
   return res.json()
 }
 
-async function updateDailyReport(id: string, data: DailyReportFormValues): Promise<DailyReport> {
-  const res = await fetch(`/api/reports/daily/${id}`, {
+async function updateDailyReport(id: string, data: DailyReportFormValues & { asDraft?: boolean }): Promise<DailyReport> {
+  const { asDraft, ...payload } = data as DailyReportFormValues & { asDraft?: boolean }
+  const qs = asDraft ? '?draft=1' : ''
+  const res = await fetch(`/api/reports/daily/${id}${qs}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -147,7 +151,7 @@ export function useCreateDailyReport() {
 export function useUpdateDailyReport(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: DailyReportFormValues) => updateDailyReport(id, data),
+    mutationFn: (data: DailyReportFormValues & { asDraft?: boolean }) => updateDailyReport(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: dailyReportKeys.lists() })
       queryClient.invalidateQueries({ queryKey: dailyReportKeys.detail(id) })

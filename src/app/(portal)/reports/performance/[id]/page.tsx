@@ -2,14 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, BarChart3, TrendingUp, Phone, CalendarCheck } from 'lucide-react'
+import { ArrowLeft, Sparkles, BarChart3, TrendingUp, Phone, CalendarCheck, Trash2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/layout/page-header'
-import { usePerformanceReport } from '@/hooks/use-reports'
+import { usePerformanceReport, useDeletePerformanceReport } from '@/hooks/use-reports'
 import { REPORT_STATUS_LABELS } from '@/lib/constants'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -25,8 +26,20 @@ export default function PerformanceDetailPage() {
   const id = params.id as string
 
   const { data: report, isLoading } = usePerformanceReport(id)
+  const deleteReport = useDeletePerformanceReport()
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [loadingAi, setLoadingAi] = useState(false)
+
+  const handleDelete = async () => {
+    if (typeof window !== 'undefined' && !window.confirm('この月次レポートを削除しますか？')) return
+    try {
+      await deleteReport.mutateAsync(id)
+      toast.success('月次レポートを削除しました')
+      router.push('/reports/performance')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '削除に失敗しました')
+    }
+  }
 
   const handleAiSummary = async () => {
     if (!report) return
@@ -112,6 +125,21 @@ export default function PerformanceDetailPage() {
               <ArrowLeft className="h-4 w-4 mr-1" />
               一覧に戻る
             </Button>
+            {report.status !== 'approved' && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleteReport.isPending}
+              >
+                {deleteReport.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                削除
+              </Button>
+            )}
           </div>
         }
       />

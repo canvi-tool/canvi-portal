@@ -36,18 +36,28 @@ async function fetchPerformanceReport(id: string): Promise<PerformanceReport> {
 }
 
 async function generatePerformanceReport(
-  data: PerformanceReportFormValues
+  data: PerformanceReportFormValues & { asDraft?: boolean }
 ): Promise<PerformanceReport> {
-  const res = await fetch('/api/reports/performance', {
+  const { asDraft, ...payload } = data
+  const qs = asDraft ? '?draft=1' : ''
+  const res = await fetch(`/api/reports/performance${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || '業務実績の生成に失敗しました')
   }
   return res.json()
+}
+
+async function deletePerformanceReport(id: string): Promise<void> {
+  const res = await fetch(`/api/reports/performance/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '月次レポートの削除に失敗しました')
+  }
 }
 
 // ---- Query Keys ----
@@ -82,6 +92,16 @@ export function useGeneratePerformanceReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: generatePerformanceReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
+    },
+  })
+}
+
+export function useDeletePerformanceReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deletePerformanceReport(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
     },

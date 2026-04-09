@@ -120,6 +120,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
     const body = await request.json()
+    const { searchParams } = new URL(request.url)
+    const isDraft = searchParams.get('draft') === '1'
 
     const parsed = dailyReportSchema.safeParse(body)
     if (!parsed.success) {
@@ -142,8 +144,8 @@ export async function POST(request: NextRequest) {
         project_id: project_id || null,
         report_date,
         report_type,
-        status: 'submitted',
-        submitted_at: new Date().toISOString(),
+        status: isDraft ? 'draft' : 'submitted',
+        submitted_at: isDraft ? null : new Date().toISOString(),
         custom_fields: customFields,
         content,
       })
@@ -162,7 +164,7 @@ export async function POST(request: NextRequest) {
     const projectName = (data.project as { name?: string } | null)?.name || ''
     const typeLabel = DAILY_REPORT_TYPE_LABELS[report_type as DailyReportType] || '日報'
 
-    if (data.project_id) {
+    if (!isDraft && data.project_id) {
       const { data: proj } = await supabase
         .from('projects')
         .select('slack_channel_id')

@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Clock,
   Filter,
-  Eye,
   Phone,
   PhoneCall,
   PhoneIncoming,
@@ -192,19 +191,19 @@ export default function WorkReportsPage() {
     },
     {
       key: 'actions',
-      header: '操作',
+      header: '',
       accessor: () => null,
       sortable: false,
       cell: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           onClick={() => router.push(`/reports/work/${row.id}`)}
+          className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
         >
-          <Eye className="h-4 w-4" />
-        </Button>
+          修正
+        </button>
       ),
-      className: 'w-[60px]',
+      className: 'w-[80px]',
     },
   ]
 

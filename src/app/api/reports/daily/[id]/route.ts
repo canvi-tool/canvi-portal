@@ -58,6 +58,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
     const supabase = await createServerSupabaseClient()
+    const { searchParams } = new URL(request.url)
+    const isDraft = searchParams.get('draft') === '1'
 
     // 既存レコードを取得してステータスチェック
     const { data: existing, error: fetchError } = await supabase
@@ -106,8 +108,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         project_id: project_id || null,
         report_date,
         report_type,
-        status: 'submitted',
-        submitted_at: new Date().toISOString(),
+        status: isDraft ? 'draft' : 'submitted',
+        submitted_at: isDraft ? null : new Date().toISOString(),
         custom_fields: customFields,
         content,
         updated_at: new Date().toISOString(),
@@ -124,7 +126,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Slack通知（再提出 → 既存スレッドにリプライ）
-    if (existing.status === 'rejected' && data.project_id) {
+    if (!isDraft && existing.status === 'rejected' && data.project_id) {
       const staffName = (() => {
         const s = data.staff as { last_name?: string; first_name?: string } | null
         return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
