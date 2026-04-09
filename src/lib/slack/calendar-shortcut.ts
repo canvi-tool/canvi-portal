@@ -354,12 +354,21 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     return
   }
 
-  // 招待者: Slackユーザー → email → Canvi staff (自分以外)
-  // ポリシー: Canvi未登録でもemailが取得できれば attendees に追加し、GCal招待を送る
+  // 招待者: Slackユーザー → email → Canvi staff
+  // ポリシー:
+  //  - 作成者自身も attendees に含める（Canviカレンダー上で招待者として明示表示するため）
+  //  - Canvi未登録でもemailが取得できれば attendees に追加し、GCal招待を送る
   const attendees: Array<{ email: string; name?: string; staff_id?: string; external?: boolean }> = []
   const unresolvedSlackIds: string[] = []
+  // 作成者自身を先に追加
+  attendees.push({
+    email: requesterEmail,
+    name: `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || undefined,
+    staff_id: staff.id,
+    external: false,
+  })
   for (const sid of slackUserIds) {
-    if (sid === payload.user.id) continue
+    if (sid === payload.user.id) continue // 作成者は既に追加済み
     const { email, realName } = await slackUserIdToEmail(sid, botToken)
     if (!email) {
       unresolvedSlackIds.push(sid)
