@@ -6,6 +6,7 @@ export type DerivedAlertType =
   | 'ATTENDANCE_CORRECTION_PENDING'
   | 'REPORT_MISSING'
   | 'REPORT_REJECTED'
+  | 'SHIFT_SUBMISSION_DUE'
 
 export interface DerivedAlert {
   id: string
@@ -28,6 +29,7 @@ const ALERT_TYPE_LABEL: Record<DerivedAlertType, string> = {
   ATTENDANCE_CORRECTION_PENDING: '勤怠修正依頼',
   REPORT_MISSING: '日報送付漏れ',
   REPORT_REJECTED: '日報差戻し',
+  SHIFT_SUBMISSION_DUE: 'シフト未提出',
 }
 
 function todayJstStr(): string {
@@ -411,6 +413,147 @@ export async function getRecentDerivedAlerts(
       createdAt: r.updated_at,
       href: `/reports/work/${r.id}`,
     })
+  }
+
+  // --- 翌月シフト未提出 (毎月26日以降) ---
+  try {
+    const [ty, tm, td] = today.split('-').map((n) => parseInt(n, 10))
+    if (td >= 26) {
+      // 翌月の年月
+      const nextY = tm === 12 ? ty + 1 : ty
+      const nextM = tm === 12 ? 1 : tm + 1
+      const nextMonthStart = `${nextY}-${String(nextM).padStart(2, '0')}-01`
+      const lastDay = new Date(nextY, nextM, 0).getDate()
+      const nextMonthEnd = `${nextY}-${String(nextM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+      // 対象スタッフIDを解決
+      let targetStaffIds: string[] = []
+      if (scopedStaffIds === null) {
+        // owner: 全スタッフ
+        const { data: allStaff } = await supabase
+          .from('staff')
+          .select('id')
+          .is('deleted_at', null)
+        targetStaffIds = ((allStaff || []) as Array<{ id: string }>).map((s) => s.id)
+      } else {
+        targetStaffIds = scopedStaffIds
+      }
+
+      if (targetStaffIds.length > 0) {
+        // 翌月内にシフトを持つ staff_id を取得
+        const { data: nextShifts } = await supabase
+          .from('shifts')
+          .select('staff_id')
+          .in('staff_id', targetStaffIds)
+          .gte('shift_date', nextMonthStart)
+          .lte('shift_date', nextMonthEnd)
+          .is('deleted_at', null)
+        const submitted = new Set<string>()
+        for (const s of (nextShifts || []) as Array<{ staff_id: string | null }>) {
+          if (s.staff_id) submitted.add(s.staff_id)
+        }
+        const missingStaffIds = targetStaffIds.filter((id) => !submitted.has(id))
+
+        if (missingStaffIds.length > 0) {
+          // 名前解決
+          const { data: staffNames } = await supabase
+            .from('staff')
+            .select('id, last_name, first_name')
+            .in('id', missingStaffIds)
+          const nameMap = new Map<string, string>()
+          for (const s of (staffNames || []) as Array<{ id: string; last_name: string; first_name: string }>) {
+            nameMap.set(s.id, `${s.last_name} ${s.first_name}`)
+          }
+
+          // owner向けに各スタッフのPJ管理者名を解決
+          let staffManagerMap = new Map<string, string>()
+          if (ownerScope) {
+            const { data: assigns } = await supabase
+              .from('project_assignments')
+              .select('staff_id, project_id')
+              .in('staff_id', missingStaffIds)
+              .is('deleted_at', null)
+            const pidSet = new Set<string>()
+            const staffToPids = new Map<string, string[]>()
+            for (const a of (assigns || []) as Array<{ staff_id: string; project_id: string }>) {
+              if (!a.project_id) continue
+              pidSet.add(a.project_id)
+              const arr = staffToPids.get(a.staff_id) || []
+              arr.push(a.project_id)
+              staffToPids.set(a.staff_id, arr)
+            }
+            if (pidSet.size > 0) {
+              const pidArr = Array.from(pidSet)
+              // 不足分のプロジェクト名取得
+              const missingPids = pidArr.filter((p) => !projectNameMap.has(p))
+              if (missingPids.length > 0) {
+                const { data: pjs } = await supabase
+                  .from('projects')
+                  .select('id, name')
+                  .in('id', missingPids)
+                for (const p of (pjs || []) as Array<{ id: string; name: string }>) {
+                  projectNameMap.set(p.id, p.name)
+                }
+              }
+              const missingMgrPids = pidArr.filter((p) => !projectManagerMap.has(p))
+              if (missingMgrPids.length > 0) {
+                const { data: mgrData } = await supabase
+                  .from('project_assignments')
+                  .select('project_id, role_title, staff:staff_id(last_name, first_name)')
+                  .in('project_id', missingMgrPids)
+                  .is('deleted_at', null)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const a of (mgrData || []) as any[]) {
+                  const rt = (a.role_title || '') as string
+                  if (!rt) continue
+                  const isMgr = rt.includes('管理') || /manager/i.test(rt) || rt.includes('マネージャ') || rt.includes('リーダー') || rt.includes('PM')
+                  if (!isMgr) continue
+                  const name = a.staff ? `${a.staff.last_name} ${a.staff.first_name}` : null
+                  if (!name) continue
+                  const prev = projectManagerMap.get(a.project_id)
+                  projectManagerMap.set(a.project_id, prev ? `${prev}, ${name}` : name)
+                }
+              }
+            }
+            for (const [sid, pids] of staffToPids.entries()) {
+              const names = pids
+                .map((p) => projectManagerMap.get(p))
+                .filter((x): x is string => !!x)
+              if (names.length > 0) {
+                staffManagerMap.set(sid, Array.from(new Set(names)).join(', '))
+              }
+            }
+          }
+
+          const nextLabel = `${nextY}年${nextM}月`
+          for (const sid of missingStaffIds) {
+            const staffName = nameMap.get(sid) || '不明'
+            let description = `${staffName} - ${nextLabel}分のシフト未提出`
+            if (ownerScope) {
+              const mgr = staffManagerMap.get(sid)
+              if (mgr) description += `（管理者: ${mgr}）`
+            }
+            alerts.push({
+              id: `shift-due:${sid}:${nextY}${String(nextM).padStart(2, '0')}`,
+              type: 'SHIFT_SUBMISSION_DUE',
+              severity: 'WARNING',
+              title: ALERT_TYPE_LABEL.SHIFT_SUBMISSION_DUE,
+              message: description,
+              description,
+              relatedStaffId: sid,
+              relatedStaffName: staffName,
+              relatedProjectId: null,
+              relatedProjectName: null,
+              projectManagerName: ownerScope ? (staffManagerMap.get(sid) || null) : null,
+              createdAt: `${today}T09:00:00+09:00`,
+              href: '/shifts?openBulk=1',
+            })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('SHIFT_SUBMISSION_DUE calc error:', e)
   }
 
   // 新しい順ソート

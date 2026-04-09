@@ -21,11 +21,12 @@ import {
   CalendarDays,
   ClipboardList,
   ChevronRight,
-  UserPlus,
-  Calculator,
+  Users as UsersIcon,
+  Wallet,
   Loader2,
   FileWarning,
   Clock,
+  UserPlus,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -165,6 +166,7 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
   ATTENDANCE_CORRECTION_PENDING: '勤怠修正依頼',
   REPORT_MISSING: '日報送付漏れ',
   REPORT_REJECTED: '日報差戻し',
+  SHIFT_SUBMISSION_DUE: 'シフト未提出',
 }
 
 // --- Attendance Summary Card ---
@@ -509,31 +511,31 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="grid grid-cols-2 gap-2">
-                <Link href="/reports/work/new">
+                <Link href="/reports/work">
                   <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
                     <ClipboardList className="h-4 w-4" />
-                    <span className="text-xs">勤務報告</span>
+                    <span className="text-xs">日次報告</span>
                   </Button>
                 </Link>
-                <Link href="/shifts/new">
+                <Link href="/shifts?openBulk=1">
                   <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
                     <CalendarDays className="h-4 w-4" />
-                    <span className="text-xs">シフト登録</span>
+                    <span className="text-xs">Canviカレンダー</span>
                   </Button>
                 </Link>
                 {d.isOwner && (
-                  <Link href="/staff/new">
+                  <Link href="/staff">
                     <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
-                      <UserPlus className="h-4 w-4" />
-                      <span className="text-xs">スタッフ登録</span>
+                      <UsersIcon className="h-4 w-4" />
+                      <span className="text-xs">スタッフ</span>
                     </Button>
                   </Link>
                 )}
                 {d.isOwner && (
-                  <Link href="/payments/calculate">
+                  <Link href="/payments">
                     <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
-                      <Calculator className="h-4 w-4" />
-                      <span className="text-xs">支払計算</span>
+                      <Wallet className="h-4 w-4" />
+                      <span className="text-xs">支払書</span>
                     </Button>
                   </Link>
                 )}

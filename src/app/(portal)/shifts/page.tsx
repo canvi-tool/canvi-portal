@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Clock,
   CheckCircle2,
@@ -57,6 +57,7 @@ interface StaffOption {
 
 export default function ShiftsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Data
   const [shifts, setShifts] = useState<CalendarShift[]>([])
@@ -89,6 +90,19 @@ export default function ShiftsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createInitial, setCreateInitial] = useState({ date: '', startTime: '', endTime: '' })
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+
+  // クエリ ?openBulk=1 で一括申請モーダルを自動オープン
+  useEffect(() => {
+    if (searchParams?.get('openBulk') === '1') {
+      setBulkDialogOpen(true)
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('openBulk')
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [availabilitySheetOpen, setAvailabilitySheetOpen] = useState(false)
   // 複製プリフィル（Bulkダイアログで使用）
   const [duplicatePrefill, setDuplicatePrefill] = useState<{
