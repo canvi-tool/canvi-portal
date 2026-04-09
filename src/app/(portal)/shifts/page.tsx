@@ -1430,6 +1430,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             projectId: s.projectId,
             startTime: s.startTime,
             endTime: s.endTime,
+            title: s.title,
             notes: s.notes,
             attendees: s.attendees || [],
           })
