@@ -98,10 +98,13 @@ export async function POST(request: NextRequest) {
     const payload = JSON.parse(payloadStr)
 
     // Message shortcut: Canviカレンダーに登録
+    // trigger_id は3秒で失効するため、レスポンス返却前に views.open を同期実行する
     if (payload.type === 'message_action' && payload.callback_id === 'canvi_calendar_create') {
-      after(async () => {
-        try { await openCanviCalendarModal(payload) } catch (e) { console.error('openCanviCalendarModal', e) }
-      })
+      try {
+        await openCanviCalendarModal(payload)
+      } catch (e) {
+        console.error('[slack] openCanviCalendarModal sync error', e)
+      }
       return new Response('', { status: 200 })
     }
 

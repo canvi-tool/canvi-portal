@@ -246,26 +246,13 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   const viewId = openJson.view?.id
 
   // views.open 成功後に DB からプロジェクト一覧を取得して views.update で差し替え
+  // fire-and-forget: 呼び出し側の await を早めに返すために await しない
+  void (async () => {
   try {
     const admin = createAdminClient()
-    const { email: requesterEmail } = await slackUserIdToEmail(payload.user.id, botToken)
     let projectOptions: Array<{ id: string; name: string }> = []
-    if (requesterEmail) {
-      const { data: u } = await admin.from('users').select('id').ilike('email', requesterEmail).maybeSingle()
-      if (u?.id) {
-        const { data: assigns } = await admin
-          .from('project_assignments')
-          .select('project:project_id(id, name, shift_approval_mode)')
-          .eq('user_id', u.id)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const list = (assigns || []).map((a: any) => a.project).filter((p: any) => p && p.shift_approval_mode === 'AUTO')
-        projectOptions = list.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))
-      }
-    }
-    if (projectOptions.length === 0) {
-      const { data: all } = await admin.from('projects').select('id, name').limit(25)
-      projectOptions = all || []
-    }
+    const { data: all } = await admin.from('projects').select('id, name').is('deleted_at', null).limit(50)
+    projectOptions = all || []
     if (projectOptions.length > 0 && viewId) {
       const opts = projectOptions.slice(0, 100).map((p) => ({
         text: { type: 'plain_text', text: p.name.slice(0, 75) },
@@ -300,6 +287,7 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   } catch (e) {
     console.error('[canvi_calendar_create] project fetch / views.update exception', e)
   }
+  })()
 }
 
 /** モーダル送信 → シフト作成 + GCal 同期 + 結果をスレッド返信 */
