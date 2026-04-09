@@ -185,7 +185,7 @@ export async function getRecentDerivedAlerts(
   const staffIdsInShifts = Array.from(new Set(shifts.map((s) => s.staff_id).filter((x): x is string => !!x)))
   const dateSet = Array.from(new Set(shifts.map((s) => s.shift_date)))
 
-  let attendanceMap = new Map<string, { clock_in: string | null; clock_out: string | null }>()
+  const attendanceMap = new Map<string, { clock_in: string | null; clock_out: string | null }>()
   if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
     const { data: arData } = await supabase
       .from('attendance_records')
@@ -466,7 +466,7 @@ export async function getRecentDerivedAlerts(
           }
 
           // owner向けに各スタッフのPJ管理者名を解決
-          let staffManagerMap = new Map<string, string>()
+          const staffManagerMap = new Map<string, string>()
           if (ownerScope) {
             const { data: assigns } = await supabase
               .from('project_assignments')
