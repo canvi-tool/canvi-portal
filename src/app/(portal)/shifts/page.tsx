@@ -376,11 +376,19 @@ export default function ShiftsPage() {
     }
   }, [dateRange.start, dateRange.end, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ページ初回表示時に GCal watch channel を ensure 登録 (既登録ならスキップ)
+  // これにより webhook が常時有効になり、polling 経由の 15s 遅延が解消される
+  useEffect(() => {
+    if (!currentUserId) return
+    // fire-and-forget
+    fetch('/api/gcal-watch/register?ensure=1', { method: 'POST' }).catch(() => {})
+  }, [currentUserId])
+
   // 30秒ごとに自動再取得 + ウィンドウフォーカス時に再取得（near-instant同期）
   useEffect(() => {
     if (!dateRange.start || !dateRange.end || !currentUserId) return
     let lastRun = 0
-    const MIN_INTERVAL = 10_000 // 10秒以内の重複トリガーは無視（focus/visibilitychange同時発火対策）
+    const MIN_INTERVAL = 30_000 // 30秒以内の重複トリガーは無視
     const tick = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       const now = Date.now()
@@ -388,8 +396,8 @@ export default function ShiftsPage() {
       lastRun = now
       syncFromGcal(true)
     }
-    // GCal複数変更の反映遅延を抑えるため 15秒ごとに軽量sync (Realtimeバックアップ)
-    const interval = setInterval(tick, 15_000)
+    // webhook が主経路。polling は 60 秒毎のフォールバック (Realtime/webhook 失敗時の保険)
+    const interval = setInterval(tick, 60_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
@@ -408,11 +416,12 @@ export default function ShiftsPage() {
     let pendingTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRefetch = () => {
       if (pendingTimer) return
-      // 連続変更のデバウンス（300msウィンドウでまとめて1回再取得）
+      // 連続変更のデバウンス（50msウィンドウでまとめて1回再取得）
+      // webhook で 4件まとめて DB に書かれるケースを 1回にまとめつつ、ユーザー体感はほぼ即時
       pendingTimer = setTimeout(() => {
         pendingTimer = null
         fetchShiftsRef.current()
-      }, 300)
+      }, 50)
     }
     const channel = supabase
       .channel('shifts-realtime')

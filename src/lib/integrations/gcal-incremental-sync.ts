@@ -92,7 +92,9 @@ export async function runIncrementalSyncForStaff(params: {
   const { data: meUser } = await admin.from('users').select('email').eq('id', userId).maybeSingle()
   const myEmail = ((meUser as { email?: string | null } | null)?.email || '').toLowerCase()
 
-  for (const ev of listResult.events) {
+  // 並列処理: 1 webhook で複数イベント変更が届くケース (4件まとめての時刻変更など)
+  // 直列だと N*RTT でトータル数秒〜20秒かかる。Promise.all で ~1 RTT に圧縮。
+  await Promise.all(listResult.events.map(async (ev) => {
     try {
       // キャンセル → shifts/pending の該当行を削除 or deleted_at
       if (ev.status === 'cancelled') {
@@ -119,14 +121,14 @@ export async function runIncrementalSyncForStaff(params: {
           .delete()
           .eq('staff_id', staffId)
           .eq('external_event_id', ev.id)
-        continue
+        return
       }
 
       // Canvi 発（extendedProperties に canviShiftId）→ shifts.id 直接検索し、
       // GCal 側で加えられた title/notes/start/end/meet_url の変更だけ UPDATE する
       // (逆上書き防止のため external_updated_at を比較)
       if (ev.canviShiftId) {
-        if (ev.isAllDay || !ev.start || !ev.end) continue
+        if (ev.isAllDay || !ev.start || !ev.end) return
         const startDate = new Date(ev.start)
         const endDate = new Date(ev.end)
         const shiftDate = toJstDateStr(startDate)
@@ -139,14 +141,14 @@ export async function runIncrementalSyncForStaff(params: {
           .is('deleted_at', null)
           .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
         const canviShift = canviShiftList && canviShiftList[0]
-        if (!canviShift) continue
+        if (!canviShift) return
         // 逆上書き防止: GCal 側の更新時刻が古ければ何もしない
         if (
           ev.updated &&
           canviShift.external_updated_at &&
           new Date(ev.updated).getTime() <= new Date(canviShift.external_updated_at).getTime()
         ) {
-          continue
+          return
         }
         const curStart = (canviShift.start_time || '').slice(0, 5)
         const curEnd = (canviShift.end_time || '').slice(0, 5)
@@ -180,13 +182,13 @@ export async function runIncrementalSyncForStaff(params: {
             .eq('id', canviShift.id)
           result.changed += 1
         }
-        continue
+        return
       }
       // 旧互換: 他の Canvi ユーザー organizer
       const organizer = (ev.organizerEmail || '').toLowerCase()
-      if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) continue
+      if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) return
       // 終日 or 時刻なし → スキップ
-      if (ev.isAllDay || !ev.start || !ev.end) continue
+      if (ev.isAllDay || !ev.start || !ev.end) return
 
       const startDate = new Date(ev.start)
       const endDate = new Date(ev.end)
@@ -205,7 +207,7 @@ export async function runIncrementalSyncForStaff(params: {
 
       if (promotedList && promotedList[0]) {
         const promoted = promotedList[0]
-        if (promoted.source !== 'google_calendar') continue
+        if (promoted.source !== 'google_calendar') return
         const curStart = (promoted.start_time || '').slice(0, 5)
         const curEnd = (promoted.end_time || '').slice(0, 5)
         const newTitle = ev.summary || null
@@ -239,7 +241,7 @@ export async function runIncrementalSyncForStaff(params: {
             .eq('id', promoted.id)
           result.changed += 1
         }
-        continue
+        return
       }
 
       // pending_events の UPSERT
@@ -253,7 +255,7 @@ export async function runIncrementalSyncForStaff(params: {
 
       if (pendingList && pendingList[0]) {
         const pending = pendingList[0]
-        if (pending.excluded) continue
+        if (pending.excluded) return
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (admin as any)
           .from('gcal_pending_events')
@@ -286,7 +288,7 @@ export async function runIncrementalSyncForStaff(params: {
     } catch (e) {
       result.errors.push(`event_${ev.id}: ${(e as Error).message}`)
     }
-  }
+  }))
 
   // nextSyncToken を保存
   if (listResult.nextSyncToken) {

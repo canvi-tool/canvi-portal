@@ -12,8 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarClient } from '@/lib/integrations/google-calendar'
 import { getValidTokenForUser } from '@/lib/integrations/google-token'
 
-export async function POST(_request: NextRequest) {
-  void _request
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -36,12 +35,26 @@ export async function POST(_request: NextRequest) {
 
     const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
 
-    // 既存チャンネルがあれば停止
+    // idempotent 動作: ?ensure=1 が付いていれば、有効なチャンネルが既に存在する場合は何もしない
+    const url = new URL(request.url)
+    const ensureOnly = url.searchParams.get('ensure') === '1'
+
+    // 既存チャンネルがあれば確認
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existing } = await (admin as any)
       .from('gcal_watch_channels')
-      .select('id, channel_id, resource_id')
-      .eq('user_id', user.id) as { data: Array<{ id: string; channel_id: string; resource_id: string }> | null }
+      .select('id, channel_id, resource_id, expiration')
+      .eq('user_id', user.id) as { data: Array<{ id: string; channel_id: string; resource_id: string; expiration: string | null }> | null }
+
+    if (ensureOnly && existing && existing.length > 0) {
+      // 少なくとも 1 件が 24h 以上残っていれば再登録しない (high-frequency page load でも安全)
+      const now = Date.now()
+      const buffer = 24 * 60 * 60 * 1000
+      const stillValid = existing.some((ch) => ch.expiration && new Date(ch.expiration).getTime() - now > buffer)
+      if (stillValid) {
+        return NextResponse.json({ skipped: true, reason: 'already_registered' })
+      }
+    }
 
     if (existing && existing.length > 0) {
       for (const ch of existing) {
