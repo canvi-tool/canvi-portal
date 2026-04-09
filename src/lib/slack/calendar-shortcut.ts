@@ -187,8 +187,12 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
   const title = firstLine.replace(/\s+/g, ' ').slice(0, 60).trim() || 'Slack発起の予定'
 
   // ※ trigger_id は3秒で失効するため、ここでは DB を叩かずに最小ビューで views.open する
-  //   プロジェクト一覧は views.open 成功後に取得→views.update で差し替え
-  const projectSelectOptions: Array<{ text: { type: 'plain_text'; text: string }; value: string }> = []
+  //   プロジェクト一覧は views.open 成功後に取得→views.update で差し替え。
+  //   ただし project_block 自体は初期ビューに「指定なし」1件で存在させ、
+  //   views.update が間に合わなくても submit できるようにする（後段でフォールバック解決）。
+  const projectSelectOptions: Array<{ text: { type: 'plain_text'; text: string }; value: string }> = [
+    { text: { type: 'plain_text', text: '指定なし' }, value: '__unset__' },
+  ]
 
   const view = {
     type: 'modal',
@@ -316,8 +320,11 @@ export async function openCanviCalendarModal(payload: ShortcutPayload): Promise<
         },
         label: { type: 'plain_text', text: 'プロジェクト' },
       }
-      // title の直後に project_block を差し込む
-      const updatedBlocks = [view.blocks[0], projectBlock, ...view.blocks.slice(1)]
+      // title の直後の project_block を差し替え（既に placeholder として存在する）
+      const updatedBlocks = view.blocks.map((b) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (b as any)?.block_id === 'project_block' ? projectBlock : b
+      )
       const updatedView = { ...view, blocks: updatedBlocks }
       const upRes = await fetch(`${SLACK_API}/views.update`, {
         method: 'POST',
@@ -351,6 +358,7 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
 
   const title = values.title_block?.title_input?.value?.trim() || 'Slack発起の予定'
   let projectId = values.project_block?.project_select?.selected_option?.value
+  if (projectId === '__unset__') projectId = undefined
   const date = values.date_block?.date_select?.selected_date
   const startTime = values.start_time_block?.start_time?.selected_time
   const endTime = values.end_time_block?.end_time?.selected_time
