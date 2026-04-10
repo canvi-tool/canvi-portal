@@ -156,6 +156,13 @@ function getUserToken(): string | null {
   return process.env.SLACK_USER_TOKEN || null
 }
 
+// Usergroup API用トークン
+// Bot tokenではpermission_deniedになるため、User tokenを優先使用
+// SLACK_USER_TOKEN未設定時はSLACK_BOT_TOKENにフォールバック（後方互換）
+function getUsergroupToken(): string {
+  return process.env.SLACK_USER_TOKEN || process.env.SLACK_BOT_TOKEN || ''
+}
+
 // デフォルトのWebhook URL（フォールバック）
 function getWebhookUrl(): string | null {
   return process.env.SLACK_WEBHOOK_URL || null
@@ -1588,9 +1595,9 @@ async function createOrFindProjectUsergroup(
   projectName: string,
   channelId: string | null
 ): Promise<string | null> {
-  const token = getBotToken()
+  const token = getUsergroupToken()
   if (!token) {
-    throw new Error('SLACK_BOT_TOKEN is not set')
+    throw new Error('SLACK_USER_TOKEN / SLACK_BOT_TOKEN is not set')
   }
 
   // project_usergroups テーブルにキャッシュ済みならそれを返す
@@ -1685,9 +1692,9 @@ async function createOrFindProjectUsergroup(
  * Slack API の制約: 最低1名のメンバーが必要
  */
 async function syncUsergroupMembers(usergroupId: string, userIds: string[]): Promise<void> {
-  const token = getBotToken()
+  const token = getUsergroupToken()
   if (!token) {
-    throw new Error('SLACK_BOT_TOKEN is not set')
+    throw new Error('SLACK_USER_TOKEN / SLACK_BOT_TOKEN is not set')
   }
   if (userIds.length === 0) {
     console.warn('[usergroup] syncUsergroupMembers: empty user list, skipping')
@@ -1771,7 +1778,7 @@ export async function syncProjectUsergroup(projectId: string): Promise<void> {
  * ユーザーグループが未作成の場合はフル同期を行う
  */
 export async function onProjectAssignmentAdded(projectId: string, staffSlackUserId: string): Promise<void> {
-  const token = getBotToken()
+  const token = getUsergroupToken()
   if (!token || !staffSlackUserId) return
 
   try {
@@ -1805,7 +1812,7 @@ export async function onProjectAssignmentAdded(projectId: string, staffSlackUser
  * 最低1名必要なため、最後の1名は削除できない
  */
 export async function onProjectAssignmentRemoved(projectId: string, staffSlackUserId: string): Promise<void> {
-  const token = getBotToken()
+  const token = getUsergroupToken()
   if (!token || !staffSlackUserId) return
 
   try {
