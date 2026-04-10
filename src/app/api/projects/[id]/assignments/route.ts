@@ -114,13 +114,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           inviteResult.error
         )
       }
+    }
 
-      // プロジェクトユーザーグループにスタッフを追加
-      const resolved = await resolveSlackUserId(parsed.data.staff_id, staffEmail)
-      if (resolved.slackUserId) {
-        addStaffToProjectUsergroup(projectId, resolved.slackUserId).catch((e) =>
-          console.error('[assignments POST] addStaffToProjectUsergroup error:', e)
-        )
+    // プロジェクトユーザーグループにスタッフを追加（チャンネル有無に関わらず実行）
+    if (staffEmail) {
+      try {
+        const resolved = await resolveSlackUserId(parsed.data.staff_id, staffEmail)
+        if (resolved.slackUserId) {
+          await addStaffToProjectUsergroup(projectId, resolved.slackUserId)
+        }
+      } catch (e) {
+        console.error('[assignments POST] addStaffToProjectUsergroup error:', e)
       }
     }
 

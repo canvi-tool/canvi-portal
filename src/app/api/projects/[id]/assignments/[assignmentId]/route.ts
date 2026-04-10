@@ -142,14 +142,18 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
               removeResult.error
             )
           }
+        }
+      }
 
-          // プロジェクトユーザーグループからも削除
-          const resolved = await resolveSlackUserId(assignment.staff_id, staffEmail)
+      // プロジェクトユーザーグループからも削除（チャンネル有無に関わらず実行）
+      if (staffData.email) {
+        try {
+          const resolved = await resolveSlackUserId(assignment.staff_id, staffData.email)
           if (resolved.slackUserId) {
-            removeStaffFromProjectUsergroup(projectId, resolved.slackUserId).catch((e) =>
-              console.error('[assignments DELETE] removeStaffFromProjectUsergroup error:', e)
-            )
+            await removeStaffFromProjectUsergroup(projectId, resolved.slackUserId)
           }
+        } catch (e) {
+          console.error('[assignments DELETE] removeStaffFromProjectUsergroup error:', e)
         }
       }
     }

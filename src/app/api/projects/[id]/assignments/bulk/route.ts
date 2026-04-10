@@ -147,11 +147,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // 全アサイン完了後、プロジェクトユーザーグループをフル同期
-    if (staffNames.length > 0 && project?.slack_channel_id) {
-      syncProjectUsergroup(projectId).catch((e) =>
+    // 全アサイン完了後、プロジェクトユーザーグループをフル同期（チャンネル有無に関わらず実行）
+    if (staffNames.length > 0) {
+      try {
+        await syncProjectUsergroup(projectId)
+      } catch (e) {
         console.error('[assignments/bulk] syncProjectUsergroup error:', e)
-      )
+      }
     }
 
     // 全アサイン完了後、1つの通知を送信
