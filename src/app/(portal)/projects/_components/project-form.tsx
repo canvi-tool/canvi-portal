@@ -122,6 +122,19 @@ export function ProjectForm({
     }
   }
 
+  const isCAN = projectType === 'CAN'
+
+  // CAN (社内PJ) はステータスを自動で active に設定
+  useEffect(() => {
+    if (isCAN) {
+      setValue('status', 'active')
+      setValue('client_id', '')
+      setValue('client_name', '')
+      setValue('start_date', '')
+      setValue('end_date', '')
+    }
+  }, [isCAN, setValue])
+
   // Auto-generate project_code from type + number
   useEffect(() => {
     if (projectType && projectNumber) {
@@ -264,95 +277,101 @@ export function ProjectForm({
         )}
       </div>
 
-      {/* ステータス */}
-      <div className="space-y-2">
-        <Label>
-          ステータス <span className="text-destructive">*</span>
-        </Label>
-        <Select
-          value={statusValue}
-          onValueChange={(val) => val && setValue('status', val as ProjectFormValues['status'])}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValueWithLabel value={statusValue} labels={PROJECT_STATUS_LABELS} placeholder="ステータスを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {[
-              { value: 'proposing', label: '提案中' },
-              { value: 'active', label: '契約中' },
-              { value: 'ended', label: '契約終了' },
-            ].map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.status && (
-          <p className="text-sm text-destructive">{errors.status.message}</p>
-        )}
-      </div>
-
-      {/* クライアント */}
-      <div className="space-y-2">
-        <Label>クライアント</Label>
-        <Controller
-          name="client_id"
-          control={control}
-          render={({ field }) => (
-            <Select
-              value={field.value || undefined}
-              onValueChange={(val) => {
-                field.onChange(val === '__none__' ? '' : val)
-                const client = clients.find((c) => c.id === val)
-                if (client) {
-                  setValue('client_name', client.name)
-                } else {
-                  setValue('client_name', '')
-                }
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValueWithLabel
-                  value={field.value || null}
-                  labels={Object.fromEntries(clients.map(c => [c.id, `${c.name}（${c.client_code}）`]))}
-                  placeholder="クライアントを選択"
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">（なし）</SelectItem>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}（{c.client_code}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* ステータス (CANプロジェクトでは非表示・自動active) */}
+      {!isCAN && (
+        <div className="space-y-2">
+          <Label>
+            ステータス <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={statusValue}
+            onValueChange={(val) => val && setValue('status', val as ProjectFormValues['status'])}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValueWithLabel value={statusValue} labels={PROJECT_STATUS_LABELS} placeholder="ステータスを選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                { value: 'proposing', label: '提案中' },
+                { value: 'active', label: '契約中' },
+                { value: 'ended', label: '契約終了' },
+              ].map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.status && (
+            <p className="text-sm text-destructive">{errors.status.message}</p>
           )}
-        />
-      </div>
+        </div>
+      )}
 
-      {/* 日付 */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* クライアント (CANプロジェクトでは非表示) */}
+      {!isCAN && (
         <div className="space-y-2">
-          <Label htmlFor="start_date">開始日</Label>
-          <Input
-            id="start_date"
-            type="date"
-            {...register('start_date')}
-            aria-invalid={!!errors.start_date}
+          <Label>クライアント</Label>
+          <Controller
+            name="client_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value || undefined}
+                onValueChange={(val) => {
+                  field.onChange(val === '__none__' ? '' : val)
+                  const client = clients.find((c) => c.id === val)
+                  if (client) {
+                    setValue('client_name', client.name)
+                  } else {
+                    setValue('client_name', '')
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValueWithLabel
+                    value={field.value || null}
+                    labels={Object.fromEntries(clients.map(c => [c.id, `${c.name}（${c.client_code}）`]))}
+                    placeholder="クライアントを選択"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">（なし）</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}（{c.client_code}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="end_date">終了日</Label>
-          <Input
-            id="end_date"
-            type="date"
-            {...register('end_date')}
-            aria-invalid={!!errors.end_date}
-          />
+      )}
+
+      {/* 日付 (CANプロジェクトでは非表示) */}
+      {!isCAN && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="start_date">開始日</Label>
+            <Input
+              id="start_date"
+              type="date"
+              {...register('start_date')}
+              aria-invalid={!!errors.start_date}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="end_date">終了日</Label>
+            <Input
+              id="end_date"
+              type="date"
+              {...register('end_date')}
+              aria-invalid={!!errors.end_date}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* シフト承認モード */}
       <div className="space-y-2">

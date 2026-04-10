@@ -268,6 +268,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   }
 
   const customFields = project.custom_fields as Record<string, string> | null
+  const isCAN = project.project_type === 'CAN'
 
   return (
     <div className="space-y-6">
@@ -299,28 +300,34 @@ export default function ProjectDetailPage({ params }: PageProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">ステータス</p>
-              <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Building2 className="h-3 w-3" />
-                クライアント
-              </p>
-              <p className="text-sm font-medium">
-                {project.client_name || '-'}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                期間
-              </p>
-              <p className="text-sm font-medium">
-                {project.start_date || '...'} ~ {project.end_date || '...'}
-              </p>
-            </div>
+            {!isCAN && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">ステータス</p>
+                <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
+              </div>
+            )}
+            {!isCAN && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  クライアント
+                </p>
+                <p className="text-sm font-medium">
+                  {project.client_name || '-'}
+                </p>
+              </div>
+            )}
+            {!isCAN && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  期間
+                </p>
+                <p className="text-sm font-medium">
+                  {project.start_date || '...'} ~ {project.end_date || '...'}
+                </p>
+              </div>
+            )}
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Users className="h-3 w-3" />
@@ -405,22 +412,30 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   <p className="text-xs text-muted-foreground">PJ名</p>
                   <p className="text-sm">{project.name}</p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">ステータス</p>
-                  <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">クライアント</p>
-                  <p className="text-sm">{project.client_name || '-'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">開始日</p>
-                  <p className="text-sm">{project.start_date || '-'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">終了日</p>
-                  <p className="text-sm">{project.end_date || '-'}</p>
-                </div>
+                {!isCAN && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">ステータス</p>
+                    <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
+                  </div>
+                )}
+                {!isCAN && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">クライアント</p>
+                    <p className="text-sm">{project.client_name || '-'}</p>
+                  </div>
+                )}
+                {!isCAN && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">開始日</p>
+                    <p className="text-sm">{project.start_date || '-'}</p>
+                  </div>
+                )}
+                {!isCAN && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">終了日</p>
+                    <p className="text-sm">{project.end_date || '-'}</p>
+                  </div>
+                )}
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-xs text-muted-foreground">Google Calendar ID</p>
                   <p className="text-sm font-mono">{customFields?.google_calendar_id || '-'}</p>
