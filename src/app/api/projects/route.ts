@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
 import { getProjectAccess } from '@/lib/auth/project-access'
 import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
+import { syncProjectUsergroup } from '@/lib/integrations/slack'
 
 export async function GET(request: NextRequest) {
   try {
@@ -157,6 +158,14 @@ export async function POST(request: NextRequest) {
         )
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // PJ作成時にSlackユーザーグループを自動作成
+    try {
+      await syncProjectUsergroup(data.id)
+    } catch (err) {
+      console.error('[projects POST] syncProjectUsergroup failed:', err)
+      // usergroupの作成失敗はPJ作成自体をブロックしない
     }
 
     return NextResponse.json(data, { status: 201 })
