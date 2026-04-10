@@ -6,7 +6,7 @@ const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 /**
  * GET /api/slack/channels
- * Slackチャンネル一覧取得（管理者のみ）
+ * Slackチャンネル一覧取得（認証済みユーザー全員が読み取り可能）
  */
 export async function GET() {
   try {
@@ -21,8 +21,8 @@ export async function GET() {
     }
 
     const user = await getCurrentUser()
-    if (!user || (!isOwner(user) && !isAdmin(user))) {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
     const result = await fetchSlackChannels()

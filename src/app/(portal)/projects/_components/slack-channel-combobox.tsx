@@ -68,8 +68,11 @@ export function SlackChannelCombobox({
     setLoading(true)
     fetch('/api/slack/channels')
       .then((r) => {
+        if (r.status === 401) {
+          setError('認証エラー: ログインし直してください')
+          return null
+        }
         if (r.status === 403) {
-          // 権限不足 — 管理者以上のみSlackチャンネル操作可
           setError('権限不足: Slackチャンネルの操作には管理者権限が必要です')
           return null
         }
@@ -78,7 +81,14 @@ export function SlackChannelCombobox({
       .then((res) => {
         if (!res) return
         if (res.channels) setChannels(res.channels)
-        if (res.error && !res.channels?.length) setError(res.error)
+        if (res.error && !res.channels?.length) {
+          // Distinguish between "not configured" (genuinely no token) vs other API errors
+          if (res.error.includes('not configured')) {
+            setError('Slack未連携')
+          } else {
+            setError(res.error)
+          }
+        }
       })
       .catch(() => setError('Slackチャンネルの取得に失敗しました'))
       .finally(() => setLoading(false))
@@ -150,10 +160,9 @@ export function SlackChannelCombobox({
   }
 
   if (error && !channels.length) {
-    const isPermissionError = error.includes('権限')
-    const displayMessage = isPermissionError
-      ? error
-      : 'Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください'
+    const displayMessage = error === 'Slack未連携'
+      ? 'Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください'
+      : error
     return (
       <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
         <AlertCircle className="h-4 w-4 shrink-0" />
