@@ -24,8 +24,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createServerSupabaseClient()
-    const today = new Date().toISOString().split('T')[0]
-    const now = new Date().toISOString()
+    // JST日付で計算（出勤レコードはJST日付で保存されている）
+    const nowDate = new Date()
+    const jstDate = new Date(nowDate.getTime() + 9 * 60 * 60 * 1000)
+    const today = jstDate.toISOString().split('T')[0]
+    const now = nowDate.toISOString()
 
     const targetStatus = action === 'break_start' ? 'clocked_in' : 'on_break'
 
