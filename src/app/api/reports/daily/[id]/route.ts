@@ -172,14 +172,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         .eq('id', id)
     }
 
-    // Slack通知（再提出 → 既存スレッドにリプライ or 新規トップレベル）
-    if (!isDraft && (existing.status === 'rejected' || existing.status === 'submitted') && data.project_id) {
+    // Slack通知（初回提出 or 再提出 → 既存スレッドにリプライ or 新規トップレベル）
+    if (!isDraft && (existing.status === 'draft' || existing.status === 'rejected' || existing.status === 'submitted') && data.project_id) {
       const staffName = (() => {
         const s = data.staff as { last_name?: string; first_name?: string } | null
         return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
       })()
       const projectName = (data.project as { name?: string } | null)?.name || ''
       const typeLabel = DAILY_REPORT_TYPE_LABELS[report_type as DailyReportType] || '日報'
+      const isFirstSubmission = existing.status === 'draft'
+      const actionLabel = isFirstSubmission ? '提出' : '再提出'
 
       const { data: proj } = await supabase
         .from('projects')
@@ -204,13 +206,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
 
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+            text: `${staffName} が ${typeLabel} を${actionLabel}しました（${projectName}）`,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `*${staffName}* が *${typeLabel}* を *再提出* しました\n${report_date} | ${projectName}`,
+                  text: `*${staffName}* が *${typeLabel}* を *${actionLabel}* しました\n${report_date} | ${projectName}`,
                 },
               },
               ...(kpiSummary ? [{
@@ -249,23 +251,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           // スレッド内に報告内容の詳細を投稿
           const detailBlocks = buildReportDetailBlocks(report_type, customFields)
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} の ${typeLabel} 詳細（再提出）`,
+            text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
             blocks: detailBlocks,
           }, { thread_ts: existingThreadTs })
         } else {
-          // slack_thread_ts がない場合は新規トップレベルメッセージ（フォールバック）
+          // slack_thread_ts がない場合は新規トップレベルメッセージ（初回提出 or フォールバック）
           const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
           const kpiSummary = buildKpiSummary(report_type, customFields)
 
           const result = await sendProjectNotificationIfEnabled(
             {
-              text: `${staffName} が ${typeLabel} を再提出しました（${projectName}）`,
+              text: `${staffName} が ${typeLabel} を${actionLabel}しました（${projectName}）`,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `*${staffName}* が *${typeLabel}* を *再提出* しました\n${report_date} | ${projectName}`,
+                    text: `*${staffName}* が *${typeLabel}* を *${actionLabel}* しました\n${report_date} | ${projectName}`,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -313,7 +315,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
             const detailBlocks = buildReportDetailBlocks(report_type, customFields)
             await sendSlackBotMessage(proj.slack_channel_id, {
-              text: `${staffName} の ${typeLabel} 詳細（再提出）`,
+              text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
               blocks: detailBlocks,
             }, { thread_ts: result.ts })
           }
