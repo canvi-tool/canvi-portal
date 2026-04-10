@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Optional: test channel access
+  // Optional: test channel access & send test message
   const channelId = new URL(request.url).searchParams.get('channel')
   if (channelId && botToken) {
     try {
@@ -96,6 +96,53 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       results.channel_test = { channel_id: channelId, ok: false, error: String(e) }
+    }
+
+    // Test chat.postMessage if ?test_send=1
+    const testSend = new URL(request.url).searchParams.get('test_send')
+    if (testSend === '1') {
+      try {
+        const msgRes = await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            text: `🔧 Canvi Portal 接続テスト (${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})`,
+            username: 'Canvi Portal',
+            icon_emoji: ':white_check_mark:',
+          }),
+        })
+        const msgData = await msgRes.json()
+        results.send_test = {
+          ok: msgData.ok,
+          ts: msgData.ts,
+          error: msgData.error || undefined,
+          needed: msgData.needed || undefined,
+        }
+      } catch (e) {
+        results.send_test = { ok: false, error: String(e) }
+      }
+    }
+  }
+
+  // Full conversations.list (private + public) — same as fetchSlackChannels
+  const fullList = new URL(request.url).searchParams.get('full_list')
+  if (fullList === '1' && botToken) {
+    try {
+      const flRes = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&exclude_archived=true&limit=200', {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+      const flData = await flRes.json()
+      results.full_channel_list = {
+        ok: flData.ok,
+        total: flData.channels?.length ?? 0,
+        error: flData.error || undefined,
+      }
+    } catch (e) {
+      results.full_channel_list = { ok: false, error: String(e) }
     }
   }
 
