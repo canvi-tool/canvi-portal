@@ -60,7 +60,7 @@ export function SlackChannelCombobox({
   const [error, setError] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
-  const [newChannelPrivate, setNewChannelPrivate] = useState(false)
+  const [newChannelPrivate, setNewChannelPrivate] = useState(true)
   const [creating, setCreating] = useState(false)
   const retryCountRef = useRef(0)
 
@@ -116,11 +116,7 @@ export function SlackChannelCombobox({
     }
   }, [error, channels.length, fetchChannels])
 
-  // Split channels
-  const publicChannels = useMemo(
-    () => channels.filter((ch) => !ch.is_private),
-    [channels]
-  )
+  // プライベートチャンネルのみ表示（パブリックにBotを入れる運用はないため）
   const privateChannels = useMemo(
     () => channels.filter((ch) => ch.is_private),
     [channels]
@@ -279,33 +275,9 @@ export function SlackChannelCombobox({
 
               <CommandSeparator />
 
-              {/* パブリックチャンネル */}
-              {publicChannels.length > 0 && (
-                <CommandGroup heading="パブリックチャンネル">
-                  {publicChannels.map((ch) => (
-                    <CommandItem
-                      key={ch.id}
-                      value={ch.name}
-                      onSelect={() => handleSelect(ch.id)}
-                      data-checked={value === ch.id ? true : undefined}
-                    >
-                      <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{ch.name}</span>
-                      {ch.num_members != null && (
-                        <span className="ml-auto text-xs text-muted-foreground shrink-0">
-                          {ch.num_members}人
-                        </span>
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-
-              {/* プライベートチャンネル */}
+              {/* プライベートチャンネルのみ表示（パブリックにBotを入れない運用のため） */}
               {privateChannels.length > 0 && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup heading="プライベートチャンネル">
+                <CommandGroup heading="プライベートチャンネル">
                     {privateChannels.map((ch) => (
                       <CommandItem
                         key={ch.id}
@@ -323,7 +295,6 @@ export function SlackChannelCombobox({
                       </CommandItem>
                     ))}
                   </CommandGroup>
-                </>
               )}
             </CommandList>
           </Command>
