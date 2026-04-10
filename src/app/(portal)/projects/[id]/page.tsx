@@ -267,7 +267,6 @@ export default function ProjectDetailPage({ params }: PageProps) {
     )
   }
 
-  const customFields = project.custom_fields as Record<string, string> | null
   const isCAN = project.project_type === 'CAN'
 
   return (
@@ -436,10 +435,6 @@ export default function ProjectDetailPage({ params }: PageProps) {
                     <p className="text-sm">{project.end_date || '-'}</p>
                   </div>
                 )}
-                <div className="space-y-1 sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">Google Calendar ID</p>
-                  <p className="text-sm font-mono">{customFields?.google_calendar_id || '-'}</p>
-                </div>
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-xs text-muted-foreground">作成日</p>
                   <p className="text-sm">{new Date(project.created_at).toLocaleString('ja-JP')}</p>
@@ -617,7 +612,6 @@ export default function ProjectDetailPage({ params }: PageProps) {
                             client_name: project.client_name || '',
                             start_date: project.start_date || '',
                             end_date: project.end_date || '',
-                            google_calendar_id: (project.custom_fields as Record<string, string> | null)?.google_calendar_id || '',
                             slack_channel_id: channelId || '',
                             slack_channel_name: channelName || '',
                             shift_approval_mode: project.shift_approval_mode || 'AUTO',

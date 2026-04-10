@@ -38,11 +38,6 @@ export const projectFormSchema = z.object({
     .string()
     .optional()
     .or(z.literal('')),
-  google_calendar_id: z
-    .string()
-    .max(500, 'Google Calendar IDは500文字以内で入力してください')
-    .optional()
-    .or(z.literal('')),
   slack_channel_id: z
     .string()
     .max(100)

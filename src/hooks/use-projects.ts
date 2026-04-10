@@ -10,7 +10,6 @@ import type { AssignmentFormValues, CompensationRuleFormValues } from '@/lib/val
 export type Project = Tables<'projects'> & {
   metadata: {
     project_code?: string
-    google_calendar_id?: string
   } | null
   assignment_count?: number
   assignment_names?: string[]

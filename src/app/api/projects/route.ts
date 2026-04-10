@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { project_code, project_type, project_number, google_calendar_id, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, ...rest } = parsed.data
+    const { project_code, project_type, project_number, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, ...rest } = parsed.data
 
     // 新ステータス→旧DB enum値マッピング（マイグレーション前の互換対応）
     const STATUS_TO_DB: Record<string, string> = {
@@ -142,7 +142,6 @@ export async function POST(request: NextRequest) {
         slack_channel_name: slack_channel_name || null,
         shift_approval_mode: shift_approval_mode || 'AUTO',
         custom_fields: {
-          google_calendar_id: google_calendar_id || null,
           calendar_display_name: calDisplayName || null,
         },
         created_by: user?.id || null,

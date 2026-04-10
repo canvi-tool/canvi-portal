@@ -68,7 +68,6 @@ export default function EditProjectPage({ params }: PageProps) {
     client_name: project.client_name || '',
     start_date: project.start_date || '',
     end_date: project.end_date || '',
-    google_calendar_id: customFields?.google_calendar_id || '',
     slack_channel_id: project.slack_channel_id || '',
     slack_channel_name: project.slack_channel_name || '',
     shift_approval_mode: (project.shift_approval_mode || 'AUTO') as 'AUTO' | 'APPROVAL',

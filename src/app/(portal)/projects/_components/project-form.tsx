@@ -66,7 +66,6 @@ export function ProjectForm({
       client_name: '',
       start_date: '',
       end_date: '',
-      google_calendar_id: '',
       slack_channel_id: '',
       slack_channel_name: '',
       shift_approval_mode: 'AUTO',
@@ -417,16 +416,6 @@ export function ProjectForm({
         <p className="text-xs text-muted-foreground">
           Googleカレンダーに登録する際の表示名。未入力の場合はPJ名が使用されます。
         </p>
-      </div>
-
-      {/* Google Calendar ID */}
-      <div className="space-y-2">
-        <Label htmlFor="google_calendar_id">Google Calendar ID</Label>
-        <Input
-          id="google_calendar_id"
-          placeholder="カレンダーIDを入力"
-          {...register('google_calendar_id')}
-        />
       </div>
 
       {/* Slack チャンネル連携 */}
