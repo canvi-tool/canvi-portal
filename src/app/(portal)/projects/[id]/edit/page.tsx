@@ -57,13 +57,24 @@ export default function EditProjectPage({ params }: PageProps) {
 
   const customFields = project.custom_fields as Record<string, string> | null
 
+  // DB旧ステータス→フォーム用マッピング
+  const DB_TO_UI_STATUS: Record<string, ProjectFormValues['status']> = {
+    planning: 'proposing',
+    active: 'active',
+    completed: 'ended',
+    paused: 'ended',
+    archived: 'ended',
+    proposing: 'proposing',
+    ended: 'ended',
+  }
+
   const defaultValues: Partial<ProjectFormValues> = {
     project_type: (project.project_type || 'BPO') as ProjectFormValues['project_type'],
     project_number: project.project_number || '',
     project_code: project.project_code || '',
     name: project.name,
     description: project.description || '',
-    status: project.status as ProjectFormValues['status'],
+    status: DB_TO_UI_STATUS[project.status] || 'active',
     client_id: project.client_id || '',
     client_name: project.client_name || '',
     start_date: project.start_date || '',

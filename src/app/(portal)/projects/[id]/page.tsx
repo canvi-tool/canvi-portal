@@ -615,6 +615,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
                             slack_channel_id: channelId || '',
                             slack_channel_name: channelName || '',
                             shift_approval_mode: project.shift_approval_mode || 'AUTO',
+                            calendar_display_name: (project.custom_fields as Record<string, string> | null)?.calendar_display_name || '',
                           }),
                         })
                         if (!res.ok) throw new Error('更新に失敗しました')

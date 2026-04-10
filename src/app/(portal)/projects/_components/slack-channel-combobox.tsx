@@ -67,8 +67,16 @@ export function SlackChannelCombobox({
   const fetchChannels = useCallback(() => {
     setLoading(true)
     fetch('/api/slack/channels')
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 403) {
+          // 権限不足 — 管理者以上のみSlackチャンネル操作可
+          setError('権限不足: Slackチャンネルの操作には管理者権限が必要です')
+          return null
+        }
+        return r.json()
+      })
       .then((res) => {
+        if (!res) return
         if (res.channels) setChannels(res.channels)
         if (res.error && !res.channels?.length) setError(res.error)
       })
@@ -142,10 +150,14 @@ export function SlackChannelCombobox({
   }
 
   if (error && !channels.length) {
+    const isPermissionError = error.includes('権限')
+    const displayMessage = isPermissionError
+      ? error
+      : 'Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください'
     return (
       <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
         <AlertCircle className="h-4 w-4 shrink-0" />
-        <span>Slack未連携: 設定 → 外部連携からSlack Bot Tokenを設定してください</span>
+        <span>{displayMessage}</span>
       </div>
     )
   }
