@@ -74,16 +74,20 @@ export async function GET(request: NextRequest) {
 
     const busyPromises = users.map(async (u) => {
       const token = await getValidTokenForUser(u.id)
-      if (!token) return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string; meetUrl?: string }> }
+      if (!token) {
+        console.warn(`[availability] No Google token for ${u.email} (user_id=${u.id}) — user may need to re-login`)
+        return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string; meetUrl?: string }>, noToken: true }
+      }
 
       try {
         const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
         // events.list APIを使用（calendar.eventsスコープで動作する）
         const busy = await client.getBusyFromEvents({ timeMin, timeMax })
+        console.log(`[availability] ${u.email}: ${busy.length} Google events fetched`)
         return { email: u.email, busy }
       } catch (e) {
-        console.warn(`Calendar API failed for ${u.email}:`, e)
-        return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string; meetUrl?: string }> }
+        console.error(`[availability] Calendar API failed for ${u.email}:`, e instanceof Error ? e.message : e)
+        return { email: u.email, busy: [] as Array<{ start: string; end: string; summary?: string; eventId?: string; meetUrl?: string }>, error: e instanceof Error ? e.message : String(e) }
       }
     })
 
@@ -162,12 +166,23 @@ export async function GET(request: NextRequest) {
     }
 
     // 空き時間算出（全員が空いている時間帯）
-    const members = users.map(u => ({
-      id: u.id,
-      email: u.email,
-      displayName: u.display_name,
-      busy: busyByUser[u.id] || [],
-    }))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const busyResultMap = new Map(busyResults.map((r: any) => [r.email, r]))
+    const members = users.map(u => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = busyResultMap.get(u.email) as any
+      return {
+        id: u.id,
+        email: u.email,
+        displayName: u.display_name,
+        busy: busyByUser[u.id] || [],
+        gcalStatus: result?.noToken ? 'no_token' : result?.error ? 'error' : 'ok',
+      }
+    })
+
+    const gcalOkCount = members.filter(m => m.gcalStatus === 'ok').length
+    const gcalBusyCount = members.reduce((sum, m) => sum + m.busy.filter(b => b.source === 'google').length, 0)
+    console.log(`[availability] Response: ${members.length} members, ${gcalOkCount} with GCal, ${gcalBusyCount} Google events total`)
 
     return NextResponse.json({
       members,

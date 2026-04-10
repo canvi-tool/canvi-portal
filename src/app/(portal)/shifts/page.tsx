@@ -590,18 +590,27 @@ export default function ShiftsPage() {
       time_min: timeMin,
       time_max: timeMax,
     })
+    console.log(`[gcal] Fetching availability for ${gcalTargets.length} users`)
     fetch(`/api/calendar/availability?${params}`)
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (!r.ok) { console.error('[gcal] availability returned', r.status); return null }
+        return r.json()
+      })
       .then(data => {
-        if (!data?.members?.length) { setGoogleEvents([]); return }
+        if (!data?.members?.length) { console.warn('[gcal] No members in response'); setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
         const seen = new Map<string, number>()
-        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
+        let totalGcalEvents = 0
+        let skippedCanvi = 0
+        for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }>; gcalStatus?: string }>) {
           const meta = userIdToMeta.get(member.id)
+          const memberGcalCount = (member.busy || []).filter(b => b.source === 'google').length
+          console.log(`[gcal] Member ${member.id}: ${memberGcalCount} google events, gcalStatus=${member.gcalStatus || 'n/a'}`)
           for (const b of member.busy || []) {
             if (b.source !== 'google') continue
+            totalGcalEvents++
             // Canvi発のイベントはスキップ（Canvi側の表示を優先）
-            if (b.canviShiftId) continue
+            if (b.canviShiftId) { skippedCanvi++; continue }
             const ev: GoogleCalendarEvent = {
               id: b.eventId || `gcal-${member.id}-${b.start}`,
               summary: b.summary || '(予定)',
@@ -626,9 +635,10 @@ export default function ShiftsPage() {
             }
           }
         }
+        console.log(`[gcal] Total: ${totalGcalEvents} google events, ${skippedCanvi} skipped (canvi), ${all.length} to render`)
         setGoogleEvents(all)
       })
-      .catch(() => setGoogleEvents([]))
+      .catch((err) => { console.error('[gcal] availability fetch error:', err); setGoogleEvents([]) })
   }, [gcalTargetsKey, dateRange.start, dateRange.end]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // FullCalendar handlers
@@ -982,10 +992,11 @@ export default function ShiftsPage() {
       time_min: timeMin,
       time_max: timeMax,
     })
+    console.log('[gcal-refresh] Refreshing Google events...')
     fetch(`/api/calendar/availability?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!data?.members?.length) { setGoogleEvents([]); return }
+        if (!data?.members?.length) { console.warn('[gcal-refresh] No members'); setGoogleEvents([]); return }
         const all: GoogleCalendarEvent[] = []
         const seen = new Map<string, number>()
         for (const member of data.members as Array<{ id: string; busy?: Array<{ source: string; start: string; end: string; summary?: string; eventId?: string; description?: string; location?: string; meetUrl?: string; canviShiftId?: string; attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }> }> }>) {
@@ -1098,6 +1109,9 @@ export default function ShiftsPage() {
 
   // シフト由来のGCalイベントを除外（重複表示防止: シフト管理側を優先表示）
   const dedupedGoogleEvents = useMemo(() => {
+    if (googleEvents.length > 0) {
+      console.log(`[gcal-dedup] Input: ${googleEvents.length} google events, ${shifts.length} shifts`)
+    }
     const shiftEventIds = new Set(
       shifts.map(s => s.googleEventId).filter((v): v is string => !!v)
     )

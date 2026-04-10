@@ -73,14 +73,14 @@ function toFullCalendarEvents(shifts: CalendarShift[]) {
     // Canviで登録されたシフトは濃い色、Googleカレンダー取込分(googleEventId有)は同色の透過
     const isFromGoogle = !!s.googleEventId
     const bgColor = isPending
-      ? 'rgba(156, 163, 175, 0.25)' // gray-400 15%
+      ? 'rgba(156, 163, 175, 0.45)' // gray-400 45% — 視認性向上
       : isLeave
       ? SHIFT_TYPE_COLORS[s.shiftType] || '#6366f1'
       : isFromGoogle
       ? getStaffColorTransparent(s.staffId)
       : getStaffColor(s.staffId)
     const borderColor = isPending
-      ? '#6b7280'
+      ? '#4b5563'
       : isFromGoogle
       ? getStaffColor(s.staffId)
       : bgColor
