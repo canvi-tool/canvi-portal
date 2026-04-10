@@ -58,11 +58,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Bot参加成功 → ユーザーグループ初期同期をバックグラウンドで実行
+    // Bot参加成功 → プロジェクトに紐付くチャンネルならユーザーグループ同期をバックグラウンドで実行
     const joinedChannelId = data.channel?.id || channelId
-    const joinedChannelName = data.channel?.name
     after(async () => {
-      await initUsergroupSync(joinedChannelId, joinedChannelName)
+      await initUsergroupSync(joinedChannelId)
     })
 
     return NextResponse.json({

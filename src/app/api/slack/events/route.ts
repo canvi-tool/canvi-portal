@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { createHmac, timingSafeEqual } from 'crypto'
 import {
-  findUsergroupByChannel,
-  addUserToUsergroup,
-  removeUserFromUsergroup,
-  initUsergroupSync,
-  getChannelInfo,
+  findProjectByChannelId,
+  syncProjectUsergroup,
 } from '@/lib/integrations/slack'
 
 // Vercel上で応答後も処理を継続させる
@@ -71,33 +68,15 @@ export async function POST(request: NextRequest) {
       const event = payload.event
 
       switch (event.type) {
-        case 'member_joined_channel': {
-          // メンバーがチャンネルに参加 → ユーザーグループに追加
-          after(async () => {
-            console.log(`[slack/events] member_joined_channel: user=${event.user} channel=${event.channel}`)
-            // まずDBからユーザーグループを検索
-            const usergroupId = await findUsergroupByChannel(event.channel)
-            if (!usergroupId) {
-              // ユーザーグループが未作成の場合は初期同期を実行
-              // （Botがイベント受信できている = Bot参加済みチャンネル）
-              const info = await getChannelInfo(event.channel)
-              if (info) {
-                await initUsergroupSync(event.channel, info.name)
-              }
-              return
-            }
-            await addUserToUsergroup(usergroupId, event.user)
-          })
-          break
-        }
-
+        case 'member_joined_channel':
         case 'member_left_channel': {
-          // メンバーがチャンネルから退出 → ユーザーグループから削除
+          // メンバーがチャンネルに参加/退出 → プロジェクト紐付きならアサインベースで再同期
+          // （二次的な同期: 主にはアサインAPI経由で同期されるが、チャンネルイベントもバックアップとして処理）
           after(async () => {
-            console.log(`[slack/events] member_left_channel: user=${event.user} channel=${event.channel}`)
-            const usergroupId = await findUsergroupByChannel(event.channel)
-            if (!usergroupId) return
-            await removeUserFromUsergroup(usergroupId, event.user)
+            console.log(`[slack/events] ${event.type}: user=${event.user} channel=${event.channel}`)
+            const project = await findProjectByChannelId(event.channel)
+            if (!project) return
+            await syncProjectUsergroup(project.id)
           })
           break
         }

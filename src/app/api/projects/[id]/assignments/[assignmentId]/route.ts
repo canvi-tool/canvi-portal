@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { assignmentFormSchema } from '@/lib/validations/assignment'
-import { removeStaffFromSlackChannel, sendProjectNotificationIfEnabled, buildMemberRemovedNotification } from '@/lib/integrations/slack'
+import { removeStaffFromSlackChannel, sendProjectNotificationIfEnabled, buildMemberRemovedNotification, removeStaffFromProjectUsergroup, resolveSlackUserId } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string; assignmentId: string }>
@@ -140,6 +140,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
             console.warn(
               `Slack channel remove failed for ${staffEmail}:`,
               removeResult.error
+            )
+          }
+
+          // プロジェクトユーザーグループからも削除
+          const resolved = await resolveSlackUserId(assignment.staff_id, staffEmail)
+          if (resolved.slackUserId) {
+            removeStaffFromProjectUsergroup(projectId, resolved.slackUserId).catch((e) =>
+              console.error('[assignments DELETE] removeStaffFromProjectUsergroup error:', e)
             )
           }
         }

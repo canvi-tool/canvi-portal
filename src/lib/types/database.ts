@@ -488,6 +488,7 @@ export interface Database {
           shift_approval_mode: 'AUTO' | 'APPROVAL'
           slack_channel_id: string | null
           slack_channel_name: string | null
+          slack_usergroup_id: string | null
           created_by: string | null
           created_at: string
           updated_at: string
@@ -509,6 +510,7 @@ export interface Database {
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           slack_channel_id?: string | null
           slack_channel_name?: string | null
+          slack_usergroup_id?: string | null
           calendar_display_name?: string | null
           created_by?: string | null
           created_at?: string
@@ -531,6 +533,7 @@ export interface Database {
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           slack_channel_id?: string | null
           slack_channel_name?: string | null
+          slack_usergroup_id?: string | null
           calendar_display_name?: string | null
           created_by?: string | null
           created_at?: string
@@ -1844,6 +1847,38 @@ export interface Database {
             foreignKeyName: 'attendance_records_project_id_fkey'
             columns: ['project_id']
             isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      project_usergroups: {
+        Row: {
+          project_id: string
+          usergroup_id: string
+          usergroup_handle: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          project_id: string
+          usergroup_id: string
+          usergroup_handle: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          project_id?: string
+          usergroup_id?: string
+          usergroup_handle?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_usergroups_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: true
             referencedRelation: 'projects'
             referencedColumns: ['id']
           },

@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
 import { canAccessProject } from '@/lib/auth/project-access'
+import { syncProjectUsergroup } from '@/lib/integrations/slack'
+
+function after(fn: () => Promise<unknown>) {
+  try {
+    waitUntil(fn().catch((e) => console.error('[projects/[id]] after task error:', e)))
+  } catch {
+    fn().catch((e) => console.error('[projects/[id]] after-fallback task error:', e))
+  }
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -63,6 +73,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { project_code, project_type, project_number, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, ...rest } = parsed.data
 
+    // slack_channel_id 変更検知のため旧値を取得
+    const { data: oldProject } = await supabase
+      .from('projects')
+      .select('slack_channel_id')
+      .eq('id', id)
+      .single()
+    const oldSlackChannelId = oldProject?.slack_channel_id || null
+    const newSlackChannelId = slack_channel_id || null
+    const slackChannelChanged = oldSlackChannelId !== newSlackChannelId
+
     // 新ステータス→旧DB enum値マッピング（マイグレーション前の互換対応）
     const STATUS_TO_DB: Record<string, string> = {
       proposing: 'planning',
@@ -105,6 +125,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         )
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // slack_channel_id が変更された場合、プロジェクトユーザーグループを再同期
+    if (slackChannelChanged && newSlackChannelId) {
+      after(async () => {
+        await syncProjectUsergroup(id)
+      })
     }
 
     return NextResponse.json(data)

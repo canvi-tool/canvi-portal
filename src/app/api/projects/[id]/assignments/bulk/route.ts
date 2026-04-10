@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildBulkMemberAssignedNotification } from '@/lib/integrations/slack'
+import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildBulkMemberAssignedNotification, syncProjectUsergroup } from '@/lib/integrations/slack'
 import { z } from 'zod'
 import { ASSIGNMENT_STATUS_TO_DB } from '@/lib/validations/assignment'
 
@@ -145,6 +145,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           )
         }
       }
+    }
+
+    // 全アサイン完了後、プロジェクトユーザーグループをフル同期
+    if (staffNames.length > 0 && project?.slack_channel_id) {
+      syncProjectUsergroup(projectId).catch((e) =>
+        console.error('[assignments/bulk] syncProjectUsergroup error:', e)
+      )
     }
 
     // 全アサイン完了後、1つの通知を送信

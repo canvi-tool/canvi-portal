@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { assignmentFormSchema, ASSIGNMENT_STATUS_TO_DB } from '@/lib/validations/assignment'
-import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildMemberAssignedNotification } from '@/lib/integrations/slack'
+import { inviteStaffToSlackChannel, sendProjectNotificationIfEnabled, buildMemberAssignedNotification, addStaffToProjectUsergroup, resolveSlackUserId } from '@/lib/integrations/slack'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -112,6 +112,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         console.warn(
           `Slack channel invite failed for ${staffEmail} to ${project.slack_channel_name}:`,
           inviteResult.error
+        )
+      }
+
+      // プロジェクトユーザーグループにスタッフを追加
+      const resolved = await resolveSlackUserId(parsed.data.staff_id, staffEmail)
+      if (resolved.slackUserId) {
+        addStaffToProjectUsergroup(projectId, resolved.slackUserId).catch((e) =>
+          console.error('[assignments POST] addStaffToProjectUsergroup error:', e)
         )
       }
     }
