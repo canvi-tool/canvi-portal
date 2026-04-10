@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       query = query.in('staff_id', Array.from(allowedStaffIds))
     }
     if (startDate) query = query.gte('event_date', startDate)
-    if (endDate) query = query.lte('event_date', endDate)
+    if (endDate) query = query.lt('event_date', endDate)
     query = query.order('event_date', { ascending: true }).order('start_time', { ascending: true })
 
     const { data, error } = await query

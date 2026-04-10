@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
       query = query.gte('shift_date', startDate)
     }
     if (endDate) {
-      query = query.lte('shift_date', endDate)
+      // FullCalendarのdatesSetはendを排他的に返す（週表示4/6-12→end=4/13）ため lt を使用
+      query = query.lt('shift_date', endDate)
     }
     if (staffId) {
       // 'staff_ids' (新) または 'staff_id' (旧/互換) いずれもカンマ区切りを許容

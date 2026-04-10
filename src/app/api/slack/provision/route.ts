@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // スタッフ情報取得
     const { data: staff, error: staffError } = await supabase
       .from('staff')
-      .select('id, email, last_name, first_name, custom_fields')
+      .select('id, email, last_name, first_name, employment_type, custom_fields')
       .eq('id', staff_id)
       .single()
 
@@ -135,6 +135,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Slack User IDを特定できませんでした' }, { status: 400 })
     }
 
+    // Step 2.5: 初回プロビジョニング時のCANプロジェクト自動チャンネル招待
+    const isInitialProvision = !cf.slack_user_id
+    let mergedChannelIds = channel_ids ? [...channel_ids] : []
+
+    if (isInitialProvision) {
+      // 社員系 employment_type → CAN-001〜CAN-004 全て
+      // フリーランス → CAN-001, CAN-003, CAN-004（CAN-002は社員勤怠管理用のため除外）
+      const employeeTypes = ['full_time', 'part_time', 'contract', 'temporary']
+      const isEmployee = employeeTypes.includes(staff.employment_type ?? '')
+      const isFreelance = staff.employment_type === 'freelance'
+
+      if (isEmployee || isFreelance) {
+        const autoProjectCodes = isEmployee
+          ? ['CAN-001', 'CAN-002', 'CAN-003', 'CAN-004']
+          : ['CAN-001', 'CAN-003', 'CAN-004']
+
+        const { data: canProjects, error: canError } = await supabase
+          .from('projects')
+          .select('project_code, slack_channel_id')
+          .in('project_code', autoProjectCodes)
+          .not('slack_channel_id', 'is', null)
+
+        if (canError) {
+          results.warnings.push(`CANプロジェクト取得に失敗: ${canError.message}`)
+        } else if (canProjects && canProjects.length > 0) {
+          const autoChannelIds = canProjects
+            .map((p) => p.slack_channel_id as string)
+            .filter(Boolean)
+
+          // 手動選択チャンネルとマージ（重複排除）
+          mergedChannelIds = [...new Set([...autoChannelIds, ...mergedChannelIds])]
+        }
+      }
+    }
+
     // Step 3: 表示名を更新
     const profileResult = await updateSlackUserProfile(slackUserId, display_name)
     results.profile_updated = profileResult.success
@@ -142,9 +177,9 @@ export async function POST(request: NextRequest) {
       results.warnings.push(`表示名の更新に失敗: ${profileResult.error}`)
     }
 
-    // Step 4: チャンネルに招待
-    if (channel_ids && channel_ids.length > 0) {
-      for (const channelId of channel_ids) {
+    // Step 4: チャンネルに招待（自動招待 + 手動選択をマージ済み）
+    if (mergedChannelIds.length > 0) {
+      for (const channelId of mergedChannelIds) {
         const inviteResult = await inviteUserToSlackChannel(channelId, slackUserId)
         if (inviteResult.success || inviteResult.alreadyInChannel) {
           results.channels_invited.push(channelId)

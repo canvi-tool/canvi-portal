@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { StaffStatusBadge, getEffectiveStatus } from './staff-status-badge'
 import { SlackProvisionDialog } from './slack-provision-dialog'
+import { ProjectAssignDialog } from './project-assign-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EMPLOYMENT_TYPE_LABELS } from '@/lib/constants'
-import { Trash2 } from 'lucide-react'
+import { Trash2, FolderKanban } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Tables } from '@/lib/types/database'
 import {
@@ -46,6 +47,7 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [slackProvisionTarget, setSlackProvisionTarget] = useState<Staff | null>(null)
+  const [projectAssignTarget, setProjectAssignTarget] = useState<Staff | null>(null)
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -188,6 +190,25 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
       className: 'w-[70px]',
     },
     {
+      key: 'project',
+      header: 'PJ',
+      accessor: () => '',
+      sortable: false,
+      cell: (row) => (
+        <button
+          title="プロジェクトアサイン管理"
+          className="flex justify-center w-full text-muted-foreground/50 hover:text-primary transition-colors cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setProjectAssignTarget(row)
+          }}
+        >
+          <FolderKanban className="h-4 w-4" />
+        </button>
+      ),
+      className: 'w-[60px]',
+    },
+    {
       key: 'actions',
       header: '',
       accessor: () => '',
@@ -226,6 +247,13 @@ export function StaffTable({ data, loading, selectable, selectedIds, onSelection
         staff={slackProvisionTarget}
         open={!!slackProvisionTarget}
         onOpenChange={(open) => !open && setSlackProvisionTarget(null)}
+        onSuccess={() => router.refresh()}
+      />
+
+      <ProjectAssignDialog
+        staff={projectAssignTarget}
+        open={!!projectAssignTarget}
+        onOpenChange={(open) => !open && setProjectAssignTarget(null)}
         onSuccess={() => router.refresh()}
       />
 

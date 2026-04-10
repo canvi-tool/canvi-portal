@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, title, status, source')
       .eq('staff_id', staffRecord.id)
       .gte('shift_date', today)
-      .lte('shift_date', endDate)
+      .lt('shift_date', endDate)
       .is('deleted_at', null)
       .not('google_calendar_event_id', 'is', null)
     const existingShifts = existingShiftsRes.data as Array<{
