@@ -210,6 +210,10 @@ function ShiftFullCalendarImpl({
   const gcalEvents = useMemo(() => toGoogleCalendarFCEvents(googleEvents), [googleEvents])
   const events = useMemo(() => [...shiftEvents, ...gcalEvents], [shiftEvents, gcalEvents])
 
+  // Ref for shifts to avoid re-registering event listeners on every shift change
+  const shiftsRef = useRef(shifts)
+  useEffect(() => { shiftsRef.current = shifts }, [shifts])
+
   // イベントドラッグ完了（移動）
   const handleEventDrop = useCallback(async (info: EventDropArg) => {
     if (info.event.extendedProps.isGoogleEvent) {
@@ -325,7 +329,7 @@ function ShiftFullCalendarImpl({
 
     el.addEventListener('contextmenu', handler)
     return () => el.removeEventListener('contextmenu', handler)
-  }, [shifts])
+  }, []) // handler reads from calendarRef (stable), no need to depend on shifts
 
   // コンテキストメニューアクション
   const handleContextAction = useCallback((action: ContextMenuAction, shiftId: string, targetDate?: string) => {
@@ -335,10 +339,10 @@ function ShiftFullCalendarImpl({
     } else if (action === 'delete') {
       onShiftDelete(shiftId)
     } else if (action === 'edit') {
-      const shift = shifts.find(s => s.id === shiftId)
+      const shift = shiftsRef.current.find(s => s.id === shiftId)
       if (shift) onShiftClick(shift)
     }
-  }, [shifts, onShiftCopy, onShiftDelete, onShiftClick])
+  }, [onShiftCopy, onShiftDelete, onShiftClick])
 
   // 空スロットドラッグ選択（長押し→伸縮→離すで作成ダイアログ）
   const handleSelect = useCallback((info: DateSelectArg) => {

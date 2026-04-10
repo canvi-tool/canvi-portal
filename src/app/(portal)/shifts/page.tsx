@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
@@ -31,11 +31,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
-import { ShiftCreateDialog } from './_components/shift-create-dialog'
-import { ShiftBulkDialog } from './_components/shift-bulk-dialog'
-import { ShiftEditDialog } from './_components/shift-edit-dialog'
-import { GCalEventDialog, type GCalEventItem } from './_components/gcal-event-dialog'
-import { AvailabilityPanel } from './_components/availability-panel'
+import type { GCalEventItem } from './_components/gcal-event-dialog'
+
+// Lazy load heavy dialog components (only loaded when opened)
+const ShiftCreateDialog = lazy(() => import('./_components/shift-create-dialog').then(m => ({ default: m.ShiftCreateDialog })))
+const ShiftBulkDialog = lazy(() => import('./_components/shift-bulk-dialog').then(m => ({ default: m.ShiftBulkDialog })))
+const ShiftEditDialog = lazy(() => import('./_components/shift-edit-dialog').then(m => ({ default: m.ShiftEditDialog })))
+const GCalEventDialog = lazy(() => import('./_components/gcal-event-dialog').then(m => ({ default: m.GCalEventDialog })))
+const AvailabilityPanel = lazy(() => import('./_components/availability-panel').then(m => ({ default: m.AvailabilityPanel })))
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { toast } from 'sonner'
 
@@ -213,18 +216,22 @@ export default function ShiftsPage() {
   const fetchShifts = useCallback(async () => {
     await fetchShiftsRef.current()
   }, [])
-  // ローカルミューテーション後の保険リフェッチ（即時 + 400ms後）
+  // ローカルミューテーション後の保険リフェッチ（単一呼び出し）
   // Realtimeの健全性に依存せず、操作ユーザー側で確実に最新状態を反映する
   const fetchShiftsSafe = useCallback(() => {
     fetchShiftsRef.current()
-    setTimeout(() => { fetchShiftsRef.current() }, 400)
   }, [])
+  // Request deduplication: skip if a fetch is already in flight
+  const fetchInFlightRef = useRef(false)
   const fetchShiftsImpl = useCallback(async () => {
     if (!dateRange.start || !dateRange.end) return
     // 初回フィルタ初期化（自分=デフォルト）が完了するまで待機
     // こうしないと currentUser 取得前に「全員」fetch が走り、後から自分 fetch と
     // レース状態になって全員分が残る事故が起きる
     if (!filterInitialized) return
+    // リクエスト重複排除: 前回のフェッチが完了していなければスキップ
+    if (fetchInFlightRef.current) return
+    fetchInFlightRef.current = true
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -382,6 +389,7 @@ export default function ShiftsPage() {
       toast.error('シフトの取得に失敗しました')
     } finally {
       setLoading(false)
+      fetchInFlightRef.current = false
     }
   }, [dateRange, filterProject, filterStaffIds, filterStatus, filterInitialized, currentStaffId])
 
@@ -432,17 +440,24 @@ export default function ShiftsPage() {
 
   // ページ初回表示時に GCal watch channel を ensure 登録 (既登録ならスキップ)
   // これにより webhook が常時有効になり、polling 経由の 15s 遅延が解消される
+  // sessionStorage で同一セッション内の重複呼び出しを防止
   useEffect(() => {
     if (!currentUserId) return
+    const cacheKey = `gcal-watch-registered-${currentUserId}`
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(cacheKey)) return
     // fire-and-forget
-    fetch('/api/gcal-watch/register?ensure=1', { method: 'POST' }).catch(() => {})
+    fetch('/api/gcal-watch/register?ensure=1', { method: 'POST' })
+      .then(() => {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(cacheKey, '1')
+      })
+      .catch(() => {})
   }, [currentUserId])
 
   // 30秒ごとに自動再取得 + ウィンドウフォーカス時に再取得（near-instant同期）
   useEffect(() => {
     if (!dateRange.start || !dateRange.end || !currentUserId) return
     let lastRun = 0
-    const MIN_INTERVAL = 30_000 // 30秒以内の重複トリガーは無視
+    const MIN_INTERVAL = 60_000 // 60秒以内の重複トリガーは無視
     const tick = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       const now = Date.now()
@@ -450,8 +465,8 @@ export default function ShiftsPage() {
       lastRun = now
       syncFromGcal(true)
     }
-    // webhook が主経路。polling は 60 秒毎のフォールバック (Realtime/webhook 失敗時の保険)
-    const interval = setInterval(tick, 60_000)
+    // webhook が主経路。polling は 120 秒毎のフォールバック (Realtime/webhook 失敗時の保険)
+    const interval = setInterval(tick, 120_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
@@ -470,12 +485,12 @@ export default function ShiftsPage() {
     let pendingTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRefetch = () => {
       if (pendingTimer) return
-      // 連続変更のデバウンス（50msウィンドウでまとめて1回再取得）
-      // webhook で 4件まとめて DB に書かれるケースを 1回にまとめつつ、ユーザー体感はほぼ即時
+      // 連続変更のデバウンス（300msウィンドウでまとめて1回再取得）
+      // webhook で複数件まとめて DB に書かれるケースを 1回にまとめる
       pendingTimer = setTimeout(() => {
         pendingTimer = null
         fetchShiftsRef.current()
-      }, 50)
+      }, 300)
     }
     const channel = supabase
       .channel('shifts-realtime')
@@ -1106,6 +1121,10 @@ export default function ShiftsPage() {
     })
   }, [googleEvents, shifts])
 
+  // Stable empty array reference for FullCalendar (avoids re-render from new [] each time)
+  const emptyGoogleEvents = useMemo<GoogleCalendarEvent[]>(() => [], [])
+  const googleEventsForCalendar = filterProject === 'all' ? dedupedGoogleEvents : emptyGoogleEvents
+
   // Filter labels
   const projectLabels = useMemo<Record<string, string>>(() => (
     { all: '全プロジェクト', ...Object.fromEntries(projects.map(p => [p.id, p.name])) }
@@ -1395,7 +1414,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
       {/* FullCalendar */}
       <ShiftFullCalendar
         shifts={shifts}
-        googleEvents={filterProject === 'all' ? dedupedGoogleEvents : []}
+        googleEvents={googleEventsForCalendar}
         isManager={isManager}
         currentStaffId={currentStaffId || undefined}
         onShiftClick={handleShiftClick}
@@ -1408,19 +1427,23 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         onGoogleEventDragUpdate={handleGoogleEventDragUpdate}
       />
 
-      {/* Create Dialog */}
-      <ShiftCreateDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        initialDate={createInitial.date}
-        initialStartTime={createInitial.startTime}
-        initialEndTime={createInitial.endTime}
-        projects={projects}
-        staffList={staffList}
-        currentStaffId={currentStaffId}
-        isManager={isManager}
-        onCreated={fetchShiftsSafe}
-      />
+      {/* Create Dialog (lazy loaded) */}
+      {createDialogOpen && (
+        <Suspense fallback={null}>
+          <ShiftCreateDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            initialDate={createInitial.date}
+            initialStartTime={createInitial.startTime}
+            initialEndTime={createInitial.endTime}
+            projects={projects}
+            staffList={staffList}
+            currentStaffId={currentStaffId}
+            isManager={isManager}
+            onCreated={fetchShiftsSafe}
+          />
+        </Suspense>
+      )}
 
       {/* Availability Sheet */}
       <Sheet open={availabilitySheetOpen} onOpenChange={setAvailabilitySheetOpen}>
@@ -1429,6 +1452,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             <SheetTitle>日程調整URL発行</SheetTitle>
           </SheetHeader>
           <div className="mt-4">
+            <Suspense fallback={<div className="text-sm text-muted-foreground p-4">読み込み中...</div>}>
             <AvailabilityPanel
               selectedStaffIds={filterStaffIds}
               staffList={staffList}
@@ -1469,61 +1493,74 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 setBulkDialogOpen(true)
               }}
             />
+            </Suspense>
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Bulk Dialog */}
-      <ShiftBulkDialog
-        open={bulkDialogOpen}
-        onOpenChange={(o) => { setBulkDialogOpen(o); if (!o) setDuplicatePrefill(null) }}
-        projects={projects}
-        staffList={staffList}
-        currentStaffId={currentStaffId}
-        isManager={isManager}
-        userRoles={userRoles}
-        onCreated={fetchShiftsSafe}
-        prefill={duplicatePrefill}
-      />
+      {/* Bulk Dialog (lazy loaded) */}
+      {bulkDialogOpen && (
+        <Suspense fallback={null}>
+          <ShiftBulkDialog
+            open={bulkDialogOpen}
+            onOpenChange={(o) => { setBulkDialogOpen(o); if (!o) setDuplicatePrefill(null) }}
+            projects={projects}
+            staffList={staffList}
+            currentStaffId={currentStaffId}
+            isManager={isManager}
+            userRoles={userRoles}
+            onCreated={fetchShiftsSafe}
+            prefill={duplicatePrefill}
+          />
+        </Suspense>
+      )}
 
-      {/* Edit Dialog */}
-      <ShiftEditDialog
-        shift={editingShift}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onSave={handleShiftSave}
-        onDelete={handleShiftDelete}
-        onApprove={handleShiftApprove}
-        onReject={handleShiftReject}
-        onSyncCalendar={() => fetchShifts()}
-        onDuplicate={(s) => {
-          setDuplicatePrefill({
-            staffId: s.staffId,
-            projectId: s.projectId,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            title: s.title,
-            notes: s.notes,
-            attendees: s.attendees || [],
-          })
-          setBulkDialogOpen(true)
-        }}
-        isManager={isManager}
-        projects={projects}
-        currentStaffId={currentStaffId}
-      />
+      {/* Edit Dialog (lazy loaded) */}
+      {editDialogOpen && (
+        <Suspense fallback={null}>
+          <ShiftEditDialog
+            shift={editingShift}
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            onSave={handleShiftSave}
+            onDelete={handleShiftDelete}
+            onApprove={handleShiftApprove}
+            onReject={handleShiftReject}
+            onSyncCalendar={() => fetchShifts()}
+            onDuplicate={(s) => {
+              setDuplicatePrefill({
+                staffId: s.staffId,
+                projectId: s.projectId,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                title: s.title,
+                notes: s.notes,
+                attendees: s.attendees || [],
+              })
+              setBulkDialogOpen(true)
+            }}
+            isManager={isManager}
+            projects={projects}
+            currentStaffId={currentStaffId}
+          />
+        </Suspense>
+      )}
 
-      {/* GCal Event Dialog */}
-      <GCalEventDialog
-        event={gcalEvent}
-        open={gcalDialogOpen}
-        onOpenChange={setGcalDialogOpen}
-        onTimeUpdate={handleGcalEventTimeUpdate}
-        onUpdate={handleGcalEventUpdate}
-        onDelete={handleGcalEventDelete}
-        onMeetCreate={handleGcalMeetCreate}
-        onMeetDelete={handleGcalMeetDelete}
-      />
+      {/* GCal Event Dialog (lazy loaded) */}
+      {gcalDialogOpen && (
+        <Suspense fallback={null}>
+          <GCalEventDialog
+            event={gcalEvent}
+            open={gcalDialogOpen}
+            onOpenChange={setGcalDialogOpen}
+            onTimeUpdate={handleGcalEventTimeUpdate}
+            onUpdate={handleGcalEventUpdate}
+            onDelete={handleGcalEventDelete}
+            onMeetCreate={handleGcalMeetCreate}
+            onMeetDelete={handleGcalMeetDelete}
+          />
+        </Suspense>
+      )}
 
       {/* GCal Pending Bulk Assign Dialog */}
       <Dialog open={bulkAssignOpen} onOpenChange={(o) => { if (!o) setBulkAssignOpen(false) }}>
