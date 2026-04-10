@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getValidTokenForUser } from '@/lib/integrations/google-token'
 import { runIncrementalSyncForStaff } from '@/lib/integrations/gcal-incremental-sync'
@@ -69,19 +70,25 @@ export async function POST(request: NextRequest) {
       return new Response(null, { status: 200 })
     }
 
-    // 最速パス: syncToken ベースの増分同期
-    const t0 = Date.now()
-    try {
-      const incResult = await runIncrementalSyncForStaff({
-        userId,
-        staffId: staffRecord.id as string,
-      })
-      console.log(
-        `[gcal-webhook] Incremental sync ${Date.now() - t0}ms (${incResult.mode}): ${incResult.changed} changed, ${incResult.deleted} deleted, errors=${incResult.errors.length}`
-      )
-    } catch (e) {
-      console.error('[gcal-webhook] Incremental sync failed:', e)
-    }
+    // 最速パス: syncToken ベースの増分同期（fire-and-forget で即 200 返却）
+    // Vercel の waitUntil でレスポンス後もバックグラウンド実行を継続
+    const syncStaffId = staffRecord.id as string
+    waitUntil(
+      (async () => {
+        const t0 = Date.now()
+        try {
+          const incResult = await runIncrementalSyncForStaff({
+            userId,
+            staffId: syncStaffId,
+          })
+          console.log(
+            `[gcal-webhook] Incremental sync ${Date.now() - t0}ms (${incResult.mode}): ${incResult.changed} changed, ${incResult.deleted} deleted, errors=${incResult.errors.length}`
+          )
+        } catch (e) {
+          console.error('[gcal-webhook] Incremental sync failed:', e)
+        }
+      })()
+    )
 
     return new Response(null, { status: 200 })
   } catch (error) {

@@ -470,11 +470,11 @@ export default function ShiftsPage() {
       .catch(() => {})
   }, [currentUserId])
 
-  // 30秒ごとに自動再取得 + ウィンドウフォーカス時に再取得（near-instant同期）
+  // ポーリング + ウィンドウフォーカス時に再取得（webhook/Realtime のフォールバック）
   useEffect(() => {
     if (!dateRange.start || !dateRange.end || !currentUserId) return
     let lastRun = 0
-    const MIN_INTERVAL = 60_000 // 60秒以内の重複トリガーは無視
+    const MIN_INTERVAL = 20_000 // 20秒以内の重複トリガーは無視
     const tick = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       const now = Date.now()
@@ -482,8 +482,8 @@ export default function ShiftsPage() {
       lastRun = now
       syncFromGcal(true)
     }
-    // webhook が主経路。polling は 120 秒毎のフォールバック (Realtime/webhook 失敗時の保険)
-    const interval = setInterval(tick, 120_000)
+    // webhook + Realtime が主経路。polling は 30 秒毎のフォールバック
+    const interval = setInterval(tick, 30_000)
     const onFocus = () => tick()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
