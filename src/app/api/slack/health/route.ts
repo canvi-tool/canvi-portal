@@ -60,6 +60,24 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Test conversations.list (same API used by fetchSlackChannels)
+  if (botToken) {
+    try {
+      const listRes = await fetch('https://slack.com/api/conversations.list?types=public_channel&exclude_archived=true&limit=3', {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+      const listData = await listRes.json()
+      results.conversations_list = {
+        ok: listData.ok,
+        channel_count: listData.channels?.length ?? 0,
+        sample: listData.channels?.slice(0, 2).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
+        error: listData.error || undefined,
+      }
+    } catch (e) {
+      results.conversations_list = { ok: false, error: String(e) }
+    }
+  }
+
   // Optional: test channel access
   const channelId = new URL(request.url).searchParams.get('channel')
   if (channelId && botToken) {
