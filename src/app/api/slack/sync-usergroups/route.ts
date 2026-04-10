@@ -8,6 +8,10 @@ import { syncProjectUsergroup } from '@/lib/integrations/slack'
  * 全アクティブプロジェクトのSlackユーザーグループを一括同期する
  * 管理者のみ実行可能（初期セットアップ・デバッグ用）
  */
+export async function GET() {
+  return POST()
+}
+
 export async function POST() {
   try {
     const admin = await requireAdmin().catch(() => null)
