@@ -73,11 +73,18 @@ export default function ShiftsPage() {
 
   // Filters
   const [filterStaffIds, setFilterStaffIds] = useState<string[]>([]) // empty = all
+  // Stable primitive key derived from filterStaffIds to use in useCallback/useEffect deps
+  const filterStaffIdsKey = useMemo(() => filterStaffIds.join(','), [filterStaffIds])
+  const filterStaffIdsRef = useRef<string[]>([])
+  useEffect(() => { filterStaffIdsRef.current = filterStaffIds }, [filterStaffIds])
   const [filterProject, setFilterProject] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
-  // Date range from FullCalendar
-  const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  // Date range from FullCalendar (stored as primitives to avoid object identity issues)
+  const [dateRangeStart, setDateRangeStart] = useState('')
+  const [dateRangeEnd, setDateRangeEnd] = useState('')
+  // Convenience object built from primitives (identity changes only when values change)
+  const dateRange = useMemo(() => ({ start: dateRangeStart, end: dateRangeEnd }), [dateRangeStart, dateRangeEnd])
 
   // GCal pending assign dialog
   const [pendingAssign, setPendingAssign] = useState<{ id: string; title: string; date: string; startTime: string; endTime: string; projectId: string } | null>(null)
@@ -224,7 +231,7 @@ export default function ShiftsPage() {
   // Request deduplication: skip if a fetch is already in flight
   const fetchInFlightRef = useRef(false)
   const fetchShiftsImpl = useCallback(async () => {
-    if (!dateRange.start || !dateRange.end) return
+    if (!dateRangeStart || !dateRangeEnd) return
     // 初回フィルタ初期化（自分=デフォルト）が完了するまで待機
     // こうしないと currentUser 取得前に「全員」fetch が走り、後から自分 fetch と
     // レース状態になって全員分が残る事故が起きる
@@ -234,25 +241,27 @@ export default function ShiftsPage() {
     fetchInFlightRef.current = true
     setLoading(true)
     try {
+      // Read filter arrays from refs (stable deps use primitive keys only)
+      const staffIds = filterStaffIdsRef.current
       const params = new URLSearchParams({
-        start_date: dateRange.start,
-        end_date: dateRange.end,
+        start_date: dateRangeStart,
+        end_date: dateRangeEnd,
       })
       if (filterProject !== 'all') params.set('project_id', filterProject)
-      if (filterStaffIds.length > 0) params.set('staff_id', filterStaffIds.join(','))
+      if (staffIds.length > 0) params.set('staff_id', staffIds.join(','))
       if (filterStatus !== 'all') params.set('status', filterStatus)
 
       const __t0 = typeof performance !== 'undefined' ? performance.now() : Date.now()
       // shifts と gcal-pending を並列取得（直列だとRTTが倍になる）
-      const pendingParams = new URLSearchParams({ start_date: dateRange.start, end_date: dateRange.end })
-      if (filterStaffIds.length > 0) pendingParams.set('staff_id', filterStaffIds.join(','))
+      const pendingParams = new URLSearchParams({ start_date: dateRangeStart, end_date: dateRangeEnd })
+      if (staffIds.length > 0) pendingParams.set('staff_id', staffIds.join(','))
       const [res, pendingRes] = await Promise.all([
         fetch(`/api/shifts?${params}`),
         fetch(`/api/shifts/gcal-pending?${pendingParams}`).catch(() => null),
       ])
       if (!res.ok) throw new Error('シフトの取得に失敗しました')
       const __ms = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - __t0
-      if (__ms > 500) console.log(`[shifts] fetch ${Math.round(__ms)}ms (${filterStaffIds.length || 'all'} staff)`)
+      if (__ms > 500) console.log(`[shifts] fetch ${Math.round(__ms)}ms (${staffIds.length || 'all'} staff)`)
 
       const data = await res.json()
       let list = data.data || (Array.isArray(data) ? data : [])
@@ -325,8 +334,8 @@ export default function ShiftsPage() {
       // そうしないと、自分のカレンダーを見ているだけで、招待した相手の仮想行まで
       // 追加されてしまい、同じ時刻・同じタイトルの「二重表示」が発生する。
       const visibleStaffSet = new Set<string>(
-        filterStaffIds.length > 0
-          ? filterStaffIds
+        staffIds.length > 0
+          ? staffIds
           : (currentStaffId ? [currentStaffId] : [])
       )
       const expanded: CalendarShift[] = []
@@ -391,7 +400,8 @@ export default function ShiftsPage() {
       setLoading(false)
       fetchInFlightRef.current = false
     }
-  }, [dateRange, filterProject, filterStaffIds, filterStatus, filterInitialized, currentStaffId])
+  // Use primitive deps to avoid unnecessary recreation of the callback on object/array identity changes
+  }, [dateRangeStart, dateRangeEnd, filterProject, filterStaffIdsKey, filterStatus, filterInitialized, currentStaffId])
 
   // 最新のfetchShiftsImplをrefに同期（stale closure対策）
   useEffect(() => {
@@ -624,7 +634,8 @@ export default function ShiftsPage() {
   // FullCalendar handlers
 
   const handleDateRangeChange = useCallback((start: string, end: string) => {
-    setDateRange({ start, end })
+    setDateRangeStart(prev => prev === start ? prev : start)
+    setDateRangeEnd(prev => prev === end ? prev : end)
   }, [])
 
   // shifts を ref で持ち、ハンドラの識別子を安定化（FullCalendar の不要な再レンダを削減）
