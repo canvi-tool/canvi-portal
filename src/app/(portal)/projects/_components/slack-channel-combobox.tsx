@@ -29,7 +29,7 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import { Hash, Lock, ChevronsUpDown, X, Loader2, AlertCircle, Plus } from 'lucide-react'
+import { Hash, Lock, ChevronsUpDown, X, Loader2, AlertCircle, Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SlackChannel {
@@ -66,6 +66,7 @@ export function SlackChannelCombobox({
   // Fetch channels
   const fetchChannels = useCallback(() => {
     setLoading(true)
+    setError(null) // Clear previous error on retry
     fetch('/api/slack/channels')
       .then((r) => {
         if (r.status === 401) {
@@ -80,17 +81,23 @@ export function SlackChannelCombobox({
       })
       .then((res) => {
         if (!res) return
-        if (res.channels) setChannels(res.channels)
-        if (res.error && !res.channels?.length) {
+        if (res.channels?.length) {
+          setChannels(res.channels)
+          setError(null) // Clear error on success
+        } else if (res.error) {
           // Distinguish between "not configured" (genuinely no token) vs other API errors
           if (res.error.includes('not configured')) {
             setError('Slack未連携')
           } else {
             setError(res.error)
           }
+          console.error('[SlackChannelCombobox] API error:', res.error)
         }
       })
-      .catch(() => setError('Slackチャンネルの取得に失敗しました'))
+      .catch((err) => {
+        setError('Slackチャンネルの取得に失敗しました')
+        console.error('[SlackChannelCombobox] fetch error:', err)
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -166,7 +173,19 @@ export function SlackChannelCombobox({
     return (
       <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
         <AlertCircle className="h-4 w-4 shrink-0" />
-        <span>{displayMessage}</span>
+        <span className="flex-1">{displayMessage}</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            fetchChannels()
+          }}
+          disabled={loading}
+          className="shrink-0 rounded-md p-1 hover:bg-background transition-colors"
+          title="再取得"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+        </button>
       </div>
     )
   }

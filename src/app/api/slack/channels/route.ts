@@ -25,15 +25,20 @@ export async function GET() {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
+    const tokenExists = !!process.env.SLACK_BOT_TOKEN
+    console.log(`[slack/channels] GET called by user=${user.id}, SLACK_BOT_TOKEN exists=${tokenExists}`)
+
     const result = await fetchSlackChannels()
 
     if (result.error) {
+      console.error(`[slack/channels] fetchSlackChannels error: ${result.error}`)
       return NextResponse.json(
         { channels: [], error: result.error },
         { status: result.error.includes('not configured') ? 200 : 500 }
       )
     }
 
+    console.log(`[slack/channels] OK: ${result.channels.length} channels fetched`)
     return NextResponse.json({ channels: result.channels })
   } catch (error) {
     console.error('GET /api/slack/channels error:', error)
