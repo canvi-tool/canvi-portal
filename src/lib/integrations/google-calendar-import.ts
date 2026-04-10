@@ -209,6 +209,7 @@ export async function syncFromGoogleCalendarForStaff(params: {
           end_time: endTime,
           title: newTitle,
           notes: newDesc,
+          google_meet_url: ev.meetUrl || null,
           external_updated_at: ev.updated || null,
           google_calendar_synced: true,
           updated_at: new Date().toISOString(),
@@ -278,6 +279,7 @@ export async function syncFromGoogleCalendarForStaff(params: {
       end_time: endTime,
       title: ev.summary || null,
       description: ev.description || null,
+      meet_url: ev.meetUrl || null,
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (admin as any).from('gcal_pending_events').insert(insertPayload)

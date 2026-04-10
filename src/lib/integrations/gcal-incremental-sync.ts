@@ -276,6 +276,7 @@ export async function runIncrementalSyncForStaff(params: {
             end_time: endTime,
             title: ev.summary || null,
             description: ev.description || null,
+            meet_url: ev.meetUrl || null,
             external_updated_at: ev.updated || null,
             updated_at: new Date().toISOString(),
           })
@@ -293,6 +294,7 @@ export async function runIncrementalSyncForStaff(params: {
           end_time: endTime,
           title: ev.summary || null,
           description: ev.description || null,
+          meet_url: ev.meetUrl || null,
         })
         result.changed += 1
       }
