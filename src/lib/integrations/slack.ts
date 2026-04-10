@@ -148,7 +148,12 @@ export type SlackEventType =
 
 // Bot Token
 function getBotToken(): string | null {
-  return process.env.SLACK_BOT_TOKEN || null
+  const token = process.env.SLACK_BOT_TOKEN || null
+  if (!token) {
+    const slackKeys = Object.keys(process.env).filter(k => k.includes('SLACK'))
+    console.warn(`[getBotToken] SLACK_BOT_TOKEN is null. Available SLACK env keys: ${slackKeys.join(', ') || 'NONE'}`)
+  }
+  return token
 }
 
 // User OAuth Token（ユーザー招待・プロフィール更新に必要）

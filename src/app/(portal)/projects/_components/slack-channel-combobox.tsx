@@ -93,7 +93,7 @@ export function SlackChannelCombobox({
           } else {
             setError(res.error)
           }
-          console.error('[SlackChannelCombobox] API error:', res.error, 'debug:', res._debug)
+          console.error('[SlackChannelCombobox] API error:', res.error, 'debug:', typeof res._debug === 'string' ? res._debug : JSON.stringify(res._debug))
         }
       })
       .catch((err) => {

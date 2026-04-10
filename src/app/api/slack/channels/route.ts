@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
-import { fetchSlackChannels, createSlackChannel } from '@/lib/integrations/slack'
 
 export const dynamic = 'force-dynamic'
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
+interface SlackChannelRaw {
+  id: string
+  name: string
+  is_private: boolean
+  is_archived: boolean
+  num_members: number
+  topic?: { value: string }
+  purpose?: { value: string }
+}
+
 /**
  * GET /api/slack/channels
  * Slackチャンネル一覧取得（認証済みユーザー全員が読み取り可能）
+ *
+ * NOTE: slack.ts の fetchSlackChannels を使わず直接 Slack API を呼ぶ。
+ * 理由: 特定ルートで process.env が見えなくなるVercel/Next.jsバンドル問題を回避。
+ * health/test-notify エンドポイントと同じ直接呼び出しパターンを採用。
  */
 export async function GET() {
   try {
@@ -27,60 +40,75 @@ export async function GET() {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    const tokenExists = !!process.env.SLACK_BOT_TOKEN
-    const tokenLen = process.env.SLACK_BOT_TOKEN?.length ?? 0
-    const tokenPrefix = process.env.SLACK_BOT_TOKEN?.substring(0, 8) ?? '(unset)'
-    console.log(`[slack/channels] GET called by user=${user.id}, token=${tokenExists} len=${tokenLen} prefix=${tokenPrefix}`)
+    // 直接 process.env から読み取り（slack.ts経由しない）
+    const botToken = process.env.SLACK_BOT_TOKEN
+    const tokenExists = !!botToken
+    const tokenLen = botToken?.length ?? 0
+    const tokenPrefix = botToken?.substring(0, 10) ?? '(unset)'
 
-    const result = await fetchSlackChannels()
+    console.log(`[slack/channels] GET: user=${user.id}, token_exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}`)
 
-    if (result.error) {
-      console.error(`[slack/channels] fetchSlackChannels error: ${result.error}, token_exists=${tokenExists}`)
-
-      // フォールバック: fetchSlackChannels が "not configured" を返すが
-      // process.env にトークンが存在する場合、直接APIを叩く
-      if (result.error.includes('not configured') && process.env.SLACK_BOT_TOKEN) {
-        console.warn('[slack/channels] FALLBACK: token exists but fetchSlackChannels returned not configured. Trying direct API call...')
-        try {
-          const directRes = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&exclude_archived=true&limit=200', {
-            headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-          })
-          const directData = await directRes.json()
-          if (directData.ok && directData.channels) {
-            const channels = directData.channels.map((ch: { id: string; name: string; is_private: boolean; is_archived: boolean; num_members: number; purpose?: { value: string } }) => ({
-              id: ch.id,
-              name: ch.name,
-              is_private: ch.is_private,
-              is_archived: ch.is_archived,
-              num_members: ch.num_members,
-              purpose: ch.purpose?.value,
-            }))
-            channels.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
-            console.log(`[slack/channels] FALLBACK OK: ${channels.length} channels fetched directly`)
-            return NextResponse.json({ channels })
-          }
-          console.error('[slack/channels] FALLBACK also failed:', directData.error)
-        } catch (fallbackErr) {
-          console.error('[slack/channels] FALLBACK fetch error:', fallbackErr)
-        }
-      }
-
-      return NextResponse.json(
-        {
-          channels: [],
-          error: result.error,
-          _debug: {
-            token_exists: tokenExists,
-            token_length: tokenLen,
-            token_prefix: tokenPrefix,
-          },
-        },
-        { status: result.error.includes('not configured') ? 200 : 500 }
-      )
+    if (!botToken) {
+      console.error(`[slack/channels] SLACK_BOT_TOKEN is null/undefined. All env keys containing SLACK: ${Object.keys(process.env).filter(k => k.includes('SLACK')).join(', ') || 'NONE'}`)
+      return NextResponse.json({
+        channels: [],
+        error: 'SLACK_BOT_TOKEN is not configured',
+        _debug: `token_exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}, slack_keys=${Object.keys(process.env).filter(k => k.includes('SLACK')).join(',')}`,
+      })
     }
 
-    console.log(`[slack/channels] OK: ${result.channels.length} channels fetched`)
-    return NextResponse.json({ channels: result.channels })
+    // Slack API を直接呼び出し（fetchSlackChannels を使わない）
+    const allChannels: {
+      id: string
+      name: string
+      is_private: boolean
+      is_archived: boolean
+      num_members?: number
+      topic?: string
+      purpose?: string
+    }[] = []
+    let cursor: string | undefined
+
+    do {
+      const params = new URLSearchParams({
+        types: 'public_channel,private_channel',
+        exclude_archived: 'true',
+        limit: '200',
+      })
+      if (cursor) params.set('cursor', cursor)
+
+      const res = await fetch(`https://slack.com/api/conversations.list?${params}`, {
+        headers: { Authorization: `Bearer ${botToken}` },
+        cache: 'no-store',
+      })
+
+      const data = await res.json()
+      if (!data.ok) {
+        console.error(`[slack/channels] Slack API error: ${data.error}`)
+        return NextResponse.json({
+          channels: [],
+          error: `Slack API error: ${data.error}`,
+        }, { status: 500 })
+      }
+
+      for (const ch of (data.channels || []) as SlackChannelRaw[]) {
+        allChannels.push({
+          id: ch.id,
+          name: ch.name,
+          is_private: ch.is_private,
+          is_archived: ch.is_archived,
+          num_members: ch.num_members,
+          topic: ch.topic?.value,
+          purpose: ch.purpose?.value,
+        })
+      }
+
+      cursor = data.response_metadata?.next_cursor
+    } while (cursor && allChannels.length < 500)
+
+    allChannels.sort((a, b) => a.name.localeCompare(b.name))
+    console.log(`[slack/channels] OK: ${allChannels.length} channels fetched directly`)
+    return NextResponse.json({ channels: allChannels })
   } catch (error) {
     console.error('GET /api/slack/channels error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
@@ -109,13 +137,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'チャンネル名は80文字以内にしてください' }, { status: 400 })
     }
 
-    const result = await createSlackChannel(name.trim(), !!is_private)
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+    // POST も直接 Slack API を呼ぶ
+    const botToken = process.env.SLACK_BOT_TOKEN
+    if (!botToken) {
+      return NextResponse.json({ error: 'SLACK_BOT_TOKEN is not configured' }, { status: 500 })
     }
 
-    return NextResponse.json({ channel: result.channel })
+    const channelName = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-_\u3000-\u9fff\uff00-\uffef]/g, '')
+
+    const res = await fetch('https://slack.com/api/conversations.create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${botToken}`,
+      },
+      body: JSON.stringify({
+        name: channelName,
+        is_private: !!is_private,
+      }),
+    })
+
+    const data = await res.json()
+    if (!data.ok) {
+      const errorMessages: Record<string, string> = {
+        'name_taken': 'このチャンネル名は既に使用されています',
+        'invalid_name': 'チャンネル名が無効です（英数字・ハイフン・アンダースコアのみ）',
+        'no_channel': 'チャンネルの作成に失敗しました',
+        'restricted_action': 'Botにチャンネル作成の権限がありません',
+        'missing_scope': 'Botにチャンネル作成のスコープ(channels:manage)がありません',
+      }
+      return NextResponse.json({ error: errorMessages[data.error] || `Slack API error: ${data.error}` }, { status: 400 })
+    }
+
+    const ch = data.channel
+    return NextResponse.json({
+      channel: {
+        id: ch.id,
+        name: ch.name,
+        is_private: ch.is_private,
+        is_archived: ch.is_archived,
+        num_members: ch.num_members,
+        topic: ch.topic?.value,
+        purpose: ch.purpose?.value,
+      },
+    })
   } catch (error) {
     console.error('POST /api/slack/channels error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
