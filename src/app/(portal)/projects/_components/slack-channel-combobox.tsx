@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +62,7 @@ export function SlackChannelCombobox({
   const [newChannelName, setNewChannelName] = useState('')
   const [newChannelPrivate, setNewChannelPrivate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const retryCountRef = useRef(0)
 
   // Fetch channels
   const fetchChannels = useCallback(() => {
@@ -84,6 +85,7 @@ export function SlackChannelCombobox({
         if (res.channels?.length) {
           setChannels(res.channels)
           setError(null) // Clear error on success
+          retryCountRef.current = 0
         } else if (res.error) {
           // Distinguish between "not configured" (genuinely no token) vs other API errors
           if (res.error.includes('not configured')) {
@@ -104,6 +106,15 @@ export function SlackChannelCombobox({
   useEffect(() => {
     fetchChannels()
   }, [fetchChannels])
+
+  // Auto-retry once on initial error (covers transient/cold-start failures)
+  useEffect(() => {
+    if (error && channels.length === 0 && retryCountRef.current < 1) {
+      retryCountRef.current++
+      const timer = setTimeout(fetchChannels, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [error, channels.length, fetchChannels])
 
   // Split channels
   const publicChannels = useMemo(
