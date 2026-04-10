@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     // 既存シフト（google_calendar_event_idあり）を取得
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existingShiftsRes = await (admin.from('shifts') as any)
-      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, title, status, source')
+      .select('id, shift_date, start_time, end_time, google_calendar_event_id, google_meet_url, notes, title, status, source, attendees')
       .eq('staff_id', staffRecord.id)
       .gte('shift_date', today)
       .lt('shift_date', endDate)
@@ -121,12 +121,13 @@ export async function POST(request: NextRequest) {
       title: string | null
       status: string | null
       source: string | null
+      attendees: Array<{ email: string; name?: string }> | null
     }> | null
 
     // DB の start_time は HH:MM:SS 形式、parseEventToJST は HH:MM 形式 → HH:MM に統一して比較
     const toHHMM = (t: string) => t.slice(0, 5)
 
-    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null; notes: string | null; title: string | null; source: string | null }>()
+    const existingByEventId = new Map<string, { id: string; shift_date: string; start_time: string; end_time: string; google_meet_url: string | null; notes: string | null; title: string | null; source: string | null; attendees: Array<{ email: string; name?: string }> | null }>()
     if (existingShifts) {
       for (const shift of existingShifts) {
         if (shift.google_calendar_event_id) {
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
             notes: shift.notes || null,
             title: shift.title || null,
             source: shift.source || null,
+            attendees: shift.attendees || null,
           })
         }
       }
@@ -164,18 +166,23 @@ export async function POST(request: NextRequest) {
 
       const newDescription = event.description || null
       const newMeetUrl = event.meetUrl || null
+      const newAttendees = (event.attendees || [])
+        .filter((a: any) => !a.organizer)
+        .map((a: any) => ({ email: a.email, name: a.displayName || undefined }))
 
       if (existing) {
-        // GCal側で時刻/Meet URL/説明/タイトルが変更された場合、Canviシフトを更新
+        // GCal側で時刻/Meet URL/説明/タイトル/参加者が変更された場合、Canviシフトを更新
         const cleanExistingNotes = existing.notes && existing.notes.startsWith('gcal:') ? null : existing.notes
         const newTitle = event.summary || null
+        const attendeesChanged = JSON.stringify(existing.attendees || []) !== JSON.stringify(newAttendees)
         if (
           existing.shift_date !== shiftDate ||
           existing.start_time !== startTime ||
           existing.end_time !== endTime ||
           existing.google_meet_url !== newMeetUrl ||
           cleanExistingNotes !== newDescription ||
-          (existing.title || null) !== newTitle
+          (existing.title || null) !== newTitle ||
+          attendeesChanged
         ) {
           await admin.from('shifts').update({
             shift_date: shiftDate,
@@ -184,6 +191,7 @@ export async function POST(request: NextRequest) {
             title: newTitle,
             google_meet_url: newMeetUrl,
             notes: newDescription,
+            attendees: newAttendees,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),
           }).eq('id', existing.id)
@@ -195,23 +203,25 @@ export async function POST(request: NextRequest) {
         //    ずれた旧データ救済)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: canviShiftList } = await (admin.from('shifts') as any)
-          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url')
+          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url, attendees')
           .eq('id', event.canviShiftId)
           .is('deleted_at', null)
-          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null }> | null }
+          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; attendees: Array<{ email: string; name?: string }> | null }> | null }
         const canviShift = canviShiftList && canviShiftList[0]
         if (canviShift) {
           const curStart = (canviShift.start_time || '').slice(0, 5)
           const curEnd = (canviShift.end_time || '').slice(0, 5)
           const newTitle = event.summary || null
           const cleanNotes = canviShift.notes && canviShift.notes.startsWith('gcal:') ? null : canviShift.notes
+          const canviAttendeesChanged = JSON.stringify(canviShift.attendees || []) !== JSON.stringify(newAttendees)
           if (
             canviShift.shift_date !== shiftDate ||
             curStart !== startTime ||
             curEnd !== endTime ||
             (canviShift.title || null) !== newTitle ||
             cleanNotes !== newDescription ||
-            (canviShift.google_meet_url || null) !== newMeetUrl
+            (canviShift.google_meet_url || null) !== newMeetUrl ||
+            canviAttendeesChanged
           ) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (admin.from('shifts') as any).update({
@@ -221,6 +231,7 @@ export async function POST(request: NextRequest) {
               title: newTitle,
               notes: newDescription,
               google_meet_url: newMeetUrl,
+              attendees: newAttendees,
               google_calendar_event_id: event.id,
               external_event_id: event.id,
               google_calendar_synced: true,
@@ -252,6 +263,7 @@ export async function POST(request: NextRequest) {
           google_calendar_synced: true,
           google_meet_url: newMeetUrl,
           notes: newDescription,
+          attendees: newAttendees,
           created_by: user.id,
         })
         created++

@@ -507,6 +507,8 @@ export default function ShiftsPage() {
       pendingTimer = setTimeout(() => {
         pendingTimer = null
         fetchShiftsRef.current()
+        // DB書き込み完了後にGCalイベントも再取得（シフト↔GCal同期の反映）
+        refreshGoogleEventsRef.current()
       }, 300)
     }
     const channel = supabase

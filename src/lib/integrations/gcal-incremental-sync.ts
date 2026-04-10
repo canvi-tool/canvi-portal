@@ -136,17 +136,17 @@ export async function runIncrementalSyncForStaff(params: {
         const endTime = toJstTimeStr(endDate)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: canviShiftList } = await (admin.from('shifts') as any)
-          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at')
+          .select('id, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at, attendees')
           .eq('id', ev.canviShiftId)
           .is('deleted_at', null)
-          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
+          .limit(1) as { data: Array<{ id: string; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null; attendees: Array<{ email: string; name?: string }> | null }> | null }
         const canviShift = canviShiftList && canviShiftList[0]
         if (!canviShift) return
         // 逆上書き防止: GCal 側の更新時刻が古ければ何もしない
         if (
           ev.updated &&
           canviShift.external_updated_at &&
-          new Date(ev.updated).getTime() <= new Date(canviShift.external_updated_at).getTime()
+          new Date(ev.updated).getTime() < new Date(canviShift.external_updated_at).getTime()
         ) {
           return
         }
@@ -155,6 +155,9 @@ export async function runIncrementalSyncForStaff(params: {
         const newTitle = ev.summary || null
         const newDesc = ev.description || null
         const newMeetUrl = ev.meetUrl || null
+        const newAttendees = (ev.attendees || [])
+          .filter(a => !a.organizer)
+          .map(a => ({ email: a.email, name: a.displayName || undefined }))
         const cleanNotes = canviShift.notes && canviShift.notes.startsWith('gcal:') ? null : canviShift.notes
         const changed =
           canviShift.shift_date !== shiftDate ||
@@ -162,7 +165,8 @@ export async function runIncrementalSyncForStaff(params: {
           curEnd !== endTime ||
           (canviShift.title || null) !== newTitle ||
           cleanNotes !== newDesc ||
-          (canviShift.google_meet_url || null) !== newMeetUrl
+          (canviShift.google_meet_url || null) !== newMeetUrl ||
+          JSON.stringify(canviShift.attendees || []) !== JSON.stringify(newAttendees)
         if (changed) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const updatePayload: any = {
@@ -172,6 +176,7 @@ export async function runIncrementalSyncForStaff(params: {
             title: newTitle,
             notes: newDesc,
             google_meet_url: newMeetUrl,
+            attendees: newAttendees,
             external_updated_at: ev.updated || null,
             google_calendar_synced: true,
             // external_event_id / google_calendar_event_id を常にセットする
@@ -210,11 +215,11 @@ export async function runIncrementalSyncForStaff(params: {
       // 既に昇格済み shifts（source='google_calendar'）なら UPDATE
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: promotedList } = await (admin.from('shifts') as any)
-        .select('id, source, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at')
+        .select('id, source, shift_date, start_time, end_time, title, notes, google_meet_url, external_updated_at, attendees')
         .eq('staff_id', staffId)
         .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
         .is('deleted_at', null)
-        .limit(1) as { data: Array<{ id: string; source: string | null; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null }> | null }
+        .limit(1) as { data: Array<{ id: string; source: string | null; shift_date: string; start_time: string; end_time: string; title: string | null; notes: string | null; google_meet_url: string | null; external_updated_at: string | null; attendees: Array<{ email: string; name?: string }> | null }> | null }
 
       if (promotedList && promotedList[0]) {
         const promoted = promotedList[0]
@@ -224,6 +229,9 @@ export async function runIncrementalSyncForStaff(params: {
         const newTitle = ev.summary || null
         const newDesc = ev.description || null
         const newMeetUrl = ev.meetUrl || null
+        const newAttendees = (ev.attendees || [])
+          .filter(a => !a.organizer)
+          .map(a => ({ email: a.email, name: a.displayName || undefined }))
         const cleanNotes = promoted.notes && promoted.notes.startsWith('gcal:') ? null : promoted.notes
         const changed =
           promoted.shift_date !== shiftDate ||
@@ -232,6 +240,7 @@ export async function runIncrementalSyncForStaff(params: {
           (promoted.title || null) !== newTitle ||
           cleanNotes !== newDesc ||
           (promoted.google_meet_url || null) !== newMeetUrl ||
+          JSON.stringify(promoted.attendees || []) !== JSON.stringify(newAttendees) ||
           (ev.updated && promoted.external_updated_at !== ev.updated)
         if (changed) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,6 +251,7 @@ export async function runIncrementalSyncForStaff(params: {
             title: newTitle,
             notes: newDesc,
             google_meet_url: newMeetUrl,
+            attendees: newAttendees,
             external_updated_at: ev.updated || null,
             google_calendar_synced: true,
             updated_at: new Date().toISOString(),
