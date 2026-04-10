@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { initUsergroupSync } from '@/lib/integrations/slack'
+
+// Vercel上で応答後も処理を継続させる
+function after(fn: () => Promise<unknown>) {
+  try {
+    waitUntil(fn().catch((e) => console.error('[bot-join after] task error:', e)))
+  } catch {
+    fn().catch((e) => console.error('[bot-join after-fallback] task error:', e))
+  }
+}
 
 /**
  * POST /api/slack/bot-join
@@ -46,6 +57,13 @@ export async function POST(request: NextRequest) {
         error: errorMessages[data.error] || `Slack API error: ${data.error}`,
       }, { status: 400 })
     }
+
+    // Bot参加成功 → ユーザーグループ初期同期をバックグラウンドで実行
+    const joinedChannelId = data.channel?.id || channelId
+    const joinedChannelName = data.channel?.name
+    after(async () => {
+      await initUsergroupSync(joinedChannelId, joinedChannelName)
+    })
 
     return NextResponse.json({
       success: true,

@@ -1486,3 +1486,282 @@ export function buildGeneralAlertNotification(title: string, message: string, se
     ],
   }
 }
+
+// ============================================================
+// Usergroup (グループメンション) 自動管理
+// ============================================================
+
+/**
+ * チャンネル名をハンドルとしてユーザーグループを作成 or 既存を取得
+ * 存在すれば既存IDを返し、なければ新規作成する
+ */
+export async function createOrFindUsergroup(
+  channelId: string,
+  channelName: string
+): Promise<string | null> {
+  const token = getBotToken()
+  if (!token) {
+    console.error('[usergroup] SLACK_BOT_TOKEN is not set')
+    return null
+  }
+
+  try {
+    // まず DB キャッシュを確認
+    const supabase = createAdminClient()
+    const { data: cached } = await supabase
+      .from('slack_channel_usergroups')
+      .select('usergroup_id')
+      .eq('channel_id', channelId)
+      .single()
+    if (cached?.usergroup_id) {
+      return cached.usergroup_id
+    }
+
+    // Slack API で既存ユーザーグループを検索
+    const listRes = await fetch('https://slack.com/api/usergroups.list?include_disabled=true', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const listData = await listRes.json()
+    if (!listData.ok) {
+      console.error('[usergroup] usergroups.list failed:', listData.error)
+      return null
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existing = (listData.usergroups || []).find((ug: any) => ug.handle === channelName)
+    if (existing) {
+      // 無効化されている場合は再有効化
+      if (existing.date_delete > 0) {
+        await fetch('https://slack.com/api/usergroups.update', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usergroup: existing.id, name: channelName, handle: channelName }),
+        })
+      }
+      // DB に保存
+      await supabase.from('slack_channel_usergroups').upsert({
+        channel_id: channelId,
+        channel_name: channelName,
+        usergroup_id: existing.id,
+      })
+      return existing.id
+    }
+
+    // 新規作成
+    const createRes = await fetch('https://slack.com/api/usergroups.create', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: channelName,
+        handle: channelName,
+        description: `Auto-managed group for #${channelName}`,
+      }),
+    })
+    const createData = await createRes.json()
+    if (!createData.ok) {
+      console.error('[usergroup] usergroups.create failed:', createData.error)
+      return null
+    }
+
+    const usergroupId = createData.usergroup.id
+    // DB に保存
+    await supabase.from('slack_channel_usergroups').upsert({
+      channel_id: channelId,
+      channel_name: channelName,
+      usergroup_id: usergroupId,
+    })
+
+    return usergroupId
+  } catch (err) {
+    console.error('[usergroup] createOrFindUsergroup error:', err)
+    return null
+  }
+}
+
+/**
+ * チャンネルIDからユーザーグループIDを取得（DBキャッシュのみ）
+ */
+export async function findUsergroupByChannel(channelId: string): Promise<string | null> {
+  try {
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from('slack_channel_usergroups')
+      .select('usergroup_id')
+      .eq('channel_id', channelId)
+      .single()
+    return data?.usergroup_id || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * チャンネルの全メンバーを取得（ページネーション対応、ボットを除外）
+ */
+export async function getChannelMembers(channelId: string): Promise<string[]> {
+  const token = getBotToken()
+  if (!token) return []
+
+  const members: string[] = []
+  let cursor: string | undefined
+
+  try {
+    do {
+      const params = new URLSearchParams({ channel: channelId, limit: '200' })
+      if (cursor) params.set('cursor', cursor)
+
+      const res = await fetch(`https://slack.com/api/conversations.members?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!data.ok) {
+        console.error('[usergroup] conversations.members failed:', data.error)
+        break
+      }
+      members.push(...(data.members || []))
+      cursor = data.response_metadata?.next_cursor
+    } while (cursor)
+
+    // ボットユーザーを除外（Bot IDを取得して除外）
+    const authRes = await fetch('https://slack.com/api/auth.test', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const authData = await authRes.json()
+    const botUserId = authData.ok ? authData.user_id : null
+
+    return botUserId ? members.filter((m) => m !== botUserId) : members
+  } catch (err) {
+    console.error('[usergroup] getChannelMembers error:', err)
+    return []
+  }
+}
+
+/**
+ * ユーザーグループのメンバーをまるごと同期（置換）
+ * Slack API の制約: 最低1名のメンバーが必要
+ */
+export async function syncUsergroupMembers(usergroupId: string, userIds: string[]): Promise<void> {
+  const token = getBotToken()
+  if (!token || userIds.length === 0) {
+    console.warn('[usergroup] syncUsergroupMembers: no token or empty user list, skipping')
+    return
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/usergroups.users.update', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usergroup: usergroupId, users: userIds.join(',') }),
+    })
+    const data = await res.json()
+    if (!data.ok) {
+      console.error('[usergroup] usergroups.users.update failed:', data.error)
+    }
+  } catch (err) {
+    console.error('[usergroup] syncUsergroupMembers error:', err)
+  }
+}
+
+/**
+ * ユーザーグループに1ユーザーを追加
+ */
+export async function addUserToUsergroup(usergroupId: string, userId: string): Promise<void> {
+  const token = getBotToken()
+  if (!token) return
+
+  try {
+    // 現在のメンバーを取得
+    const listRes = await fetch(`https://slack.com/api/usergroups.users.list?usergroup=${usergroupId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const listData = await listRes.json()
+    const currentUsers: string[] = listData.ok ? (listData.users || []) : []
+
+    if (currentUsers.includes(userId)) return // 既に所属
+
+    const updatedUsers = [...currentUsers, userId]
+    await syncUsergroupMembers(usergroupId, updatedUsers)
+  } catch (err) {
+    console.error('[usergroup] addUserToUsergroup error:', err)
+  }
+}
+
+/**
+ * ユーザーグループから1ユーザーを削除
+ * 最低1名必要なため、最後の1名は削除できない
+ */
+export async function removeUserFromUsergroup(usergroupId: string, userId: string): Promise<void> {
+  const token = getBotToken()
+  if (!token) return
+
+  try {
+    const listRes = await fetch(`https://slack.com/api/usergroups.users.list?usergroup=${usergroupId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const listData = await listRes.json()
+    const currentUsers: string[] = listData.ok ? (listData.users || []) : []
+
+    const updatedUsers = currentUsers.filter((u) => u !== userId)
+    if (updatedUsers.length === 0) {
+      console.warn('[usergroup] Cannot remove last member from usergroup', usergroupId)
+      return
+    }
+
+    await syncUsergroupMembers(usergroupId, updatedUsers)
+  } catch (err) {
+    console.error('[usergroup] removeUserFromUsergroup error:', err)
+  }
+}
+
+/**
+ * チャンネル情報を取得（チャンネル名の解決用）
+ */
+export async function getChannelInfo(channelId: string): Promise<{ name: string } | null> {
+  const token = getBotToken()
+  if (!token) return null
+
+  try {
+    const res = await fetch(`https://slack.com/api/conversations.info?channel=${channelId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    if (!data.ok) {
+      console.error('[usergroup] conversations.info failed:', data.error)
+      return null
+    }
+    return { name: data.channel.name }
+  } catch (err) {
+    console.error('[usergroup] getChannelInfo error:', err)
+    return null
+  }
+}
+
+/**
+ * Bot参加時の初期同期: ユーザーグループ作成 + 全メンバー同期
+ */
+export async function initUsergroupSync(channelId: string, channelName?: string): Promise<void> {
+  try {
+    // チャンネル名が不明な場合は取得
+    const name = channelName || (await getChannelInfo(channelId))?.name
+    if (!name) {
+      console.error('[usergroup] Cannot resolve channel name for', channelId)
+      return
+    }
+
+    const usergroupId = await createOrFindUsergroup(channelId, name)
+    if (!usergroupId) {
+      console.error('[usergroup] Failed to create/find usergroup for', name)
+      return
+    }
+
+    const members = await getChannelMembers(channelId)
+    if (members.length > 0) {
+      await syncUsergroupMembers(usergroupId, members)
+      console.log(`[usergroup] Synced ${members.length} members to @${name}`)
+    } else {
+      console.warn('[usergroup] No members found for channel', name)
+    }
+  } catch (err) {
+    console.error('[usergroup] initUsergroupSync error:', err)
+  }
+}

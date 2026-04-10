@@ -2217,6 +2217,27 @@ export interface Database {
           },
         ]
       }
+      slack_channel_usergroups: {
+        Row: {
+          channel_id: string
+          channel_name: string
+          usergroup_id: string
+          created_at: string
+        }
+        Insert: {
+          channel_id: string
+          channel_name: string
+          usergroup_id: string
+          created_at?: string
+        }
+        Update: {
+          channel_id?: string
+          channel_name?: string
+          usergroup_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
