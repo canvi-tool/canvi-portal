@@ -532,11 +532,11 @@ export default function ShiftsPage() {
     }
   }, [currentUserId])
 
-  // フィルター対象のGCalユーザーID群を算出（複数選択時は全員分取得）
+  // フィルター対象のGCalユーザーID群を算出（複数選択時は選択メンバーのみ）
   const gcalTargets = useMemo(() => {
     // 0件選択 = 自分のみ
     if (filterStaffIds.length === 0) {
-      return currentUserId ? [{ userId: currentUserId, staffId: '', staffName: '' }] : []
+      return currentUserId ? [{ userId: currentUserId, staffId: currentStaffId || '', staffName: '' }] : []
     }
     const picked = filterStaffIds
       .map(sid => {
@@ -545,13 +545,10 @@ export default function ShiftsPage() {
         return { userId: staff.userId, staffId: staff.id, staffName: staff.name }
       })
       .filter((x): x is { userId: string; staffId: string; staffName: string } => !!x)
-    // 自分のカレンダーも常に含める（organizer/attendee として招待されている
-    // GCal予定を確実に取得するため。dedup は userId で行う）
-    if (currentUserId && !picked.some(p => p.userId === currentUserId)) {
-      picked.push({ userId: currentUserId, staffId: '', staffName: '' })
-    }
+    // スタッフが明示的に選択されている場合は選択メンバーのみ取得
+    // （ログインユーザーのカレンダーを常に含めると、未選択の自分のイベントが漏れる）
     return picked
-  }, [filterStaffIds, staffList, currentUserId])
+  }, [filterStaffIds, staffList, currentUserId, currentStaffId])
 
   const gcalTargetsKey = useMemo(() => gcalTargets.map(t => t.userId).join(','), [gcalTargets])
 
@@ -1150,9 +1147,18 @@ export default function ShiftsPage() {
     })
   }, [googleEvents, shifts, currentStaffId])
 
-  // Google Calendar events are always shown regardless of project filter
-  // (they are personal calendar events, not project-specific)
-  const googleEventsForCalendar = dedupedGoogleEvents
+  // Google Calendar events: スタッフフィルター選択時は選択スタッフのイベントのみ表示
+  const googleEventsForCalendar = useMemo(() => {
+    if (filterStaffIds.length === 0) return dedupedGoogleEvents
+    const selectedSet = new Set(filterStaffIds)
+    return dedupedGoogleEvents.filter(e => {
+      // staffId がセットされていて選択中のスタッフに含まれる場合のみ表示
+      if (e.staffId && selectedSet.has(e.staffId)) return true
+      // staffId が未セット（= 自分のカレンダー）は、自分が選択されている場合のみ
+      if (!e.staffId && currentStaffId && selectedSet.has(currentStaffId)) return true
+      return false
+    })
+  }, [dedupedGoogleEvents, filterStaffIds, currentStaffId])
 
   // Filter labels
   const projectLabels = useMemo<Record<string, string>>(() => (
