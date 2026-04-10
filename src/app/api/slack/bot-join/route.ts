@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { initUsergroupSync } from '@/lib/integrations/slack'
 
 // Vercel上で応答後も処理を継続させる
@@ -10,6 +11,33 @@ function after(fn: () => Promise<unknown>) {
   } catch {
     fn().catch((e) => console.error('[bot-join after-fallback] task error:', e))
   }
+}
+
+/**
+ * env var → DB fallback でBot Tokenを取得
+ */
+async function resolveSlackBotToken(): Promise<string | null> {
+  const envToken = process.env.SLACK_BOT_TOKEN
+  if (envToken) return envToken
+
+  console.warn('[bot-join] process.env.SLACK_BOT_TOKEN is null. Trying DB fallback...')
+  try {
+    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'SLACK_BOT_TOKEN')
+      .single()
+    const val = (data as { value: string } | null)?.value
+    if (val) {
+      console.log(`[bot-join] Got SLACK_BOT_TOKEN from DB (len=${val.length})`)
+      return val
+    }
+  } catch (err) {
+    console.error('[bot-join] DB fallback failed:', err)
+  }
+  return null
 }
 
 /**
@@ -28,9 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'チャンネルIDが必要です' }, { status: 400 })
     }
 
-    const token = process.env.SLACK_BOT_TOKEN
+    const token = await resolveSlackBotToken()
     if (!token) {
-      return NextResponse.json({ error: 'SLACK_BOT_TOKENが未設定です' }, { status: 500 })
+      return NextResponse.json({ error: 'SLACK_BOT_TOKENが未設定です（env + DB both failed）' }, { status: 500 })
     }
 
     // conversations.join でBotをチャンネルに参加させる
@@ -93,9 +121,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'channelIdが必要です' }, { status: 400 })
     }
 
-    const token = process.env.SLACK_BOT_TOKEN
+    const token = await resolveSlackBotToken()
     if (!token) {
-      return NextResponse.json({ isMember: false, error: 'SLACK_BOT_TOKENが未設定' })
+      return NextResponse.json({ isMember: false, error: 'SLACK_BOT_TOKENが未設定（env + DB both failed）' })
     }
 
     // conversations.info でBot参加状態を確認

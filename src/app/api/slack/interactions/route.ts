@@ -4,6 +4,44 @@ import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { getProjectMentionText, sendSlackBotMessage, type SlackBlock } from '@/lib/integrations/slack'
 import { openCanviCalendarModal, handleCanviCalendarCreate, openCanviCalendarCancelModal, handleCanviCalendarCancel } from '@/lib/slack/calendar-shortcut'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+// Bot Token キャッシュ（同一リクエスト内で複数回呼ばれるため）
+let _cachedBotToken: string | null | undefined = undefined
+
+/**
+ * env var → DB fallback でBot Tokenを取得（キャッシュ付き）
+ */
+async function resolveSlackBotToken(): Promise<string | null> {
+  if (_cachedBotToken !== undefined) return _cachedBotToken
+
+  const envToken = process.env.SLACK_BOT_TOKEN
+  if (envToken) {
+    _cachedBotToken = envToken
+    return envToken
+  }
+
+  console.warn('[interactions] process.env.SLACK_BOT_TOKEN is null. Trying DB fallback...')
+  try {
+    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'SLACK_BOT_TOKEN')
+      .single()
+    const val = (data as { value: string } | null)?.value
+    if (val) {
+      console.log(`[interactions] Got SLACK_BOT_TOKEN from DB (len=${val.length})`)
+      _cachedBotToken = val
+      return val
+    }
+  } catch (err) {
+    console.error('[interactions] DB fallback failed:', err)
+  }
+  _cachedBotToken = null
+  return null
+}
 
 // Slack 3秒応答ルール対策: Vercel上で応答後も処理を継続させる
 // ローカル/非Vercel環境ではwaitUntilが使えないのでフォールバックでawaitせず実行
@@ -266,7 +304,7 @@ async function openCommentModal(
   entityId: string,
   entityType: 'report' | 'shift' | 'correction'
 ) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return new Response('', { status: 200 })
 
   const isApprove = actionId.includes('approve')
@@ -344,7 +382,7 @@ function getSupabase() {
 
 // ---- Slackユーザーの権限チェック ----
 async function fetchSlackUserEmail(slackUserId: string): Promise<string | null> {
-  const token = process.env.SLACK_BOT_TOKEN
+  const token = await resolveSlackBotToken()
   if (!token) return null
   try {
     const res = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
@@ -513,7 +551,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
   const actionLabel = newStatus === 'approved' ? '承認' : '差戻し'
 
   // Update the original Slack message (remove buttons, show result)
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (botToken) {
     const messageBlocks: Record<string, unknown>[] = [
       {
@@ -698,7 +736,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
 
   const actionLabel = newStatus === 'APPROVED' ? '承認' : '差戻し'
 
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (botToken) {
     // Update the original Slack message (remove buttons, show result)
     const messageBlocks: Record<string, unknown>[] = [
@@ -864,7 +902,7 @@ async function resolveSlackUser(
 
 // ---- Slack DM送信（users.emailまたはcustom_fields経由） ----
 async function sendSlackDM(slackUserId: string, text: string, blocks?: unknown[]) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken || !slackUserId) return
   // まずconversations.openでDMチャンネルID取得
   const openRes = await fetch('https://slack.com/api/conversations.open', {
@@ -997,7 +1035,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
   const projectName = (r.project as { name?: string } | null)?.name || ''
 
   // 元メッセージ更新（ボタン除去）
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (botToken && channelId && messageTs) {
     const messageBlocks: Record<string, unknown>[] = [
       {
@@ -1114,7 +1152,7 @@ async function openCorrectionSubmitModal(
   payload: Record<string, unknown>,
   attendanceRecordId: string
 ) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return new Response('', { status: 200 })
 
   const user = payload.user as Record<string, string>
@@ -1429,7 +1467,7 @@ async function handleCorrectionSubmit(payload: Record<string, unknown>) {
   // → 同じ差戻し通知から二重申請されるのを防止
   if (sourceChannelId && sourceMessageTs) {
     try {
-      const botToken = process.env.SLACK_BOT_TOKEN
+      const botToken = await resolveSlackBotToken()
       if (botToken) {
         const updatedBlocks: Record<string, unknown>[] = [
           {
@@ -1764,7 +1802,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
 
 // ---- 「打刻修正を入力する」 (本人のみ) → モーダルを開く ----
 async function openDiffMemberFixModal(payload: Record<string, unknown>) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return new Response('', { status: 200 })
 
   const action = (payload.actions as Array<Record<string, string>>)[0]
@@ -1892,7 +1930,7 @@ async function openDiffMemberFixModal(payload: Record<string, unknown>) {
 }
 
 async function openDiffErrorModal(payload: Record<string, unknown>, text: string) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return
   await fetch('https://slack.com/api/views.open', {
     method: 'POST',
@@ -1913,7 +1951,7 @@ async function openDiffErrorModal(payload: Record<string, unknown>, text: string
 }
 
 async function sendDiffEphemeral(channelId: string | undefined, slackUserId: string, text: string) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken || !channelId) return
   try {
     await fetch('https://slack.com/api/chat.postEphemeral', {
@@ -2097,7 +2135,7 @@ async function disableSlackMessageButtons(
   confirmationText: string,
 ) {
   if (!channelId || !messageTs) return
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return
   try {
     const blocks = Array.isArray(originalBlocks)
@@ -2127,7 +2165,7 @@ async function disableSlackMessageButtons(
 
 // Helper to update a Slack message using channel/ts directly
 async function updateSlackMessageDirect(channelId: string, messageTs: string, text: string) {
-  const botToken = process.env.SLACK_BOT_TOKEN
+  const botToken = await resolveSlackBotToken()
   if (!botToken) return
 
   await fetch('https://slack.com/api/chat.update', {
