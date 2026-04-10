@@ -83,6 +83,22 @@ export async function getValidTokenForUser(userId: string): Promise<TokenInfo | 
   }
 }
 
+/**
+ * トークンを強制リフレッシュする（cronジョブ用）
+ * getValidTokenForUser と異なり、期限チェックをスキップして常にリフレッシュを試みる
+ */
+export async function forceRefreshToken(userId: string): Promise<TokenInfo | null> {
+  const admin = createAdminClient()
+  const { data: user } = await admin
+    .from('users')
+    .select('google_refresh_token')
+    .eq('id', userId)
+    .single()
+
+  if (!user?.google_refresh_token) return null
+  return refreshAccessToken(userId, user.google_refresh_token)
+}
+
 async function refreshAccessToken(
   userId: string,
   refreshToken: string

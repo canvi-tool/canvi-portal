@@ -4,6 +4,7 @@ import { DesktopSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/lib/auth/roles'
+import { GoogleReauthBanner } from './_components/google-reauth-banner'
 
 interface PortalShellProps {
   user: {
@@ -39,7 +40,10 @@ export function PortalShell({ user, children }: PortalShellProps) {
       <div className="lg:pl-56 min-w-0">
         <Header user={user} onSignOut={handleSignOut} />
 
-        <main className="p-3 sm:p-4 lg:p-6 min-w-0 overflow-x-hidden">{children}</main>
+        <main className="p-3 sm:p-4 lg:p-6 min-w-0 overflow-x-hidden">
+          <GoogleReauthBanner />
+          {children}
+        </main>
       </div>
     </div>
   )

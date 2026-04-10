@@ -38,6 +38,8 @@ export async function GET(request: Request) {
           google_token_expires_at: providerToken
             ? new Date(Date.now() + 3600 * 1000).toISOString()
             : null,
+          google_last_auth_at: new Date().toISOString(),
+          google_token_status: 'active',
         }).eq('id', user.id)
       }
 
