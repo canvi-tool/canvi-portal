@@ -137,6 +137,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // 提出済を修正した場合: 前回のSlack通知を「差戻し」に書き換え（ボタン削除）
+    const editStaffName = (() => {
+      const s = data.staff as { last_name?: string; first_name?: string } | null
+      return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : ''
+    })()
     if (existing.status === 'submitted' && existing.slack_thread_ts && existing.project_id) {
       try {
         const { data: proj } = await supabase
@@ -149,13 +153,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             proj.slack_channel_id,
             existing.slack_thread_ts,
             {
-              text: '日報は修正のため差し戻されました',
+              text: `${editStaffName} の日報は修正のため差し戻されました`,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: ':leftwards_arrow_with_hook: *修正のため差し戻されました*\n提出者が内容を修正中です。',
+                    text: `:leftwards_arrow_with_hook: *${editStaffName}* の日報が修正のため差し戻されました\n提出者が内容を修正中です。`,
                   },
                 },
               ],
@@ -249,7 +253,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           }, { thread_ts: existingThreadTs, reply_broadcast: true })
 
           // スレッド内に報告内容の詳細を投稿
-          const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+          const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
           await sendSlackBotMessage(proj.slack_channel_id, {
             text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
             blocks: detailBlocks,
@@ -313,7 +317,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .update({ slack_thread_ts: result.ts })
               .eq('id', data.id)
 
-            const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+            const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
             await sendSlackBotMessage(proj.slack_channel_id, {
               text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
               blocks: detailBlocks,
@@ -572,9 +576,24 @@ function buildKpiSummary(reportType: string, fields: Record<string, unknown>): s
 // ---- ヘルパー: Slackスレッド用の日報詳細ブロック ----
 function buildReportDetailBlocks(
   reportType: string,
-  fields: Record<string, unknown>
+  fields: Record<string, unknown>,
+  staffName?: string,
+  reportDate?: string
 ): SlackBlock[] {
   const blocks: SlackBlock[] = []
+
+  // メンバー名ヘッダーを先頭に追加
+  if (staffName) {
+    const dateStr = reportDate || ''
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `📋 *${staffName}* の日次報告${dateStr ? `（${dateStr}）` : ''}`,
+      },
+    })
+    blocks.push({ type: 'divider' })
+  }
 
   const addSection = (label: string, value: unknown) => {
     if (value && String(value).trim()) {

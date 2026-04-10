@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
             .eq('id', data.id)
 
           // スレッド内に報告内容の詳細を投稿
-          const detailBlocks = buildReportDetailBlocks(report_type, customFields)
+          const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
           await sendSlackBotMessage(proj.slack_channel_id, {
             text: `${staffName} の ${typeLabel} 詳細`,
             blocks: detailBlocks,
@@ -266,9 +266,24 @@ function buildKpiSummary(reportType: string, fields: Record<string, unknown>): s
 // ---- ヘルパー: Slackスレッド用の日報詳細ブロック ----
 function buildReportDetailBlocks(
   reportType: string,
-  fields: Record<string, unknown>
+  fields: Record<string, unknown>,
+  staffName?: string,
+  reportDate?: string
 ): SlackBlock[] {
   const blocks: SlackBlock[] = []
+
+  // メンバー名ヘッダーを先頭に追加
+  if (staffName) {
+    const dateStr = reportDate || ''
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `📋 *${staffName}* の日次報告${dateStr ? `（${dateStr}）` : ''}`,
+      },
+    })
+    blocks.push({ type: 'divider' })
+  }
 
   const addSection = (label: string, value: unknown) => {
     if (value && String(value).trim()) {
