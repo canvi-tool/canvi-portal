@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
 import { fetchSlackChannels, createSlackChannel } from '@/lib/integrations/slack'
 
+export const dynamic = 'force-dynamic'
+
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 /**
@@ -26,14 +28,24 @@ export async function GET() {
     }
 
     const tokenExists = !!process.env.SLACK_BOT_TOKEN
-    console.log(`[slack/channels] GET called by user=${user.id}, SLACK_BOT_TOKEN exists=${tokenExists}`)
+    const tokenLen = process.env.SLACK_BOT_TOKEN?.length ?? 0
+    const tokenPrefix = process.env.SLACK_BOT_TOKEN?.substring(0, 8) ?? '(unset)'
+    console.log(`[slack/channels] GET called by user=${user.id}, SLACK_BOT_TOKEN exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}`)
 
     const result = await fetchSlackChannels()
 
     if (result.error) {
       console.error(`[slack/channels] fetchSlackChannels error: ${result.error}`)
       return NextResponse.json(
-        { channels: [], error: result.error },
+        {
+          channels: [],
+          error: result.error,
+          _debug: {
+            token_exists: tokenExists,
+            token_length: tokenLen,
+            token_prefix: tokenPrefix,
+          },
+        },
         { status: result.error.includes('not configured') ? 200 : 500 }
       )
     }
