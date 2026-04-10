@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * GET /api/slack/health
  * Slack接続診断エンドポイント（認証不要・テスト用）
+ * ?channel=CHANNEL_ID を付けるとそのチャンネルへのテストメッセージ送信も行う
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const botToken = process.env.SLACK_BOT_TOKEN
   const userToken = process.env.SLACK_USER_TOKEN
 
@@ -56,6 +57,27 @@ export async function GET() {
       }
     } catch (e) {
       results.user = { ok: false, error: String(e) }
+    }
+  }
+
+  // Optional: test channel access
+  const channelId = new URL(request.url).searchParams.get('channel')
+  if (channelId && botToken) {
+    try {
+      // Check bot membership in channel
+      const infoRes = await fetch(`https://slack.com/api/conversations.info?channel=${channelId}`, {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+      const infoData = await infoRes.json()
+      results.channel_test = {
+        channel_id: channelId,
+        channel_ok: infoData.ok,
+        channel_name: infoData.channel?.name,
+        is_member: infoData.channel?.is_member,
+        error: infoData.error || undefined,
+      }
+    } catch (e) {
+      results.channel_test = { channel_id: channelId, ok: false, error: String(e) }
     }
   }
 
