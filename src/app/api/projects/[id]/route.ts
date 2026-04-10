@@ -3,7 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { projectFormSchema } from '@/lib/validations/project'
 import { canAccessProject } from '@/lib/auth/project-access'
-import { syncProjectUsergroup } from '@/lib/integrations/slack'
+import { syncProjectUsergroup, disableProjectUsergroup, updateProjectUsergroupName } from '@/lib/integrations/slack'
 
 function after(fn: () => Promise<unknown>) {
   try {
@@ -73,10 +73,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { project_code, project_type, project_number, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, ...rest } = parsed.data
 
-    // slack_channel_id 変更検知のため旧値を取得
+    // 変更検知のため旧値を取得
     const { data: oldProject } = await supabase
       .from('projects')
-      .select('slack_channel_id')
+      .select('slack_channel_id, name, status, custom_fields')
       .eq('id', id)
       .single()
     const oldSlackChannelId = oldProject?.slack_channel_id || null
@@ -131,6 +131,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (slackChannelChanged && newSlackChannelId) {
       after(async () => {
         await syncProjectUsergroup(id)
+      })
+    }
+
+    // ステータスが ended に変わった場合、ユーザーグループを無効化
+    const oldStatus = oldProject?.status || null
+    if (dbStatus === 'completed' && oldStatus !== 'completed') {
+      after(async () => {
+        await disableProjectUsergroup(id)
+      })
+    }
+
+    // ステータスが ended 以外に戻った場合（ended → active 等）、ユーザーグループを再有効化
+    if (oldStatus === 'completed' && dbStatus !== 'completed') {
+      after(async () => {
+        await syncProjectUsergroup(id)
+      })
+    }
+
+    // PJ名（またはカレンダー表示名）が変更された場合、ユーザーグループ名を更新
+    const oldDisplayName = (oldProject?.custom_fields as Record<string, unknown>)?.calendar_display_name as string || oldProject?.name || ''
+    const newDisplayName = calDisplayName || rest.name
+    if (oldDisplayName !== newDisplayName && dbStatus !== 'completed') {
+      after(async () => {
+        await updateProjectUsergroupName(id, newDisplayName)
       })
     }
 

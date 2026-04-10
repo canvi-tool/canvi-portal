@@ -1774,6 +1774,60 @@ export async function syncProjectUsergroup(projectId: string): Promise<void> {
 }
 
 /**
+ * プロジェクトのユーザーグループを無効化（PJステータスが ended になった時に呼ぶ）
+ */
+export async function disableProjectUsergroup(projectId: string): Promise<void> {
+  const token = getUsergroupToken()
+  if (!token) return
+
+  const usergroupId = await getProjectUsergroupId(projectId)
+  if (!usergroupId) {
+    console.log(`[usergroup] disableProjectUsergroup: no usergroup found for projectId=${projectId}`)
+    return
+  }
+
+  console.log(`[usergroup] Disabling usergroup ${usergroupId} for projectId=${projectId}`)
+  const res = await fetch('https://slack.com/api/usergroups.disable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usergroup: usergroupId }),
+  })
+  const data = await res.json()
+  if (!data.ok) {
+    console.error(`[usergroup] usergroups.disable failed: ${data.error} (usergroupId=${usergroupId})`)
+    throw new Error(`usergroups.disable failed: ${data.error}`)
+  }
+  console.log(`[usergroup] Disabled usergroup ${usergroupId}`)
+}
+
+/**
+ * プロジェクトのユーザーグループ名を更新（PJ名変更時に呼ぶ）
+ */
+export async function updateProjectUsergroupName(projectId: string, newName: string): Promise<void> {
+  const token = getUsergroupToken()
+  if (!token) return
+
+  const usergroupId = await getProjectUsergroupId(projectId)
+  if (!usergroupId) {
+    console.log(`[usergroup] updateProjectUsergroupName: no usergroup found for projectId=${projectId}`)
+    return
+  }
+
+  console.log(`[usergroup] Updating usergroup ${usergroupId} name to "${newName}"`)
+  const res = await fetch('https://slack.com/api/usergroups.update', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usergroup: usergroupId, name: newName, description: `Canvi Portal: ${newName}` }),
+  })
+  const data = await res.json()
+  if (!data.ok) {
+    console.error(`[usergroup] usergroups.update failed: ${data.error} (usergroupId=${usergroupId})`)
+    throw new Error(`usergroups.update failed: ${data.error}`)
+  }
+  console.log(`[usergroup] Updated usergroup ${usergroupId} name to "${newName}"`)
+}
+
+/**
  * スタッフをプロジェクトのユーザーグループに追加（アサイン時に呼ぶ）
  * ユーザーグループが未作成の場合はフル同期を行う
  */
