@@ -50,6 +50,8 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       ? (shift.attendees as Array<{ email?: string }>).map(a => a?.email).filter((e): e is string => !!e)
       : []
 
+    console.log(`[syncShiftToCalendar] shiftId=${shiftId} eventId=${shift.google_calendar_event_id || 'NEW'} attendees=${JSON.stringify(attendeeEmails)} rawAttendees=${JSON.stringify(shift.attendees)}`)
+
     if (shift.google_calendar_event_id) {
       // 既存イベント更新
       await client.updateEvent({

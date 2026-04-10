@@ -178,6 +178,7 @@ export async function PUT(
 
     // APPROVED または SUBMITTED 状態のシフトが変更された場合、Googleカレンダーも同期
     // google_calendar_event_id がある場合は更新、ない場合は新規作成（syncShiftToCalendar内で判定）
+    console.log(`[PUT shifts/${id}] status=${data?.status} attendees=${JSON.stringify((data as Record<string, unknown>)?.attendees)} willSync=${(data?.status === 'APPROVED' || data?.status === 'SUBMITTED') && !!data?.id}`)
     if ((data?.status === 'APPROVED' || data?.status === 'SUBMITTED') && data?.id) {
       try {
         await syncShiftToCalendar(data.id)

@@ -429,6 +429,8 @@ export class GoogleCalendarClient {
       requestBody.attendees = attendees.map((email) => ({ email }))
     }
 
+    console.log(`[GCal.updateEvent] eventId=${eventId} attendees=${JSON.stringify(requestBody.attendees)} sendUpdates=${attendees && attendees.length > 0 ? 'all' : 'none'}`)
+
     await this.calendar.events.patch({
       calendarId,
       eventId,
@@ -741,6 +743,7 @@ export class GoogleCalendarClient {
     canviShiftId?: string
     organizerEmail?: string
     meetUrl?: string
+    attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }>
   }>> {
     const { timeMin, timeMax } = params
     const out: Array<{
@@ -748,6 +751,7 @@ export class GoogleCalendarClient {
       start: string; end: string; isAllDay: boolean
       updated?: string; canviShiftId?: string; organizerEmail?: string
       meetUrl?: string
+      attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; organizer?: boolean; self?: boolean }>
     }> = []
     let pageToken: string | undefined
     do {
@@ -782,6 +786,13 @@ export class GoogleCalendarClient {
             e.hangoutLink ||
             e.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ||
             undefined,
+          attendees: e.attendees?.map(a => ({
+            email: a.email || '',
+            displayName: a.displayName || undefined,
+            responseStatus: a.responseStatus || undefined,
+            organizer: a.organizer || undefined,
+            self: a.self || undefined,
+          })),
         })
       }
       pageToken = response.data.nextPageToken || undefined
