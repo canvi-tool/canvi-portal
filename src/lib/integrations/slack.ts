@@ -181,8 +181,9 @@ async function getSettingFromDB(key: string): Promise<string | null> {
   }
 }
 
-// Bot Token (sync: env var only)
-function getBotToken(): string | null {
+// Bot Token (sync: env var only - used by sync callers that can't await)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _getBotTokenSync(): string | null {
   return process.env.SLACK_BOT_TOKEN || null
 }
 
@@ -198,7 +199,8 @@ async function getBotTokenSafe(): Promise<string | null> {
 }
 
 // User OAuth Token（ユーザー招待・プロフィール更新に必要）
-function getUserToken(): string | null {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _getUserTokenSync(): string | null {
   return process.env.SLACK_USER_TOKEN || null
 }
 
@@ -211,10 +213,9 @@ async function getUserTokenSafe(): Promise<string | null> {
   return getSettingFromDB('SLACK_USER_TOKEN')
 }
 
-// Usergroup API用トークン
-// Bot tokenではpermission_deniedになるため、User tokenを優先使用
-// SLACK_USER_TOKEN未設定時はSLACK_BOT_TOKENにフォールバック（後方互換）
-function getUsergroupToken(): string {
+// Usergroup API用トークン (sync版 - 使用しない)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _getUsergroupTokenSync(): string {
   return process.env.SLACK_USER_TOKEN || process.env.SLACK_BOT_TOKEN || ''
 }
 
@@ -1664,7 +1665,7 @@ async function createOrFindProjectUsergroup(
   projectName: string,
   channelId: string | null
 ): Promise<string | null> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token) {
     throw new Error('SLACK_USER_TOKEN / SLACK_BOT_TOKEN is not set')
   }
@@ -1761,7 +1762,7 @@ async function createOrFindProjectUsergroup(
  * Slack API の制約: 最低1名のメンバーが必要
  */
 async function syncUsergroupMembers(usergroupId: string, userIds: string[]): Promise<void> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token) {
     throw new Error('SLACK_USER_TOKEN / SLACK_BOT_TOKEN is not set')
   }
@@ -1846,7 +1847,7 @@ export async function syncProjectUsergroup(projectId: string): Promise<void> {
  * プロジェクトのユーザーグループを無効化（PJステータスが ended になった時に呼ぶ）
  */
 export async function disableProjectUsergroup(projectId: string): Promise<void> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token) return
 
   const usergroupId = await getProjectUsergroupId(projectId)
@@ -1873,7 +1874,7 @@ export async function disableProjectUsergroup(projectId: string): Promise<void> 
  * プロジェクトのユーザーグループ名を更新（PJ名変更時に呼ぶ）
  */
 export async function updateProjectUsergroupName(projectId: string, newName: string): Promise<void> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token) return
 
   const usergroupId = await getProjectUsergroupId(projectId)
@@ -1901,7 +1902,7 @@ export async function updateProjectUsergroupName(projectId: string, newName: str
  * ユーザーグループが未作成の場合はフル同期を行う
  */
 export async function onProjectAssignmentAdded(projectId: string, staffSlackUserId: string): Promise<void> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token || !staffSlackUserId) return
 
   try {
@@ -1935,7 +1936,7 @@ export async function onProjectAssignmentAdded(projectId: string, staffSlackUser
  * 最低1名必要なため、最後の1名は削除できない
  */
 export async function onProjectAssignmentRemoved(projectId: string, staffSlackUserId: string): Promise<void> {
-  const token = getUsergroupToken()
+  const token = await getUsergroupTokenSafe()
   if (!token || !staffSlackUserId) return
 
   try {
