@@ -532,33 +532,44 @@ export default function ShiftsPage() {
     }
   }, [currentUserId])
 
-  // フィルター対象のGCalユーザーID群を算出（複数選択時は選択メンバーのみ）
+  // フィルター対象のGCalユーザーID群を算出
   const gcalTargets = useMemo(() => {
-    // 0件選択 = 自分のみ
-    if (filterStaffIds.length === 0) {
-      return currentUserId ? [{ userId: currentUserId, staffId: currentStaffId || '', staffName: '' }] : []
+    // スタッフが明示的に選択されている場合はそのメンバーのみ
+    if (filterStaffIds.length > 0) {
+      return filterStaffIds
+        .map(sid => {
+          const staff = staffList.find(s => s.id === sid)
+          if (!staff?.userId) return null
+          return { userId: staff.userId, staffId: staff.id, staffName: staff.name }
+        })
+        .filter((x): x is { userId: string; staffId: string; staffName: string } => !!x)
     }
-    const picked = filterStaffIds
-      .map(sid => {
-        const staff = staffList.find(s => s.id === sid)
-        if (!staff?.userId) return null
-        return { userId: staff.userId, staffId: staff.id, staffName: staff.name }
-      })
-      .filter((x): x is { userId: string; staffId: string; staffName: string } => !!x)
-    // スタッフが明示的に選択されている場合は選択メンバーのみ取得
-    // （ログインユーザーのカレンダーを常に含めると、未選択の自分のイベントが漏れる）
-    return picked
+    // 「全スタッフ」選択時: staffList の全員（userIdがあるメンバー）のGCalを取得
+    // staffList はプロジェクトフィルターに連動して絞り込まれている
+    if (staffList.length > 0) {
+      const all = staffList
+        .filter(s => !!s.userId)
+        .map(s => ({ userId: s.userId!, staffId: s.id, staffName: s.name }))
+      if (all.length > 0) return all
+    }
+    // フォールバック: 自分のみ
+    return currentUserId ? [{ userId: currentUserId, staffId: currentStaffId || '', staffName: '' }] : []
   }, [filterStaffIds, staffList, currentUserId, currentStaffId])
 
   const gcalTargetsKey = useMemo(() => gcalTargets.map(t => t.userId).join(','), [gcalTargets])
 
   // 選択スタッフ変更時: 即座に GCal インポート → fetch シフト → 予定再取得
   const lastImportKeyRef = useRef<string>('')
+  // gcal-import 対象のスタッフID群（全スタッフ時はstaffList全員）
+  const importStaffIds = useMemo(() => {
+    if (filterStaffIds.length > 0) return filterStaffIds
+    return staffList.map(s => s.id)
+  }, [filterStaffIds, staffList])
   useEffect(() => {
     if (!isManager) return
-    if (filterStaffIds.length === 0) return
+    if (importStaffIds.length === 0) return
     if (!dateRange.start || !dateRange.end) return
-    const key = `${filterStaffIds.slice().sort().join(',')}|${dateRange.start}|${dateRange.end}`
+    const key = `${importStaffIds.slice().sort().join(',')}|${dateRange.start}|${dateRange.end}`
     if (lastImportKeyRef.current === key) return
     lastImportKeyRef.current = key
     ;(async () => {
@@ -567,7 +578,7 @@ export default function ShiftsPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            staff_ids: filterStaffIds,
+            staff_ids: importStaffIds,
             start_date: dateRange.start,
             end_date: dateRange.end,
           }),
@@ -578,7 +589,7 @@ export default function ShiftsPage() {
         }
       } catch { /* noop */ }
     })()
-  }, [filterStaffIds, dateRange.start, dateRange.end, isManager]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [importStaffIds, dateRange.start, dateRange.end, isManager]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Googleカレンダー予定取得（複数ユーザー対応）
   useEffect(() => {
