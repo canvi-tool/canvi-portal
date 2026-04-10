@@ -226,6 +226,9 @@ export async function POST(request: NextRequest) {
             { staffId: staffId }
           )
           console.log(`[report-notify] result: success=${result.success}, error=${result.error || 'none'}, skipped=${result.skipped || false}, ts=${result.ts}`)
+          if (!result.success && !result.skipped) {
+            console.warn(`[report-notify] WARNING: Slack notification failed. error=${result.error || 'unknown'}, projectId=${data.project_id}, channel=${proj.slack_channel_id}`)
+          }
 
           // slack_thread_ts を保存（スレッド集約用）
           const threadTs = result.ts
@@ -249,6 +252,8 @@ export async function POST(request: NextRequest) {
         } catch (notifyErr) {
           console.error('[report-notify] notification error:', notifyErr)
         }
+      } else {
+        console.warn(`[report-notify] WARNING: project ${data.project_id} has no slack_channel_id. Notification skipped.`)
       }
     }
 

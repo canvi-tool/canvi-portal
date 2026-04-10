@@ -1134,21 +1134,18 @@ export default function ShiftsPage() {
         const enStr = `${pad(ed.getHours())}:${pad(ed.getMinutes())}`
         if (e.staffId) {
           if (shiftTimeKeys.has(`${e.staffId}|${dateStr}T${stStr}|${enStr}`)) return false
-        } else {
-          // staffId 未指定（自分のGCal）→ どのスタッフでも一致したら除外
-          for (const s of shifts) {
-            if (s.isVirtualAttendee) continue
-            if (s.date === dateStr && s.startTime === stStr && s.endTime === enStr) return false
-          }
+        } else if (currentStaffId) {
+          // staffId 未指定（自分のGCal）→ 自分のシフトと一致した場合のみ除外
+          if (shiftTimeKeys.has(`${currentStaffId}|${dateStr}T${stStr}|${enStr}`)) return false
         }
       } catch { /* noop */ }
       return true
     })
-  }, [googleEvents, shifts])
+  }, [googleEvents, shifts, currentStaffId])
 
-  // Stable empty array reference for FullCalendar (avoids re-render from new [] each time)
-  const emptyGoogleEvents = useMemo<GoogleCalendarEvent[]>(() => [], [])
-  const googleEventsForCalendar = filterProject === 'all' ? dedupedGoogleEvents : emptyGoogleEvents
+  // Google Calendar events are always shown regardless of project filter
+  // (they are personal calendar events, not project-specific)
+  const googleEventsForCalendar = dedupedGoogleEvents
 
   // Filter labels
   const projectLabels = useMemo<Record<string, string>>(() => (

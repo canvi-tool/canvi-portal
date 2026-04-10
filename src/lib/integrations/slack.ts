@@ -435,11 +435,12 @@ export async function sendProjectNotification(
   }
 
   if (!channelId) {
-    console.warn('sendProjectNotification: チャンネルIDが未設定のため通知をスキップ。プロジェクト設定でSlackチャンネルを設定し、Botを招待してください。')
-    return { success: false, error: 'Slackチャンネルが未設定です' }
+    console.warn('sendProjectNotification: チャンネルIDが未設定のため通知をスキップ。プロジェクトのslack_channel_idもSLACK_DEFAULT_CHANNEL_IDも未設定です。プロジェクト設定でSlackチャンネルを設定するか、環境変数SLACK_DEFAULT_CHANNEL_IDを設定してください。')
+    return { success: false, error: 'Slackチャンネルが未設定です（プロジェクト設定・SLACK_DEFAULT_CHANNEL_ID両方未設定）' }
   }
 
   // Bot Tokenがない場合のみWebhookフォールバック（tsは返らないためスレッド化不可）
+  console.warn(`sendProjectNotification: SLACK_BOT_TOKENが未設定のためWebhookフォールバックで送信します（channelId=${channelId}）。スレッド化・ボタン操作は利用できません。`)
   return sendSlackMessage(message)
 }
 

@@ -252,6 +252,9 @@ export async function POST(request: NextRequest) {
       projectSlackChannelId = proj?.slack_channel_id || null
       projectName = proj?.name
       console.log(`[attendance-notify] proj query: channel=${projectSlackChannelId}, name=${projectName}, err=${projErr?.message || 'none'}`)
+      if (!projectSlackChannelId) {
+        console.warn(`[attendance-notify] WARNING: project ${projectId} (${projectName}) has no slack_channel_id set. Configure Slack channel in project settings.`)
+      }
     }
     const staffName = user.displayName || user.email || 'メンバー'
     console.log(`[attendance-notify] Sending notification: staffName=${staffName}, channel=${projectSlackChannelId}, projectId=${projectId}, staffId=${staffRecord?.id}`)
@@ -263,6 +266,9 @@ export async function POST(request: NextRequest) {
         { projectId, staffId: staffRecord?.id }
       )
       console.log(`[attendance-notify] result: success=${result.success}, error=${result.error || 'none'}, ts=${result.ts}, id=${data?.id}`)
+      if (!result.success) {
+        console.warn(`[attendance-notify] WARNING: Slack notification failed. error=${result.error || 'unknown'}, projectId=${projectId}, channel=${projectSlackChannelId}`)
+      }
       if (result.ts && data?.id) {
         // noteフィールドにthread_tsを埋め込み保存（admin clientでRLSバイパス）
         const adminSupabase = createAdminClient()
