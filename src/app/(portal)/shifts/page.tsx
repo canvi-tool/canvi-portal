@@ -408,7 +408,7 @@ export default function ShiftsPage() {
     fetchShiftsRef.current = fetchShiftsImpl
   }, [fetchShiftsImpl])
 
-  // プロジェクトとスタッフ一覧を取得
+  // プロジェクト一覧を取得（初回のみ）
   useEffect(() => {
     fetch('/api/projects?limit=100')
       .then(r => r.json())
@@ -422,8 +422,15 @@ export default function ShiftsPage() {
         })))
       })
       .catch(() => {})
+  }, [])
 
-    fetch('/api/staff?status=active&limit=100&scope=accessible')
+  // スタッフ一覧を取得（プロジェクトフィルター変更時に再取得）
+  useEffect(() => {
+    const params = new URLSearchParams({ status: 'active', limit: '100', scope: 'accessible' })
+    if (filterProject !== 'all') {
+      params.set('project_id', filterProject)
+    }
+    fetch(`/api/staff?${params}`)
       .then(r => r.json())
       .then(res => {
         const list = res.data || (Array.isArray(res) ? res : [])
@@ -435,7 +442,7 @@ export default function ShiftsPage() {
         })))
       })
       .catch(() => {})
-  }, [])
+  }, [filterProject])
 
   useEffect(() => {
     fetchShiftsImpl()

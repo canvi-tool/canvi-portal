@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     await client.updateEvent({
       eventId,
@@ -81,7 +81,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
     await client.deleteEvent('primary', eventId)
 
     return NextResponse.json({ success: true })

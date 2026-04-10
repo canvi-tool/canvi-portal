@@ -65,22 +65,30 @@ export function ProjectAssignDialog({
       const projData = await projRes.json()
       const staffData = await staffRes.json()
 
-      // アクティブなプロジェクトのみ
-      const activeProjects = (projData.data || []).filter(
+      // Projects APIは配列を直接返す
+      const allProjects = Array.isArray(projData) ? projData : (projData.data || [])
+      const activeProjects = allProjects.filter(
         (p: Project) => p.status === 'active' || p.status === 'proposing'
       )
-      setProjects(activeProjects)
 
-      // 既存アサイン（削除済み除く、active/proposed）
-      const assignments = (staffData.assignments || []).filter(
+      // 既存アサイン（project_assignmentsフィールド、削除済み除く）
+      const assignments = (staffData.project_assignments || []).filter(
         (a: Assignment & { deleted_at?: string }) =>
-          !a.deleted_at && ['proposed', 'confirmed', 'in_progress'].includes(a.status)
+          !a.deleted_at && ['proposed', 'confirmed', 'in_progress', 'active'].includes(a.status)
       )
       setExistingAssignments(assignments)
 
-      // 既存アサインのプロジェクトIDをselectedに
+      // 既存アサインのプロジェクトIDセット
       const existingIds = new Set<string>(assignments.map((a: Assignment) => a.project_id))
-      setSelectedProjectIds(existingIds)
+
+      // 選択状態をクリア（追加モードなので初期は空）
+      setSelectedProjectIds(new Set())
+
+      // 既存アサイン済みプロジェクトを非表示（未アサインのみ表示）
+      const unassignedProjects = activeProjects.filter(
+        (p: Project) => !existingIds.has(p.id)
+      )
+      setProjects(unassignedProjects)
     } catch {
       console.error('Failed to fetch data')
     } finally {
@@ -94,8 +102,6 @@ export function ProjectAssignDialog({
       fetchData()
     }
   }, [staff, open, fetchData])
-
-  const existingProjectIds = new Set(existingAssignments.map((a) => a.project_id))
 
   const toggleProject = (projectId: string) => {
     setSelectedProjectIds((prev) => {
@@ -114,12 +120,9 @@ export function ProjectAssignDialog({
     setSaving(true)
 
     try {
-      const toAdd = [...selectedProjectIds].filter((id) => !existingProjectIds.has(id))
-      const toRemove = [...existingProjectIds].filter((id) => !selectedProjectIds.has(id))
-
+      const toAdd = [...selectedProjectIds]
       const today = new Date().toISOString().split('T')[0]
 
-      // 新規アサイン作成
       for (const projectId of toAdd) {
         const res = await fetch(`/api/projects/${projectId}/assignments`, {
           method: 'POST',
@@ -138,31 +141,10 @@ export function ProjectAssignDialog({
         await new Promise((r) => setTimeout(r, 200))
       }
 
-      // アサイン解除（ステータスをcompletedに）
-      for (const projectId of toRemove) {
-        const assignment = existingAssignments.find((a) => a.project_id === projectId)
-        if (assignment) {
-          const res = await fetch(
-            `/api/projects/${projectId}/assignments/${assignment.id}`,
-            { method: 'DELETE' }
-          )
-          if (!res.ok) {
-            const proj = projects.find((p) => p.id === projectId)
-            toast.error(`${proj?.name || projectId}: アサイン解除失敗`)
-          }
-          await new Promise((r) => setTimeout(r, 200))
-        }
-      }
-
-      const addCount = toAdd.length
-      const removeCount = toRemove.length
-      if (addCount > 0 || removeCount > 0) {
-        const msgs: string[] = []
-        if (addCount > 0) msgs.push(`${addCount}件追加`)
-        if (removeCount > 0) msgs.push(`${removeCount}件解除`)
-        toast.success(`プロジェクトアサインを更新しました（${msgs.join('、')}）`)
+      if (toAdd.length > 0) {
+        toast.success(`${toAdd.length}件のプロジェクトにアサインしました`)
       } else {
-        toast.info('変更はありません')
+        toast.info('プロジェクトが選択されていません')
       }
 
       onSuccess?.()
@@ -180,10 +162,7 @@ export function ProjectAssignDialog({
       p.project_code.toLowerCase().includes(filter.toLowerCase())
   )
 
-  // 変更があるか
-  const hasChanges =
-    [...selectedProjectIds].some((id) => !existingProjectIds.has(id)) ||
-    [...existingProjectIds].some((id) => !selectedProjectIds.has(id))
+  const hasChanges = selectedProjectIds.size > 0
 
   if (!staff) return null
 
@@ -218,23 +197,20 @@ export function ProjectAssignDialog({
               <div className="p-2 space-y-1">
                 {filteredProjects.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    プロジェクトが見つかりません
+                    {projects.length === 0
+                      ? 'アサイン可能なプロジェクトがありません'
+                      : 'プロジェクトが見つかりません'}
                   </p>
                 ) : (
                   filteredProjects.map((proj) => {
                     const isSelected = selectedProjectIds.has(proj.id)
-                    const isExisting = existingProjectIds.has(proj.id)
-                    const isNew = isSelected && !isExisting
-                    const isRemoved = !isSelected && isExisting
 
                     return (
                       <label
                         key={proj.id}
                         className={`flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer text-sm transition-colors ${
-                          isNew
+                          isSelected
                             ? 'bg-emerald-50 hover:bg-emerald-100'
-                            : isRemoved
-                            ? 'bg-red-50 hover:bg-red-100'
                             : 'hover:bg-muted/50'
                         }`}
                       >
@@ -247,14 +223,9 @@ export function ProjectAssignDialog({
                           {proj.project_code}
                         </span>
                         <span className="truncate">{proj.name}</span>
-                        {isNew && (
+                        {isSelected && (
                           <Badge variant="outline" className="ml-auto text-[10px] border-emerald-300 text-emerald-700 bg-emerald-50 px-1">
                             追加
-                          </Badge>
-                        )}
-                        {isRemoved && (
-                          <Badge variant="outline" className="ml-auto text-[10px] border-red-300 text-red-700 bg-red-50 px-1">
-                            解除
                           </Badge>
                         )}
                       </label>
@@ -266,9 +237,11 @@ export function ProjectAssignDialog({
           )}
 
           <p className="text-xs text-muted-foreground">
-            {selectedProjectIds.size}件のプロジェクトにアサイン中
+            既存アサイン: {existingAssignments.length}件
             {hasChanges && (
-              <span className="ml-1 text-amber-600">（未保存の変更あり）</span>
+              <span className="ml-1 text-emerald-600">
+                ＋{selectedProjectIds.size}件追加予定
+              </span>
             )}
           </p>
         </div>

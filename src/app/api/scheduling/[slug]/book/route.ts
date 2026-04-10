@@ -97,7 +97,7 @@ export async function POST(
       if (token) {
         const attendeeEmails = [...memberEmails, data.guest_email]
 
-        const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+        const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
         const result = await client.createEvent({
           summary: `${link.title} - ${data.guest_name}${data.guest_company ? ` (${data.guest_company})` : ''}`,
           description: [

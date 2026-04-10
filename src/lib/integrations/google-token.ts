@@ -16,6 +16,42 @@ function cleanEnv(value: string | undefined): string {
   return value.trim().replace(/^['"]|['"]$/g, '').trim()
 }
 
+// Google env var キャッシュ（env → DB fallback）
+const _googleEnvCache: Record<string, string> = {}
+
+async function resolveGoogleEnv(key: string): Promise<string> {
+  if (_googleEnvCache[key]) return _googleEnvCache[key]
+
+  const envVal = cleanEnv(process.env[key])
+  if (envVal) {
+    _googleEnvCache[key] = envVal
+    return envVal
+  }
+
+  console.warn(`[google-token] process.env.${key} is empty. Trying DB fallback...`)
+  try {
+    const admin = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (admin as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', key)
+      .single()
+    const val = (data as { value: string } | null)?.value
+    if (val) {
+      const cleaned = cleanEnv(val)
+      if (cleaned) {
+        _googleEnvCache[key] = cleaned
+        console.log(`[google-token] Got ${key} from DB (len=${cleaned.length})`)
+        return cleaned
+      }
+    }
+  } catch (err) {
+    console.error(`[google-token] DB fallback for ${key} failed:`, err)
+  }
+  return ''
+}
+
 export async function getValidTokenForUser(userId: string): Promise<TokenInfo | null> {
   const admin = createAdminClient()
   const { data: user } = await admin
@@ -51,11 +87,11 @@ async function refreshAccessToken(
   userId: string,
   refreshToken: string
 ): Promise<TokenInfo | null> {
-  const clientId = cleanEnv(process.env.GOOGLE_CLIENT_ID)
-  const clientSecret = cleanEnv(process.env.GOOGLE_CLIENT_SECRET)
+  const clientId = await resolveGoogleEnv('GOOGLE_CLIENT_ID')
+  const clientSecret = await resolveGoogleEnv('GOOGLE_CLIENT_SECRET')
   if (!clientId || !clientSecret) {
     console.error(
-      '[refreshAccessToken] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET が未設定です',
+      '[refreshAccessToken] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET が未設定です（env + DB both failed）',
     )
     return null
   }

@@ -11,6 +11,43 @@ function cleanGoogleEnv(value: string | undefined): string | undefined {
   return cleaned || undefined
 }
 
+// Google env var キャッシュ（env → DB fallback）
+const _googleEnvCache: Record<string, string | undefined> = {}
+
+async function resolveGoogleEnvAsync(key: string): Promise<string | undefined> {
+  if (_googleEnvCache[key] !== undefined) return _googleEnvCache[key]
+
+  const envVal = cleanGoogleEnv(process.env[key])
+  if (envVal) {
+    _googleEnvCache[key] = envVal
+    return envVal
+  }
+
+  console.warn(`[google-calendar] process.env.${key} is empty. Trying DB fallback...`)
+  try {
+    const admin = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (admin as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', key)
+      .single()
+    const val = (data as { value: string } | null)?.value
+    if (val) {
+      const cleaned = cleanGoogleEnv(val)
+      if (cleaned) {
+        _googleEnvCache[key] = cleaned
+        console.log(`[google-calendar] Got ${key} from DB (len=${cleaned.length})`)
+        return cleaned
+      }
+    }
+  } catch (err) {
+    console.error(`[google-calendar] DB fallback for ${key} failed:`, err)
+  }
+  _googleEnvCache[key] = undefined
+  return undefined
+}
+
 interface CalendarInfo {
   id: string
   summary: string
@@ -44,11 +81,11 @@ export class GoogleCalendarClient {
   private oauth2Client
   private calendar: calendar_v3.Calendar
 
-  constructor(accessToken: string, refreshToken?: string) {
+  constructor(accessToken: string, refreshToken?: string, clientId?: string, clientSecret?: string, redirectUri?: string) {
     this.oauth2Client = new google.auth.OAuth2(
-      cleanGoogleEnv(process.env.GOOGLE_CLIENT_ID),
-      cleanGoogleEnv(process.env.GOOGLE_CLIENT_SECRET),
-      cleanGoogleEnv(process.env.GOOGLE_REDIRECT_URI)
+      clientId || cleanGoogleEnv(process.env.GOOGLE_CLIENT_ID),
+      clientSecret || cleanGoogleEnv(process.env.GOOGLE_CLIENT_SECRET),
+      redirectUri || cleanGoogleEnv(process.env.GOOGLE_REDIRECT_URI)
     )
 
     this.oauth2Client.setCredentials({
@@ -63,6 +100,18 @@ export class GoogleCalendarClient {
     })
 
     this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client })
+  }
+
+  /**
+   * 非同期ファクトリ: env var → DB fallback でGoogle認証情報を解決してからクライアントを生成
+   */
+  static async create(accessToken: string, refreshToken?: string): Promise<GoogleCalendarClient> {
+    const [clientId, clientSecret, redirectUri] = await Promise.all([
+      resolveGoogleEnvAsync('GOOGLE_CLIENT_ID'),
+      resolveGoogleEnvAsync('GOOGLE_CLIENT_SECRET'),
+      resolveGoogleEnvAsync('GOOGLE_REDIRECT_URI'),
+    ])
+    return new GoogleCalendarClient(accessToken, refreshToken, clientId, clientSecret, redirectUri)
   }
 
   async listCalendars(): Promise<CalendarInfo[]> {

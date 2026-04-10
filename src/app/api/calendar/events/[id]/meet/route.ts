@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     // 既存イベント削除
     try {
@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     // 既存イベント削除
     try {

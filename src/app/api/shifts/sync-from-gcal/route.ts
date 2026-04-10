@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Googleカレンダーが未連携です' }, { status: 400 })
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     // 日付範囲の計算
     const jstOffset = 9 * 60 * 60 * 1000

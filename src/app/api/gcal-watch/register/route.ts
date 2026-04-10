@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       .eq('status', 'active')
       .maybeSingle()
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     // idempotent 動作: ?ensure=1 が付いていれば、有効なチャンネルが既に存在する場合は何もしない
     const url = new URL(request.url)

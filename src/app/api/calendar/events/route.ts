@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Googleカレンダーの認証が必要です。再ログインしてください。' }, { status: 401 })
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     const { eventId, meetUrl } = await client.createEvent({
       summary,

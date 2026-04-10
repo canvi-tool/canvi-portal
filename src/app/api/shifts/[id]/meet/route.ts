@@ -60,7 +60,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     let eventId = shift.google_calendar_event_id
     let meetUrl: string | null = null
@@ -139,7 +139,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       const token = await getValidTokenForUser(staffData.user_id)
 
       if (token) {
-        const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+        const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
         try {
           await client.removeMeetFromEvent({ eventId: shift.google_calendar_event_id })
         } catch (e) {

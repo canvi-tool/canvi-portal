@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        const client = new GoogleCalendarClient(
+        const client = await GoogleCalendarClient.create(
           token.accessToken,
           token.refreshToken || undefined
         )

@@ -52,6 +52,22 @@ export async function GET(request: NextRequest) {
       query = query.eq('employment_type', params.employment_type)
     }
 
+    // project_id フィルター: 指定プロジェクトにアサインされているスタッフのみ
+    const projectIdFilter = searchParams.get('project_id')
+    if (projectIdFilter) {
+      const { data: projAssigns } = await supabase
+        .from('project_assignments')
+        .select('staff_id')
+        .eq('project_id', projectIdFilter)
+        .is('deleted_at', null)
+      const projectStaffIds = [...new Set((projAssigns || []).map((a) => a.staff_id))]
+      if (projectStaffIds.length > 0) {
+        query = query.in('id', projectStaffIds)
+      } else {
+        return NextResponse.json({ data: [], total: 0, page: params.page, limit: params.limit })
+      }
+    }
+
     const offset = (params.page - 1) * params.limit
     query = query
       .order('staff_code', { ascending: true })

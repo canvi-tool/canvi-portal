@@ -28,7 +28,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
     const result = await client.addMeetToEvent({ eventId })
 
     return NextResponse.json({ meetUrl: result.meetUrl })
@@ -59,7 +59,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
     await client.removeMeetFromEvent({ eventId })
 
     return NextResponse.json({ success: true })

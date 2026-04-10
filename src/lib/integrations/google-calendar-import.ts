@@ -38,7 +38,7 @@ export async function syncFromGoogleCalendarForStaff(params: {
     return result
   }
 
-  const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+  const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
   let events
   try {

@@ -37,7 +37,7 @@ export async function syncShiftToCalendar(shiftId: string): Promise<void> {
       return
     }
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
 
     // start_time is "HH:MM" or "HH:MM:SS" from DB — normalize to HH:MM:SS
     const normalizeTime = (t: string) => t.length === 5 ? `${t}:00` : t.slice(0, 8)
@@ -118,7 +118,7 @@ export async function deleteShiftFromCalendar(shiftId: string, options: { notify
     const token = await getValidTokenForUser(userId)
     if (!token) return
 
-    const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+    const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
     await client.deleteEvent('primary', shift.google_calendar_event_id, { notifyAttendees: !!options.notifyAttendees })
 
     // GCalイベントIDをクリア（再提出時に新規イベント作成されるように）

@@ -23,7 +23,7 @@ export async function fetchMemberBusy(
     const token = await getValidTokenForUser(uid)
     if (!token) return { id: uid, busy: [] as BusyInterval[] }
     try {
-      const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+      const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
       const busy = await client.getBusyFromEvents({ timeMin, timeMax })
       return { id: uid, busy: busy.map(b => ({ start: b.start, end: b.end })) }
     } catch {

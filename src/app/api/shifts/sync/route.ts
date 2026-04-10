@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const client = new GoogleCalendarClient(
+    const client = await GoogleCalendarClient.create(
       tokens.access_token,
       tokens.refresh_token
     )

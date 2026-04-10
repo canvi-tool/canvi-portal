@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+        const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
         // events.list APIを使用（calendar.eventsスコープで動作する）
         const busy = await client.getBusyFromEvents({ timeMin, timeMax })
         console.log(`[availability] ${u.email}: ${busy.length} Google events fetched`)

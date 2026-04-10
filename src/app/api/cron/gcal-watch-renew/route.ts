@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         renewed.push({ userId: ch.user_id, channelId: ch.channel_id, ok: false, error: 'no_token' })
         continue
       }
-      const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+      const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
       // 旧チャンネルを stop
       try {
         await client.stopWatchChannel(ch.channel_id, ch.resource_id)

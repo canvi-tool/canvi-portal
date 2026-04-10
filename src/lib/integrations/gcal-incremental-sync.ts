@@ -41,7 +41,7 @@ export async function runIncrementalSyncForStaff(params: {
     result.errors.push('no_google_token')
     return result
   }
-  const client = new GoogleCalendarClient(token.accessToken, token.refreshToken || undefined)
+  const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
   const admin = createAdminClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
