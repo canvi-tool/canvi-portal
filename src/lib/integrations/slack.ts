@@ -146,14 +146,55 @@ export type SlackEventType =
   | 'leave_requested'
   | 'overtime_warning'
 
-// Bot Token
-function getBotToken(): string | null {
-  const token = process.env.SLACK_BOT_TOKEN || null
-  if (!token) {
-    const slackKeys = Object.keys(process.env).filter(k => k.includes('SLACK'))
-    console.warn(`[getBotToken] SLACK_BOT_TOKEN is null. Available SLACK env keys: ${slackKeys.join(', ') || 'NONE'}`)
+// ---- Token Cache (DB fallback for Vercel env var injection issues) ----
+// Vercelの一部サーバーレス関数でprocess.envが見えない問題を回避するため、
+// DBから取得したトークンをメモリキャッシュする。
+const _tokenCache: Record<string, string | null> = {}
+
+/**
+ * system_settings テーブルからトークンを取得（DBフォールバック）
+ * process.env が利用できない場合のバックアップ
+ */
+async function getSettingFromDB(key: string): Promise<string | null> {
+  if (_tokenCache[key] !== undefined) return _tokenCache[key]
+  try {
+    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', key)
+      .single()
+    if (error || !data) {
+      console.warn(`[getSettingFromDB] Failed to read ${key}: ${error?.message || 'not found'}`)
+      _tokenCache[key] = null
+      return null
+    }
+    const val = (data as { value: string }).value
+    console.log(`[getSettingFromDB] Got ${key} from DB (len=${val.length})`)
+    _tokenCache[key] = val
+    return val
+  } catch (err) {
+    console.error(`[getSettingFromDB] Error reading ${key}:`, err)
+    _tokenCache[key] = null
+    return null
   }
-  return token
+}
+
+// Bot Token (sync: env var only)
+function getBotToken(): string | null {
+  return process.env.SLACK_BOT_TOKEN || null
+}
+
+/**
+ * Bot Token を確実に取得（env var → DB fallback）
+ * Vercelの一部関数でprocess.envが見えない問題を回避
+ */
+async function getBotTokenSafe(): Promise<string | null> {
+  const envToken = process.env.SLACK_BOT_TOKEN
+  if (envToken) return envToken
+  console.warn('[getBotTokenSafe] process.env.SLACK_BOT_TOKEN is null, trying DB fallback...')
+  return getSettingFromDB('SLACK_BOT_TOKEN')
 }
 
 // User OAuth Token（ユーザー招待・プロフィール更新に必要）
@@ -161,11 +202,30 @@ function getUserToken(): string | null {
   return process.env.SLACK_USER_TOKEN || null
 }
 
+/**
+ * User Token を確実に取得（env var → DB fallback）
+ */
+async function getUserTokenSafe(): Promise<string | null> {
+  const envToken = process.env.SLACK_USER_TOKEN
+  if (envToken) return envToken
+  return getSettingFromDB('SLACK_USER_TOKEN')
+}
+
 // Usergroup API用トークン
 // Bot tokenではpermission_deniedになるため、User tokenを優先使用
 // SLACK_USER_TOKEN未設定時はSLACK_BOT_TOKENにフォールバック（後方互換）
 function getUsergroupToken(): string {
   return process.env.SLACK_USER_TOKEN || process.env.SLACK_BOT_TOKEN || ''
+}
+
+/**
+ * Usergroup Token を確実に取得（env var → DB fallback）
+ */
+async function getUsergroupTokenSafe(): Promise<string> {
+  const userToken = await getUserTokenSafe()
+  if (userToken) return userToken
+  const botToken = await getBotTokenSafe()
+  return botToken || ''
 }
 
 // デフォルトのWebhook URL（フォールバック）
@@ -193,10 +253,10 @@ export async function sendSlackBotMessage(
   message: SlackMessage,
   options?: { thread_ts?: string; reply_broadcast?: boolean }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     // フォールバック: Webhook方式で送信
-    console.warn('SLACK_BOT_TOKEN is not configured, falling back to webhook')
+    console.warn('SLACK_BOT_TOKEN is not configured (env + DB both failed), falling back to webhook')
     return sendSlackMessage(message)
   }
 
@@ -242,9 +302,9 @@ export async function updateSlackBotMessage(
   ts: string,
   message: SlackMessage
 ): Promise<{ success: boolean; error?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
-    return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
+    return { success: false, error: 'SLACK_BOT_TOKEN is not configured (env + DB both failed)' }
   }
 
   try {
@@ -283,7 +343,7 @@ export async function getProjectMentionText(
   projectId?: string | null,
   selfStaffId?: string | string[] | null
 ): Promise<string> {
-  if (!getBotToken()) return ''
+  if (!(await getBotTokenSafe())) return ''
 
   const supabase = createAdminClient()
   const slackUserIds: Set<string> = new Set()
@@ -407,7 +467,8 @@ export async function sendProjectNotification(
   options?: { thread_ts?: string; projectId?: string | null; staffId?: string | string[] | null }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
-  const hasBotToken = !!getBotToken()
+  const botToken = await getBotTokenSafe()
+  const hasBotToken = !!botToken
   console.log(`[sendProjectNotification] channelId=${channelId}, hasBotToken=${hasBotToken}, hasProjectChannel=${!!projectSlackChannelId}, defaultChannel=${getDefaultChannelId()}`)
 
   // メンション文字列を生成してメッセージに追加
@@ -430,7 +491,7 @@ export async function sendProjectNotification(
     }
   }
 
-  if (channelId && getBotToken()) {
+  if (channelId && hasBotToken) {
     return sendSlackBotMessage(channelId, message, options)
   }
 
@@ -515,7 +576,7 @@ export async function sendSlackAlert(message: SlackMessage): Promise<{ success: 
  * Slackチャンネル一覧を取得（Bot Token方式）
  */
 export async function fetchSlackChannels(): Promise<{ channels: SlackChannel[]; error?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     return { channels: [], error: 'SLACK_BOT_TOKEN is not configured' }
   }
@@ -573,7 +634,7 @@ export async function createSlackChannel(
   name: string,
   isPrivate: boolean = false
 ): Promise<{ channel?: SlackChannel; error?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     return { error: 'SLACK_BOT_TOKEN is not configured' }
   }
@@ -627,7 +688,7 @@ export async function createSlackChannel(
 export async function lookupSlackUserByEmail(
   email: string
 ): Promise<{ slackUserId?: string; error?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     return { error: 'SLACK_BOT_TOKEN is not configured' }
   }
@@ -663,7 +724,7 @@ export async function inviteUserToSlackChannel(
   channelId: string,
   slackUserId: string
 ): Promise<{ success: boolean; error?: string; alreadyInChannel?: boolean }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
   }
@@ -783,7 +844,7 @@ export async function removeUserFromSlackChannel(
   channelId: string,
   slackUserId: string
 ): Promise<{ success: boolean; error?: string; notInChannel?: boolean }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
   }
@@ -862,8 +923,8 @@ export async function inviteUserToSlackWorkspace(
   email: string,
   channelIds?: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  const userToken = getUserToken()
-  const botToken = getBotToken()
+  const userToken = await getUserTokenSafe()
+  const botToken = await getBotTokenSafe()
 
   if (!userToken && !botToken) {
     return { success: false, error: 'Slack Token が設定されていません。Slack管理画面から手動で招待してください。' }
@@ -974,7 +1035,7 @@ export async function updateSlackUserProfile(
   displayName: string
 ): Promise<{ success: boolean; error?: string }> {
   // User Token優先、なければBot Token
-  const token = getUserToken() || getBotToken()
+  const token = (await getUserTokenSafe()) || (await getBotTokenSafe())
   if (!token) {
     return { success: false, error: 'Slack Token が設定されていません' }
   }
@@ -1310,7 +1371,7 @@ export async function sendSlackDM(
   slackUserId: string,
   message: SlackMessage
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) {
     console.warn('SLACK_BOT_TOKEN is not configured, cannot send DM')
     return { success: false, error: 'SLACK_BOT_TOKEN is not configured' }
@@ -1771,7 +1832,7 @@ export async function syncProjectUsergroup(projectId: string): Promise<void> {
     // Bot自身を仮メンバーとして追加してグループを可視化する
     console.warn('[usergroup] No assigned staff with Slack IDs for project', project.project_code, '— adding bot as placeholder')
     const authRes = await fetch('https://slack.com/api/auth.test', {
-      headers: { Authorization: `Bearer ${getBotToken()}` },
+      headers: { Authorization: `Bearer ${await getBotTokenSafe()}` },
     })
     const authData = await authRes.json()
     if (authData.ok && authData.user_id) {
@@ -1925,7 +1986,7 @@ export async function findProjectByChannelId(channelId: string): Promise<{ id: s
  * チャンネル情報を取得（チャンネル名の解決用）
  */
 export async function getChannelInfo(channelId: string): Promise<{ name: string } | null> {
-  const token = getBotToken()
+  const token = await getBotTokenSafe()
   if (!token) return null
 
   try {

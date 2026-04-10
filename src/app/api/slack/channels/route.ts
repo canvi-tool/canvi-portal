@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, isOwner, isAdmin } from '@/lib/auth/rbac'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +17,37 @@ interface SlackChannelRaw {
 }
 
 /**
+ * env var → DB fallback でBot Tokenを取得
+ */
+async function resolveSlackBotToken(): Promise<string | null> {
+  // 1. process.env を試す
+  const envToken = process.env.SLACK_BOT_TOKEN
+  if (envToken) return envToken
+
+  // 2. DB fallback (system_settings テーブル)
+  console.warn('[slack/channels] process.env.SLACK_BOT_TOKEN is null. Trying DB fallback...')
+  try {
+    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'SLACK_BOT_TOKEN')
+      .single()
+    const val = (data as { value: string } | null)?.value
+    if (val) {
+      console.log(`[slack/channels] Got SLACK_BOT_TOKEN from DB (len=${val.length})`)
+      return val
+    }
+  } catch (err) {
+    console.error('[slack/channels] DB fallback failed:', err)
+  }
+  return null
+}
+
+/**
  * GET /api/slack/channels
  * Slackチャンネル一覧取得（認証済みユーザー全員が読み取り可能）
- *
- * NOTE: slack.ts の fetchSlackChannels を使わず直接 Slack API を呼ぶ。
- * 理由: 特定ルートで process.env が見えなくなるVercel/Next.jsバンドル問題を回避。
- * health/test-notify エンドポイントと同じ直接呼び出しパターンを採用。
  */
 export async function GET() {
   try {
@@ -40,20 +66,16 @@ export async function GET() {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    // 直接 process.env から読み取り（slack.ts経由しない）
-    const botToken = process.env.SLACK_BOT_TOKEN
-    const tokenExists = !!botToken
-    const tokenLen = botToken?.length ?? 0
-    const tokenPrefix = botToken?.substring(0, 10) ?? '(unset)'
+    // env var → DB fallback でトークン取得
+    const botToken = await resolveSlackBotToken()
 
-    console.log(`[slack/channels] GET: user=${user.id}, token_exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}`)
+    console.log(`[slack/channels] GET: user=${user.id}, token_exists=${!!botToken}, source=${process.env.SLACK_BOT_TOKEN ? 'env' : 'db'}`)
 
     if (!botToken) {
-      console.error(`[slack/channels] SLACK_BOT_TOKEN is null/undefined. All env keys containing SLACK: ${Object.keys(process.env).filter(k => k.includes('SLACK')).join(', ') || 'NONE'}`)
       return NextResponse.json({
         channels: [],
-        error: 'SLACK_BOT_TOKEN is not configured',
-        _debug: `token_exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}, slack_keys=${Object.keys(process.env).filter(k => k.includes('SLACK')).join(',')}`,
+        error: 'SLACK_BOT_TOKEN is not configured (env + DB both failed)',
+        _debug: `env_token=false, db_fallback=failed`,
       })
     }
 
@@ -137,10 +159,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'チャンネル名は80文字以内にしてください' }, { status: 400 })
     }
 
-    // POST も直接 Slack API を呼ぶ
-    const botToken = process.env.SLACK_BOT_TOKEN
+    // POST も env → DB fallback でトークン取得
+    const botToken = await resolveSlackBotToken()
     if (!botToken) {
-      return NextResponse.json({ error: 'SLACK_BOT_TOKEN is not configured' }, { status: 500 })
+      return NextResponse.json({ error: 'SLACK_BOT_TOKEN is not configured (env + DB both failed)' }, { status: 500 })
     }
 
     const channelName = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-_\u3000-\u9fff\uff00-\uffef]/g, '')
