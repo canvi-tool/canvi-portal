@@ -1492,6 +1492,20 @@ export function buildGeneralAlertNotification(title: string, message: string, se
 // ============================================================
 
 /**
+ * チャンネル名からSlackユーザーグループ用の有効なハンドルを生成
+ * Slack制約: 小文字英数字・ハイフンのみ、最大21文字
+ */
+function sanitizeUsergroupHandle(channelName: string): string {
+  return channelName
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-') // 英数字・ハイフン以外をハイフンに変換
+    .replace(/-{2,}/g, '-')       // 連続ハイフンを1つに
+    .replace(/^-|-$/g, '')        // 先頭・末尾のハイフンを除去
+    .slice(0, 21)                 // Slack上限21文字に切り詰め
+    .replace(/-$/g, '')           // 切り詰め後の末尾ハイフンも除去
+}
+
+/**
  * チャンネル名をハンドルとしてユーザーグループを作成 or 既存を取得
  * 存在すれば既存IDを返し、なければ新規作成する
  */
@@ -1504,6 +1518,13 @@ export async function createOrFindUsergroup(
     console.error('[usergroup] SLACK_BOT_TOKEN is not set')
     return null
   }
+
+  const handle = sanitizeUsergroupHandle(channelName)
+  if (!handle) {
+    console.error('[usergroup] Could not derive valid handle from channel name:', channelName)
+    return null
+  }
+  console.log(`[usergroup] channelName="${channelName}" → handle="${handle}"`)
 
   try {
     // まず DB キャッシュを確認
@@ -1528,15 +1549,29 @@ export async function createOrFindUsergroup(
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const existing = (listData.usergroups || []).find((ug: any) => ug.handle === channelName)
+    const existing = (listData.usergroups || []).find((ug: any) => ug.handle === handle)
     if (existing) {
       // 無効化されている場合は再有効化
       if (existing.date_delete > 0) {
-        await fetch('https://slack.com/api/usergroups.update', {
+        const enableRes = await fetch('https://slack.com/api/usergroups.enable', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ usergroup: existing.id, name: channelName, handle: channelName }),
+          body: JSON.stringify({ usergroup: existing.id }),
         })
+        const enableData = await enableRes.json()
+        if (!enableData.ok) {
+          console.error('[usergroup] usergroups.enable failed:', enableData.error)
+        }
+      }
+      // ハンドルが変わっている可能性があるので常に更新
+      const updateRes = await fetch('https://slack.com/api/usergroups.update', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usergroup: existing.id, name: channelName, handle }),
+      })
+      const updateData = await updateRes.json()
+      if (!updateData.ok) {
+        console.error('[usergroup] usergroups.update failed:', updateData.error)
       }
       // DB に保存
       await supabase.from('slack_channel_usergroups').upsert({
@@ -1553,17 +1588,18 @@ export async function createOrFindUsergroup(
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: channelName,
-        handle: channelName,
+        handle,
         description: `Auto-managed group for #${channelName}`,
       }),
     })
     const createData = await createRes.json()
     if (!createData.ok) {
-      console.error('[usergroup] usergroups.create failed:', createData.error)
+      console.error('[usergroup] usergroups.create failed:', createData.error, `(handle="${handle}")`)
       return null
     }
 
     const usergroupId = createData.usergroup.id
+    console.log(`[usergroup] Created usergroup ${usergroupId} with handle @${handle}`)
     // DB に保存
     await supabase.from('slack_channel_usergroups').upsert({
       channel_id: channelId,
@@ -1757,9 +1793,18 @@ export async function initUsergroupSync(channelId: string, channelName?: string)
     const members = await getChannelMembers(channelId)
     if (members.length > 0) {
       await syncUsergroupMembers(usergroupId, members)
-      console.log(`[usergroup] Synced ${members.length} members to @${name}`)
+      console.log(`[usergroup] Synced ${members.length} members to usergroup for #${name}`)
     } else {
-      console.warn('[usergroup] No members found for channel', name)
+      // Slack はメンバー0人のユーザーグループをオートコンプリートに表示しない
+      // Bot自身を仮メンバーとして追加してグループを可視化する
+      console.warn('[usergroup] No human members found for channel', name, '— adding bot as placeholder')
+      const authRes = await fetch('https://slack.com/api/auth.test', {
+        headers: { Authorization: `Bearer ${getBotToken()}` },
+      })
+      const authData = await authRes.json()
+      if (authData.ok && authData.user_id) {
+        await syncUsergroupMembers(usergroupId, [authData.user_id])
+      }
     }
   } catch (err) {
     console.error('[usergroup] initUsergroupSync error:', err)
