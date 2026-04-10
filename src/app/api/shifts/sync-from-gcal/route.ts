@@ -166,9 +166,10 @@ export async function POST(request: NextRequest) {
 
       const newDescription = event.description || null
       const newMeetUrl = event.meetUrl || null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const newAttendees = (event.attendees || [])
-        .filter((a: any) => !a.organizer)
-        .map((a: any) => ({ email: a.email, name: a.displayName || undefined }))
+        .filter((a: { organizer?: boolean }) => !a.organizer)
+        .map((a: { email: string; displayName?: string }) => ({ email: a.email, name: a.displayName || undefined }))
 
       if (existing) {
         // GCal側で時刻/Meet URL/説明/タイトル/参加者が変更された場合、Canviシフトを更新
