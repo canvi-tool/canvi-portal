@@ -30,12 +30,41 @@ export async function GET() {
     const tokenExists = !!process.env.SLACK_BOT_TOKEN
     const tokenLen = process.env.SLACK_BOT_TOKEN?.length ?? 0
     const tokenPrefix = process.env.SLACK_BOT_TOKEN?.substring(0, 8) ?? '(unset)'
-    console.log(`[slack/channels] GET called by user=${user.id}, SLACK_BOT_TOKEN exists=${tokenExists}, len=${tokenLen}, prefix=${tokenPrefix}`)
+    console.log(`[slack/channels] GET called by user=${user.id}, token=${tokenExists} len=${tokenLen} prefix=${tokenPrefix}`)
 
     const result = await fetchSlackChannels()
 
     if (result.error) {
-      console.error(`[slack/channels] fetchSlackChannels error: ${result.error}`)
+      console.error(`[slack/channels] fetchSlackChannels error: ${result.error}, token_exists=${tokenExists}`)
+
+      // フォールバック: fetchSlackChannels が "not configured" を返すが
+      // process.env にトークンが存在する場合、直接APIを叩く
+      if (result.error.includes('not configured') && process.env.SLACK_BOT_TOKEN) {
+        console.warn('[slack/channels] FALLBACK: token exists but fetchSlackChannels returned not configured. Trying direct API call...')
+        try {
+          const directRes = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&exclude_archived=true&limit=200', {
+            headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+          })
+          const directData = await directRes.json()
+          if (directData.ok && directData.channels) {
+            const channels = directData.channels.map((ch: { id: string; name: string; is_private: boolean; is_archived: boolean; num_members: number; purpose?: { value: string } }) => ({
+              id: ch.id,
+              name: ch.name,
+              is_private: ch.is_private,
+              is_archived: ch.is_archived,
+              num_members: ch.num_members,
+              purpose: ch.purpose?.value,
+            }))
+            channels.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
+            console.log(`[slack/channels] FALLBACK OK: ${channels.length} channels fetched directly`)
+            return NextResponse.json({ channels })
+          }
+          console.error('[slack/channels] FALLBACK also failed:', directData.error)
+        } catch (fallbackErr) {
+          console.error('[slack/channels] FALLBACK fetch error:', fallbackErr)
+        }
+      }
+
       return NextResponse.json(
         {
           channels: [],

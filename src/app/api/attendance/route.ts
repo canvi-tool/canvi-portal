@@ -242,16 +242,19 @@ export async function POST(request: NextRequest) {
     let projectSlackChannelId: string | null = null
     let projectName: string | undefined
     const projectId = parsed.data.project_id || null
+    console.log(`[attendance-notify] projectId=${projectId}`)
     if (projectId) {
-      const { data: proj } = await supabase
+      const { data: proj, error: projErr } = await supabase
         .from('projects')
         .select('slack_channel_id, name')
         .eq('id', projectId)
         .single()
       projectSlackChannelId = proj?.slack_channel_id || null
       projectName = proj?.name
+      console.log(`[attendance-notify] proj query: channel=${projectSlackChannelId}, name=${projectName}, err=${projErr?.message || 'none'}`)
     }
     const staffName = user.displayName || user.email || 'メンバー'
+    console.log(`[attendance-notify] Sending notification: staffName=${staffName}, channel=${projectSlackChannelId}, projectId=${projectId}, staffId=${staffRecord?.id}`)
     // 出勤通知を送信し、thread_tsをnoteフィールドに埋め込む（後続打刻をスレッドにまとめるため）
     try {
       const result = await sendProjectNotification(
@@ -259,7 +262,7 @@ export async function POST(request: NextRequest) {
         projectSlackChannelId,
         { projectId, staffId: staffRecord?.id }
       )
-      console.log(`[thread] clock-in result: success=${result.success}, ts=${result.ts}, id=${data?.id}`)
+      console.log(`[attendance-notify] result: success=${result.success}, error=${result.error || 'none'}, ts=${result.ts}, id=${data?.id}`)
       if (result.ts && data?.id) {
         // noteフィールドにthread_tsを埋め込み保存（admin clientでRLSバイパス）
         const adminSupabase = createAdminClient()

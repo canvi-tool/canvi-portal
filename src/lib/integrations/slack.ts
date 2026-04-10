@@ -402,6 +402,8 @@ export async function sendProjectNotification(
   options?: { thread_ts?: string; projectId?: string | null; staffId?: string | string[] | null }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
+  const hasBotToken = !!getBotToken()
+  console.log(`[sendProjectNotification] channelId=${channelId}, hasBotToken=${hasBotToken}, hasProjectChannel=${!!projectSlackChannelId}, defaultChannel=${getDefaultChannelId()}`)
 
   // メンション文字列を生成してメッセージに追加
   if (options?.projectId || options?.staffId) {

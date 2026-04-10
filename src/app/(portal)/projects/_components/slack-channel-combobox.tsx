@@ -68,7 +68,7 @@ export function SlackChannelCombobox({
   const fetchChannels = useCallback(() => {
     setLoading(true)
     setError(null) // Clear previous error on retry
-    fetch('/api/slack/channels')
+    fetch(`/api/slack/channels?_t=${Date.now()}`)
       .then((r) => {
         if (r.status === 401) {
           setError('認証エラー: ログインし直してください')

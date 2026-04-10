@@ -165,77 +165,89 @@ export async function POST(request: NextRequest) {
     const typeLabel = DAILY_REPORT_TYPE_LABELS[report_type as DailyReportType] || '日報'
 
     if (!isDraft && data.project_id) {
-      const { data: proj } = await supabase
+      const { data: proj, error: projErr } = await supabase
         .from('projects')
         .select('slack_channel_id')
         .eq('id', data.project_id)
         .single()
 
+      console.log(`[report-notify] project_id=${data.project_id}, slack_channel=${proj?.slack_channel_id || 'NULL'}, projErr=${projErr?.message || 'none'}, isDraft=${isDraft}`)
+
       if (proj?.slack_channel_id) {
-        const kpiSummary = buildKpiSummary(report_type, customFields)
-        const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
-        const result = await sendProjectNotificationIfEnabled(
-          {
-            text: `${staffName} が ${typeLabel} を提出しました（${projectName}）`,
-            blocks: [
-              {
-                type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: `*${staffName}* が *${typeLabel}* を提出しました\n${report_date} | ${projectName}`,
+        try {
+          const kpiSummary = buildKpiSummary(report_type, customFields)
+          const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
+          console.log(`[report-notify] Sending notification: channel=${proj.slack_channel_id}, staffId=${staffId}, report_type=${report_type}`)
+          const result = await sendProjectNotificationIfEnabled(
+            {
+              text: `${staffName} が ${typeLabel} を提出しました（${projectName}）`,
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: `*${staffName}* が *${typeLabel}* を提出しました\n${report_date} | ${projectName}`,
+                  },
                 },
-              },
-              ...(kpiSummary ? [{
-                type: 'context' as const,
-                elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
-              }] : []),
-              {
-                type: 'actions',
-                elements: [
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '承認' },
-                    style: 'primary',
-                    action_id: 'report_approve',
-                    value: data.id,
-                  },
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '差戻し' },
-                    style: 'danger',
-                    action_id: 'report_reject',
-                    value: data.id,
-                  },
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '詳細を見る' },
-                    url: `${portalUrl}/reports/work/${data.id}`,
-                    action_id: 'report_view',
-                  },
-                ],
-              },
-            ],
-          },
-          data.project_id,
-          proj.slack_channel_id,
-          'report_submitted',
-          { staffId: staffId }
-        )
+                ...(kpiSummary ? [{
+                  type: 'context' as const,
+                  elements: [{ type: 'mrkdwn' as const, text: kpiSummary }],
+                }] : []),
+                {
+                  type: 'actions',
+                  elements: [
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '承認' },
+                      style: 'primary',
+                      action_id: 'report_approve',
+                      value: data.id,
+                    },
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '差戻し' },
+                      style: 'danger',
+                      action_id: 'report_reject',
+                      value: data.id,
+                    },
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '詳細を見る' },
+                      url: `${portalUrl}/reports/work/${data.id}`,
+                      action_id: 'report_view',
+                    },
+                  ],
+                },
+              ],
+            },
+            data.project_id,
+            proj.slack_channel_id,
+            'report_submitted',
+            { staffId: staffId }
+          )
+          console.log(`[report-notify] result: success=${result.success}, error=${result.error || 'none'}, skipped=${result.skipped || false}, ts=${result.ts}`)
 
-        // slack_thread_ts を保存（スレッド集約用）
-        const threadTs = result.ts
-        if (threadTs) {
-          await supabase
-            .from('work_reports')
-            .update({ slack_thread_ts: threadTs })
-            .eq('id', data.id)
+          // slack_thread_ts を保存（スレッド集約用）
+          const threadTs = result.ts
+          if (threadTs) {
+            try {
+              await supabase
+                .from('work_reports')
+                .update({ slack_thread_ts: threadTs })
+                .eq('id', data.id)
 
-          // スレッド内に報告内容の詳細を投稿
-          const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
-          await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} の ${typeLabel} 詳細`,
-            blocks: detailBlocks,
-          }, { thread_ts: threadTs })
+              // スレッド内に報告内容の詳細を投稿
+              const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
+              await sendSlackBotMessage(proj.slack_channel_id, {
+                text: `${staffName} の ${typeLabel} 詳細`,
+                blocks: detailBlocks,
+              }, { thread_ts: threadTs })
+            } catch (threadErr) {
+              console.error('[report-notify] thread detail error:', threadErr)
+            }
+          }
+        } catch (notifyErr) {
+          console.error('[report-notify] notification error:', notifyErr)
         }
       }
     }
