@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
-import { Loader2, Hash, Lock } from 'lucide-react'
+import { Loader2, Lock } from 'lucide-react'
 import type { Tables } from '@/lib/types/database'
 
 type Staff = Tables<'staff'>
@@ -102,8 +102,9 @@ export function SlackProvisionDialog({
     }
   }, [staff, open, fetchChannels])
 
+  // プライベートチャンネルのみ表示（パブリックにBotを入れない運用のため）
   const filteredChannels = channels.filter((ch) =>
-    ch.name.toLowerCase().includes(channelFilter.toLowerCase())
+    ch.is_private && ch.name.toLowerCase().includes(channelFilter.toLowerCase())
   )
 
   const toggleChannel = (channelId: string) => {
@@ -260,11 +261,7 @@ export function SlackProvisionDialog({
                           checked={selectedChannels.has(ch.id)}
                           onChange={() => toggleChannel(ch.id)}
                         />
-                        {ch.is_private ? (
-                          <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        ) : (
-                          <Hash className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        )}
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                         <span className="truncate">{ch.name}</span>
                         {ch.num_members !== undefined && (
                           <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
