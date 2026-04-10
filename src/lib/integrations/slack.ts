@@ -1590,98 +1590,94 @@ async function createOrFindProjectUsergroup(
 ): Promise<string | null> {
   const token = getBotToken()
   if (!token) {
-    console.error('[usergroup] SLACK_BOT_TOKEN is not set')
-    return null
+    throw new Error('SLACK_BOT_TOKEN is not set')
   }
 
   // project_usergroups テーブルにキャッシュ済みならそれを返す
   const cachedId = await getProjectUsergroupId(projectId)
   if (cachedId) {
+    console.log(`[usergroup] Cache hit: projectId=${projectId} → usergroupId=${cachedId}`)
     return cachedId
   }
 
   const handle = sanitizeUsergroupHandle(projectCode)
   if (!handle) {
-    console.error('[usergroup] Could not derive valid handle from project_code:', projectCode)
-    return null
+    throw new Error(`Could not derive valid handle from project_code: ${projectCode}`)
   }
   console.log(`[usergroup] projectCode="${projectCode}" → handle="${handle}", name="${projectName}"`)
 
-  try {
-    // Slack API で既存ユーザーグループを検索
-    const listRes = await fetch('https://slack.com/api/usergroups.list?include_disabled=true', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const listData = await listRes.json()
-    if (!listData.ok) {
-      console.error('[usergroup] usergroups.list failed:', listData.error)
-      return null
-    }
+  // Slack API で既存ユーザーグループを検索
+  const listRes = await fetch('https://slack.com/api/usergroups.list?include_disabled=true', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const listData = await listRes.json()
+  if (!listData.ok) {
+    throw new Error(`usergroups.list failed: ${listData.error}`)
+  }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const existing = (listData.usergroups || []).find((ug: any) => ug.handle === handle)
-    if (existing) {
-      // 無効化されている場合は再有効化
-      if (existing.date_delete > 0) {
-        const enableRes = await fetch('https://slack.com/api/usergroups.enable', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ usergroup: existing.id }),
-        })
-        const enableData = await enableRes.json()
-        if (!enableData.ok) {
-          console.error('[usergroup] usergroups.enable failed:', enableData.error)
-        }
-      }
-      // プロジェクト名で表示名を更新
-      const updatePayload: Record<string, string> = {
-        usergroup: existing.id,
-        name: projectName,
-        handle,
-      }
-      if (channelId) updatePayload.channels = channelId
-      const updateRes = await fetch('https://slack.com/api/usergroups.update', {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existing = (listData.usergroups || []).find((ug: any) => ug.handle === handle)
+  if (existing) {
+    console.log(`[usergroup] Found existing usergroup: id=${existing.id}, handle=${existing.handle}, date_delete=${existing.date_delete}`)
+    // 無効化されている場合は再有効化
+    if (existing.date_delete > 0) {
+      const enableRes = await fetch('https://slack.com/api/usergroups.enable', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload),
+        body: JSON.stringify({ usergroup: existing.id }),
       })
-      const updateData = await updateRes.json()
-      if (!updateData.ok) {
-        console.error('[usergroup] usergroups.update failed:', updateData.error)
+      const enableData = await enableRes.json()
+      if (!enableData.ok) {
+        console.error('[usergroup] usergroups.enable failed:', enableData.error)
+        // enable失敗は致命的ではないので続行
       }
-      // project_usergroups テーブルに保存
-      await upsertProjectUsergroup(projectId, existing.id, handle)
-      return existing.id
     }
-
-    // 新規作成
-    const createPayload: Record<string, string> = {
+    // プロジェクト名で表示名を更新
+    const updatePayload: Record<string, string> = {
+      usergroup: existing.id,
       name: projectName,
       handle,
-      description: `Canvi Portal: ${projectName}`,
     }
-    if (channelId) createPayload.channels = channelId
-    const createRes = await fetch('https://slack.com/api/usergroups.create', {
+    if (channelId) updatePayload.channels = channelId
+    const updateRes = await fetch('https://slack.com/api/usergroups.update', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(createPayload),
+      body: JSON.stringify(updatePayload),
     })
-    const createData = await createRes.json()
-    if (!createData.ok) {
-      console.error('[usergroup] usergroups.create failed:', createData.error, `(handle="${handle}")`)
-      return null
+    const updateData = await updateRes.json()
+    if (!updateData.ok) {
+      console.error('[usergroup] usergroups.update failed:', updateData.error)
+      // update失敗でもupsertは実行する
     }
-
-    const usergroupId = createData.usergroup.id
-    console.log(`[usergroup] Created usergroup ${usergroupId} with handle @${handle}`)
     // project_usergroups テーブルに保存
-    await upsertProjectUsergroup(projectId, usergroupId, handle)
-
-    return usergroupId
-  } catch (err) {
-    console.error('[usergroup] createOrFindProjectUsergroup error:', err)
-    return null
+    await upsertProjectUsergroup(projectId, existing.id, handle)
+    return existing.id
   }
+
+  // 新規作成
+  console.log(`[usergroup] Creating new usergroup: handle="${handle}", name="${projectName}", channelId=${channelId}`)
+  const createPayload: Record<string, string> = {
+    name: projectName,
+    handle,
+    description: `Canvi Portal: ${projectName}`,
+  }
+  if (channelId) createPayload.channels = channelId
+  const createRes = await fetch('https://slack.com/api/usergroups.create', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(createPayload),
+  })
+  const createData = await createRes.json()
+  if (!createData.ok) {
+    throw new Error(`usergroups.create failed: ${createData.error} (handle="${handle}")`)
+  }
+
+  const usergroupId = createData.usergroup.id
+  console.log(`[usergroup] Created usergroup ${usergroupId} with handle @${handle}`)
+  // project_usergroups テーブルに保存
+  await upsertProjectUsergroup(projectId, usergroupId, handle)
+
+  return usergroupId
 }
 
 /**
@@ -1690,24 +1686,25 @@ async function createOrFindProjectUsergroup(
  */
 async function syncUsergroupMembers(usergroupId: string, userIds: string[]): Promise<void> {
   const token = getBotToken()
-  if (!token || userIds.length === 0) {
-    console.warn('[usergroup] syncUsergroupMembers: no token or empty user list, skipping')
+  if (!token) {
+    throw new Error('SLACK_BOT_TOKEN is not set')
+  }
+  if (userIds.length === 0) {
+    console.warn('[usergroup] syncUsergroupMembers: empty user list, skipping')
     return
   }
 
-  try {
-    const res = await fetch('https://slack.com/api/usergroups.users.update', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usergroup: usergroupId, users: userIds.join(',') }),
-    })
-    const data = await res.json()
-    if (!data.ok) {
-      console.error('[usergroup] usergroups.users.update failed:', data.error)
-    }
-  } catch (err) {
-    console.error('[usergroup] syncUsergroupMembers error:', err)
+  console.log(`[usergroup] syncUsergroupMembers: usergroupId=${usergroupId}, users=${userIds.join(',')}`)
+  const res = await fetch('https://slack.com/api/usergroups.users.update', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usergroup: usergroupId, users: userIds.join(',') }),
+  })
+  const data = await res.json()
+  if (!data.ok) {
+    throw new Error(`usergroups.users.update failed: ${data.error} (usergroupId=${usergroupId})`)
   }
+  console.log(`[usergroup] syncUsergroupMembers: success, ${userIds.length} members set`)
 }
 
 /**
@@ -1716,50 +1713,57 @@ async function syncUsergroupMembers(usergroupId: string, userIds: string[]): Pro
  * project_usergroups テーブルでマッピングを管理
  */
 export async function syncProjectUsergroup(projectId: string): Promise<void> {
-  try {
-    const supabase = createAdminClient()
-    const { data: project } = await supabase
-      .from('projects')
-      .select('id, name, project_code, slack_channel_id, custom_fields')
-      .eq('id', projectId)
-      .single()
+  const supabase = createAdminClient()
+  console.log(`[usergroup] syncProjectUsergroup START projectId=${projectId}`)
 
-    if (!project) {
-      console.log('[usergroup] syncProjectUsergroup: project not found', projectId)
-      return
-    }
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('id, name, project_code, slack_channel_id, custom_fields')
+    .eq('id', projectId)
+    .single()
 
-    const displayName = (project.custom_fields as Record<string, unknown>)?.calendar_display_name as string || project.name
-    const usergroupId = await createOrFindProjectUsergroup(
-      project.id,
-      project.project_code,
-      displayName,
-      project.slack_channel_id
-    )
-    if (!usergroupId) {
-      console.error('[usergroup] Failed to create/find usergroup for project', project.project_code)
-      return
-    }
-
-    const slackUserIds = await getProjectAssignmentSlackUserIds(projectId)
-    if (slackUserIds.length > 0) {
-      await syncUsergroupMembers(usergroupId, slackUserIds)
-      console.log(`[usergroup] Synced ${slackUserIds.length} members to usergroup for project ${project.project_code}`)
-    } else {
-      // Slack はメンバー0人のユーザーグループをオートコンプリートに表示しない
-      // Bot自身を仮メンバーとして追加してグループを可視化する
-      console.warn('[usergroup] No assigned staff with Slack IDs for project', project.project_code, '— adding bot as placeholder')
-      const authRes = await fetch('https://slack.com/api/auth.test', {
-        headers: { Authorization: `Bearer ${getBotToken()}` },
-      })
-      const authData = await authRes.json()
-      if (authData.ok && authData.user_id) {
-        await syncUsergroupMembers(usergroupId, [authData.user_id])
-      }
-    }
-  } catch (err) {
-    console.error('[usergroup] syncProjectUsergroup error:', err)
+  if (projectError || !project) {
+    const msg = `Project not found: ${projectId} (${projectError?.message || 'no data'})`
+    console.error('[usergroup]', msg)
+    throw new Error(msg)
   }
+
+  console.log(`[usergroup] Project: ${project.project_code} "${project.name}" channel=${project.slack_channel_id}`)
+
+  const displayName = (project.custom_fields as Record<string, unknown>)?.calendar_display_name as string || project.name
+  const usergroupId = await createOrFindProjectUsergroup(
+    project.id,
+    project.project_code,
+    displayName,
+    project.slack_channel_id
+  )
+  if (!usergroupId) {
+    const msg = `Failed to create/find usergroup for project ${project.project_code} — Slack API may have returned an error (check logs above)`
+    console.error('[usergroup]', msg)
+    throw new Error(msg)
+  }
+
+  console.log(`[usergroup] usergroupId=${usergroupId} for ${project.project_code}`)
+
+  const slackUserIds = await getProjectAssignmentSlackUserIds(projectId)
+  console.log(`[usergroup] Found ${slackUserIds.length} Slack user IDs for ${project.project_code}:`, slackUserIds)
+
+  if (slackUserIds.length > 0) {
+    await syncUsergroupMembers(usergroupId, slackUserIds)
+    console.log(`[usergroup] Synced ${slackUserIds.length} members to usergroup for project ${project.project_code}`)
+  } else {
+    // Slack はメンバー0人のユーザーグループをオートコンプリートに表示しない
+    // Bot自身を仮メンバーとして追加してグループを可視化する
+    console.warn('[usergroup] No assigned staff with Slack IDs for project', project.project_code, '— adding bot as placeholder')
+    const authRes = await fetch('https://slack.com/api/auth.test', {
+      headers: { Authorization: `Bearer ${getBotToken()}` },
+    })
+    const authData = await authRes.json()
+    if (authData.ok && authData.user_id) {
+      await syncUsergroupMembers(usergroupId, [authData.user_id])
+    }
+  }
+  console.log(`[usergroup] syncProjectUsergroup DONE ${project.project_code}`)
 }
 
 /**

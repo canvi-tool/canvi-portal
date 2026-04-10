@@ -39,12 +39,15 @@ export async function POST() {
     const results: Array<{
       project_code: string
       project_name: string
-      status: 'ok' | 'error'
+      status: 'ok' | 'error' | 'skipped'
       error?: string
     }> = []
 
+    console.log(`[sync-usergroups] Processing ${projects.length} projects`)
+
     for (const project of projects) {
       try {
+        console.log(`[sync-usergroups] Processing: ${project.project_code} (${project.id})`)
         await syncProjectUsergroup(project.id)
         results.push({
           project_code: project.project_code,
@@ -52,17 +55,21 @@ export async function POST() {
           status: 'ok',
         })
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error(`[sync-usergroups] FAILED: ${project.project_code}: ${errorMsg}`)
         results.push({
           project_code: project.project_code,
           project_name: project.name,
           status: 'error',
-          error: err instanceof Error ? err.message : String(err),
+          error: errorMsg,
         })
       }
     }
 
     const okCount = results.filter((r) => r.status === 'ok').length
     const errCount = results.filter((r) => r.status === 'error').length
+
+    console.log(`[sync-usergroups] Done: ${okCount} ok, ${errCount} errors`)
 
     return NextResponse.json({
       message: `${projects.length}プロジェクト処理完了: ${okCount}成功, ${errCount}エラー`,
