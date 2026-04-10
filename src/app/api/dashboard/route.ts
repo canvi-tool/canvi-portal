@@ -25,7 +25,7 @@ export async function GET() {
     const today = todayStr()
     const isOwnerUser = isOwner(user)
 
-    // プロジェクト数（スコープ適用）
+    // プロジェクト数（スコープ適用）— CAN（社内業務）は除外
     let activeProjectCount = 0
     if (allowedProjectIds === null) {
       // オーナー: 全プロジェクト
@@ -33,6 +33,7 @@ export async function GET() {
         .from('projects')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
+        .neq('project_type', 'CAN')
       activeProjectCount = count || 0
     } else if (allowedProjectIds.length > 0) {
       const { count } = await supabase
@@ -40,6 +41,7 @@ export async function GET() {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
         .in('id', allowedProjectIds)
+        .neq('project_type', 'CAN')
       activeProjectCount = count || 0
     }
 

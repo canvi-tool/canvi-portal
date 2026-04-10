@@ -36,6 +36,7 @@ const PROJECT_TYPE_TABS = [
   { value: 'BPO', label: 'BPO' },
   { value: 'RPO', label: 'RPO' },
   { value: 'ETC', label: 'ETC' },
+  { value: 'CAN', label: 'CAN' },
 ] as const
 
 export default function ProjectsPage() {
@@ -72,8 +73,8 @@ export default function ProjectsPage() {
 
   // 各タブのカウント
   const tabCounts = useMemo(() => {
-    if (!projects) return { all: 0, BPO: 0, RPO: 0, ETC: 0 }
-    const counts = { all: projects.length, BPO: 0, RPO: 0, ETC: 0 }
+    if (!projects) return { all: 0, BPO: 0, RPO: 0, ETC: 0, CAN: 0 }
+    const counts = { all: projects.length, BPO: 0, RPO: 0, ETC: 0, CAN: 0 }
     for (const p of projects) {
       const t = p.project_type as keyof typeof counts
       if (t in counts) counts[t]++

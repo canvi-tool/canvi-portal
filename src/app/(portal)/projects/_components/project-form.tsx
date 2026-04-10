@@ -226,6 +226,11 @@ export function ProjectForm({
         {errors.project_number && (
           <p className="text-sm text-destructive">{errors.project_number.message}</p>
         )}
+        {projectType === 'CAN' && (
+          <p className="text-sm text-muted-foreground">
+            社内プロジェクト（ダッシュボードの進行中PJ数には含まれません）
+          </p>
+        )}
       </div>
 
       {/* PJ名 */}

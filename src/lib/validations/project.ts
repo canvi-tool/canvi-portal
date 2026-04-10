@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const projectFormSchema = z.object({
-  project_type: z.enum(['BPO', 'RPO', 'ETC'], {
+  project_type: z.enum(['BPO', 'RPO', 'ETC', 'CAN'], {
     message: 'PJ種別を選択してください',
   }),
   project_number: z

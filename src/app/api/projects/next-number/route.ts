@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const projectType = searchParams.get('type')
 
-    if (!projectType || !['BPO', 'RPO', 'ETC'].includes(projectType)) {
+    if (!projectType || !['BPO', 'RPO', 'ETC', 'CAN'].includes(projectType)) {
       return NextResponse.json(
-        { error: 'type パラメータが必要です (BPO/RPO/ETC)' },
+        { error: 'type パラメータが必要です (BPO/RPO/ETC/CAN)' },
         { status: 400 }
       )
     }

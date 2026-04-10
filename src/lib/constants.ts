@@ -29,7 +29,11 @@ export const PROJECT_TYPE_OPTIONS = [
   { value: 'BPO', label: 'BPO' },
   { value: 'RPO', label: 'RPO' },
   { value: 'ETC', label: 'ETC' },
+  { value: 'CAN', label: 'CAN' },
 ] as const
+
+/** ダッシュボードKPI集計から除外するプロジェクトタイプ（社内業務） */
+export const INTERNAL_PROJECT_TYPES = ['CAN'] as const
 
 export type ProjectType = typeof PROJECT_TYPE_OPTIONS[number]['value']
 
