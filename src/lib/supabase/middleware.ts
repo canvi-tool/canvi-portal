@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
     // ポータルページ: ロール未選択ならログインへ
     const portalPaths = [
       '/dashboard', '/staff', '/clients', '/contracts', '/projects',
-      '/documents', '/invoices', '/shifts', '/leave', '/attendance', '/reports', '/payments', '/retirement',
+      '/documents', '/invoices', '/shifts', '/leave', '/attendance', '/reports', '/payments', '/retirement', '/equipment',
       '/ai', '/alerts', '/settings',
     ]
     if (!demoRole && portalPaths.some((p) => request.nextUrl.pathname.startsWith(p))) {

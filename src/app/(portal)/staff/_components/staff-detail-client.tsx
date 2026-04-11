@@ -68,12 +68,16 @@ interface CustomFields {
   [key: string]: unknown
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LendingRecord = any
+
 interface StaffDetailClientProps {
   staff: Staff
   contracts: Contract[]
   assignments: Assignment[]
   workReports: WorkReport[]
   payments: PaymentCalc[]
+  lendingRecords?: LendingRecord[]
 }
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -91,6 +95,7 @@ export function StaffDetailClient({
   assignments,
   workReports,
   payments,
+  lendingRecords = [],
 }: StaffDetailClientProps) {
   const router = useRouter()
   const custom = (staff.custom_fields as CustomFields) || {}
@@ -261,6 +266,7 @@ export function StaffDetailClient({
           <TabsTrigger value="assignments">PJアサイン</TabsTrigger>
           <TabsTrigger value="work_reports">勤務報告</TabsTrigger>
           <TabsTrigger value="payments">支払履歴</TabsTrigger>
+          <TabsTrigger value="equipment">貸与品</TabsTrigger>
         </TabsList>
 
         {/* 基本情報 */}
@@ -478,6 +484,78 @@ export function StaffDetailClient({
                       />
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 貸与品 */}
+        <TabsContent value="equipment">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>貸与品</CardTitle>
+              <Link href="/equipment">
+                <Button variant="outline" size="sm">貸与品管理へ</Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {lendingRecords.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  貸与品の記録がありません
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {lendingRecords.map((record: LendingRecord) => {
+                    const items = record.items || []
+                    const mainDevice = items.find((i: LendingRecord) => i.is_main_device)
+                    const otherItems = items.filter((i: LendingRecord) => !i.is_main_device)
+                    return (
+                      <div
+                        key={record.id}
+                        className="rounded-lg border p-4 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">
+                              貸与日: {record.lending_date}
+                            </p>
+                            {record.return_date ? (
+                              <Badge variant="outline">返却済 ({record.return_date})</Badge>
+                            ) : (
+                              <Badge className="bg-blue-100 text-blue-700">貸与中</Badge>
+                            )}
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={
+                              record.pledge_status === 'signed'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : record.pledge_status === 'sent'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-red-50 text-red-700 border-red-200'
+                            }
+                          >
+                            {record.pledge_status === 'signed' ? '締結済' : record.pledge_status === 'sent' ? '送付済' : '未提出'}
+                          </Badge>
+                        </div>
+                        {mainDevice && (
+                          <p className="text-sm">
+                            <span className="text-muted-foreground">メイン端末:</span>{' '}
+                            {mainDevice.equipment?.product_name} ({mainDevice.equipment?.management_number})
+                          </p>
+                        )}
+                        {otherItems.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            その他備品: {otherItems.map((i: LendingRecord) => i.equipment?.product_name).join(', ')}
+                          </p>
+                        )}
+                        {record.pc_pin_code && (
+                          <p className="text-sm text-muted-foreground">PIN: {record.pc_pin_code}</p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

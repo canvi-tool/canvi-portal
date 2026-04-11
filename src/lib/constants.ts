@@ -128,6 +128,19 @@ export const INVOICE_STATUS_LABELS: Record<string, string> = {
   cancelled: 'キャンセル',
 }
 
+export const EQUIPMENT_STATUS_LABELS: Record<string, string> = {
+  available: '在庫中',
+  lent: '貸与中',
+  disposed: '廃棄済',
+  maintenance: 'メンテナンス中',
+}
+
+export const PLEDGE_STATUS_LABELS: Record<string, string> = {
+  signed: '締結済',
+  sent: '送付済',
+  not_submitted: '未提出',
+}
+
 export const LEAVE_TYPE_LABELS: Record<string, string> = {
   full_day: '全日',
   half_day_am: '午前半休',
@@ -192,6 +205,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: '見積書', href: '/documents', icon: 'FileStack' },
       { label: '請求書', href: '/invoices', icon: 'Receipt' },
       { label: '支払通知書', href: '/payments', icon: 'Wallet' },
+      { label: '貸与品管理', href: '/equipment', icon: 'Monitor' },
       { label: '有給管理', href: '/leave', icon: 'Palmtree' },
       { label: 'プロフィール申請承認', href: '/approvals/profile', icon: 'UserCheck' },
     ],

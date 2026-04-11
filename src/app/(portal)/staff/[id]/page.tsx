@@ -52,6 +52,14 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     .order('year_month', { ascending: false })
     .limit(12)
 
+  // Fetch equipment lending records with items
+  const { data: lendingRecords } = await (supabase as any)
+    .from('equipment_lending_records')
+    .select('*, items:equipment_lending_items(*, equipment:equipment_items(*))')
+    .eq('staff_id', id)
+    .is('deleted_at', null)
+    .order('lending_date', { ascending: false })
+
   return (
     <StaffDetailClient
       staff={staff}
@@ -59,6 +67,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       assignments={assignments || []}
       workReports={workReports || []}
       payments={payments || []}
+      lendingRecords={lendingRecords || []}
     />
   )
 }
