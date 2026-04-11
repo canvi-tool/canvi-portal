@@ -191,7 +191,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: '契約書', href: '/contracts', icon: 'FileText' },
       { label: '見積書', href: '/documents', icon: 'FileStack' },
       { label: '請求書', href: '/invoices', icon: 'Receipt' },
-      { label: '支払書', href: '/payments', icon: 'Wallet' },
+      { label: '支払通知書', href: '/payments', icon: 'Wallet' },
       { label: '有給管理', href: '/leave', icon: 'Palmtree' },
       { label: 'プロフィール申請承認', href: '/approvals/profile', icon: 'UserCheck' },
     ],

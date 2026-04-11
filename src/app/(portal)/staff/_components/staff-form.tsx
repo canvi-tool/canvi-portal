@@ -155,7 +155,8 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
   const [googleOrgUnit, setGoogleOrgUnit] = useState('/スタッフ')
   const [googleEmailManuallyEdited, setGoogleEmailManuallyEdited] = useState(false)
 
-  // Watch last_name_kana for auto-filling google email prefix
+  // Watch fields
+  const watchedEmploymentType = watch('employment_type')
   const lastNameKana = watch('last_name_kana')
 
   // Auto-fill google email prefix from last_name_kana (convert katakana to romaji-like lowercase)
@@ -540,6 +541,118 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
               </FormField>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 報酬・給与条件 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>報酬・給与条件</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="月給" error={errors.monthly_salary?.message}>
+              <Controller
+                name="monthly_salary"
+                control={control}
+                render={({ field }) => (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      placeholder="0"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                  </div>
+                )}
+              />
+            </FormField>
+
+            <FormField label="時給" error={errors.hourly_rate?.message}>
+              <Controller
+                name="hourly_rate"
+                control={control}
+                render={({ field }) => (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      placeholder="0"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                  </div>
+                )}
+              />
+            </FormField>
+
+            <FormField label="日給" error={errors.daily_rate?.message}>
+              <Controller
+                name="daily_rate"
+                control={control}
+                render={({ field }) => (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      placeholder="0"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                  </div>
+                )}
+              />
+            </FormField>
+
+            <FormField label="通勤手当" error={errors.transportation_allowance?.message}>
+              <Controller
+                name="transportation_allowance"
+                control={control}
+                render={({ field }) => (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      placeholder="0"
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                  </div>
+                )}
+              />
+            </FormField>
+
+            {watchedEmploymentType && watchedEmploymentType !== 'freelance' && (
+              <FormField label="標準報酬月額" error={errors.standard_monthly_remuneration?.message}>
+                <Controller
+                  name="standard_monthly_remuneration"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        placeholder="0"
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                    </div>
+                  )}
+                />
+              </FormField>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {watchedEmploymentType === 'freelance'
+              ? '業務委託の報酬体系はPJアサインの報酬ルールで設定します'
+              : '雇用スタッフの給与条件です。支払通知書の自動生成に使用されます'}
+          </p>
         </CardContent>
       </Card>
 

@@ -535,7 +535,7 @@ export default function DashboardPage() {
                   <Link href="/payments">
                     <Button variant="outline" className="w-full h-auto py-3 flex-col gap-1">
                       <Wallet className="h-4 w-4" />
-                      <span className="text-xs">支払書</span>
+                      <span className="text-xs">支払通知書</span>
                     </Button>
                   </Link>
                 )}

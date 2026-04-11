@@ -193,6 +193,7 @@ export interface Database {
           daily_rate: number | null
           monthly_salary: number | null
           transportation_allowance: number | null
+          standard_monthly_remuneration: number | null
           bank_name: string | null
           bank_branch: string | null
           bank_account_type: string | null
@@ -235,6 +236,7 @@ export interface Database {
           daily_rate?: number | null
           monthly_salary?: number | null
           transportation_allowance?: number | null
+          standard_monthly_remuneration?: number | null
           bank_name?: string | null
           bank_branch?: string | null
           bank_account_type?: string | null
@@ -277,6 +279,7 @@ export interface Database {
           daily_rate?: number | null
           monthly_salary?: number | null
           transportation_allowance?: number | null
+          standard_monthly_remuneration?: number | null
           bank_name?: string | null
           bank_branch?: string | null
           bank_account_type?: string | null

@@ -91,7 +91,7 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="支払書"
+        title="支払通知書"
         description="スタッフへの支払通知書の作成・確定・発行"
         actions={
           <div className="flex items-center gap-2">
@@ -196,7 +196,7 @@ export default function PaymentsPage() {
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             placeholder="スタッフ名で検索..."
-            aria-label="支払書を検索"
+            aria-label="支払通知書を検索"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8"

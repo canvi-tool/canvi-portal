@@ -36,6 +36,7 @@ import {
   Plus,
   Undo2,
   Loader2,
+  Download,
 } from 'lucide-react'
 
 interface PageProps {
@@ -126,6 +127,25 @@ export default function StaffPaymentDetailPage({ params }: PageProps) {
     window.open(`/api/payments/${paymentId}/pdf`, '_blank')
   }
 
+  // PDFダウンロード
+  const handleDownloadPdf = async () => {
+    if (!paymentId) return
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/pdf`)
+      if (!res.ok) throw new Error('PDF生成に失敗しました')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const staffName = payment?.staff ? `${payment.staff.last_name}${payment.staff.first_name}` : ''
+      a.download = `支払通知書_${staffName}_${yearMonth}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('PDFのダウンロードに失敗しました')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -211,10 +231,16 @@ export default function StaffPaymentDetailPage({ params }: PageProps) {
               </Button>
             )}
             {(payment.status === 'confirmed' || payment.status === 'issued') && (
-              <Button variant="outline" onClick={handleGeneratePdf}>
-                <FileText className="h-4 w-4 mr-1" />
-                支払通知書PDF生成
-              </Button>
+              <>
+                <Button variant="outline" onClick={handleGeneratePdf}>
+                  <FileText className="h-4 w-4 mr-1" />
+                  支払通知書PDF
+                </Button>
+                <Button variant="outline" onClick={handleDownloadPdf}>
+                  <Download className="h-4 w-4 mr-1" />
+                  ダウンロード
+                </Button>
+              </>
             )}
           </div>
         }
