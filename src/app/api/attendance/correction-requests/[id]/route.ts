@@ -112,10 +112,11 @@ export async function PATCH(
       const requester = req.requester as any
       const reviewerName = user.displayName || user.email || '管理者'
       const requesterName = requester?.display_name || requester?.email || 'メンバー'
+      const projectName = proj?.name || ''
       const text =
         parsed.data.action === 'approve'
-          ? `:white_check_mark: 打刻修正を承認しました\n${requesterName} さんの申請を *${reviewerName}* が承認`
-          : `:no_entry: 打刻修正を差戻しました\n${requesterName} さんの申請を *${reviewerName}* が差戻し\n理由: ${parsed.data.comment}`
+          ? `:white_check_mark: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正が承認されました\n👤 承認者: *${reviewerName}*`
+          : `:no_entry: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正が差戻されました\n👤 差戻し者: *${reviewerName}*\n理由: ${parsed.data.comment}`
       await sendProjectNotification(
         { text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] },
         proj?.slack_channel_id || null,

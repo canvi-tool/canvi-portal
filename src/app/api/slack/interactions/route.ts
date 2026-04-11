@@ -558,7 +558,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*${staffName}* の *${typeLabel}* が *${actionLabel}* されました\n${report.report_date} | ${projectName}`,
+          text: `${projectName ? `${projectName}｜` : ''}*${staffName}* の *${typeLabel}* が *${actionLabel}* されました\n${report.report_date}`,
         },
       },
     ]
@@ -589,7 +589,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `${staffName} の ${typeLabel} が${actionLabel}されました（${projectName}）`,
+        text: `${projectName ? `${projectName}｜` : ''}${staffName}の${typeLabel}が${actionLabel}されました`,
         blocks: messageBlocks,
       }),
     })
@@ -744,7 +744,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*${staffName}* のシフトが *${actionLabel}* されました\n${shift.shift_date} | ${shift.start_time}〜${shift.end_time} | ${projectName}`,
+          text: `${projectName ? `${projectName}｜` : ''}*${staffName}* のシフトが *${actionLabel}* されました\n${shift.shift_date} | ${shift.start_time}〜${shift.end_time}`,
         },
       },
     ]
@@ -775,7 +775,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `${staffName} のシフトが${actionLabel}されました（${projectName}）`,
+        text: `${projectName ? `${projectName}｜` : ''}${staffName}のシフトが${actionLabel}されました`,
         blocks: messageBlocks,
       }),
     })
@@ -1117,9 +1117,10 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
     const requesterSlackId = ((requesterStaff as { custom_fields?: Record<string, string> } | null)
       ?.custom_fields as Record<string, string> | undefined)?.slack_user_id
     if (requesterSlackId) {
+      const requesterName = (r.requester as { display_name?: string } | null)?.display_name || 'メンバー'
       const dmText = isApprove
-        ? `:white_check_mark: 打刻修正申請が承認されました${projectName ? `（${projectName}）` : ''}`
-        : `:no_entry: 打刻修正申請が差戻されました${projectName ? `（${projectName}）` : ''}\n理由: ${comment}`
+        ? `:white_check_mark: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正申請が承認されました`
+        : `:no_entry: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正申請が差戻されました\n理由: ${comment}`
       const dmBlocks: unknown[] = [
         { type: 'section', text: { type: 'mrkdwn', text: dmText } },
       ]
@@ -1595,7 +1596,7 @@ async function handleDiffRound(payload: Record<string, unknown>) {
   // 対象レコード
   const { data: rec } = await supabase
     .from('attendance_records')
-    .select('id, project_id, staff_id, user_id, break_minutes, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name, employment_type)')
+    .select('id, project_id, staff_id, user_id, break_minutes, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name, employment_type), project:project_id(name)')
     .eq('id', attendanceRecordId)
     .is('deleted_at', null)
     .single()
@@ -1604,6 +1605,8 @@ async function handleDiffRound(payload: Record<string, unknown>) {
     await sendDiffEphemeral(channelId, slackUserId, '対象の打刻レコードが見つかりません')
     return new Response('', { status: 200 })
   }
+
+  const roundProjectName = (rec.project as { name?: string } | null)?.name || ''
 
   if (!(await checkDiffPjPermission(approverUserId, rec.project_id))) {
     await sendDiffEphemeral(channelId, slackUserId, ':warning: このPJの管理権限がありません')
@@ -1673,13 +1676,13 @@ async function handleDiffRound(payload: Record<string, unknown>) {
       await sendSlackBotMessage(
         replyChannel,
         {
-          text: `${staffName} を定時で丸めました`,
+          text: `${roundProjectName ? `${roundProjectName}｜` : ''}${staffName}の勤怠を定時で丸めました`,
           blocks: [
             {
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `:white_check_mark: *${staffName}* を定時で丸めました → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}>`,
+                text: `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}*${staffName}* の勤怠を定時で丸めました → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}>`,
               },
             },
           ],
@@ -1696,8 +1699,8 @@ async function handleDiffRound(payload: Record<string, unknown>) {
     channelId,
     messageTs,
     (message as Record<string, unknown> | undefined)?.blocks,
-    `${staffName} を定時で丸めました`,
-    `:white_check_mark: 定時で丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+    `${roundProjectName ? `${roundProjectName}｜` : ''}${staffName}の勤怠を定時で丸めました`,
+    `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}*${staffName}* の勤怠を定時丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   )
 
   return new Response('', { status: 200 })
@@ -1728,7 +1731,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
 
   const { data: rec } = await supabase
     .from('attendance_records')
-    .select('id, project_id, staff_id, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name, custom_fields)')
+    .select('id, project_id, staff_id, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name, custom_fields), project:project_id(name)')
     .eq('id', attendanceRecordId)
     .is('deleted_at', null)
     .single()
@@ -1743,6 +1746,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
     return new Response('', { status: 200 })
   }
 
+  const fixProjectName = (rec.project as { name?: string } | null)?.name || ''
   const staffCf = rec.staff?.custom_fields as Record<string, string> | null | undefined
   const targetSlackUserId = staffSlackUserId || (staffCf?.slack_user_id as string | undefined) || null
   const staffName = `${rec.staff?.last_name || ''} ${rec.staff?.first_name || ''}`.trim() || 'メンバー'
@@ -1793,8 +1797,8 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
     channelId,
     messageTs,
     (message as Record<string, unknown> | undefined)?.blocks,
-    `${staffName} に修正依頼を送信しました`,
-    `:pencil2: 修正依頼済み by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+    `${fixProjectName ? `${fixProjectName}｜` : ''}${staffName}に打刻修正依頼を送信しました`,
+    `:pencil2: ${fixProjectName ? `${fixProjectName}｜` : ''}*${staffName}* に打刻修正依頼済み by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   )
 
   return new Response('', { status: 200 })

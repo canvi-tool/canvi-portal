@@ -104,7 +104,7 @@ export async function POST(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `🔙 *差戻し* されました\n👤 差戻し者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+              text: `🔙 ${projectName}｜*${staffName}* のシフトが *差戻し* されました\n👤 差戻し者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
             },
           },
         ]
@@ -122,7 +122,7 @@ export async function POST(
         }
 
         await sendSlackBotMessage(slackChannelId, {
-          text: `🔙 ${staffName} のシフトが差戻しされました`,
+          text: `🔙 ${projectName}｜${staffName}のシフトが差戻しされました`,
           blocks: threadBlocks,
         }, { thread_ts: threadTs })
       } else {

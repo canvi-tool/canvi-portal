@@ -145,21 +145,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       try {
         const { data: proj } = await supabase
           .from('projects')
-          .select('slack_channel_id')
+          .select('slack_channel_id, name')
           .eq('id', existing.project_id)
           .single()
         if (proj?.slack_channel_id) {
+          const editProjectName = proj.name || ''
           await updateSlackBotMessage(
             proj.slack_channel_id,
             existing.slack_thread_ts,
             {
-              text: `${editStaffName} の日報は修正のため差し戻されました`,
+              text: `${editProjectName ? `${editProjectName}｜` : ''}${editStaffName}の日報が修正のため差し戻されました`,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `:leftwards_arrow_with_hook: *${editStaffName}* の日報が修正のため差し戻されました\n提出者が内容を修正中です。`,
+                    text: `:leftwards_arrow_with_hook: ${editProjectName ? `${editProjectName}｜` : ''}*${editStaffName}* の日報が修正のため差し戻されました\n提出者が内容を修正中です。`,
                   },
                 },
               ],
@@ -410,7 +411,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           // 既存スレッドにリプライ
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+            text: `${projectName}｜${staffName}の${typeLabel}が${action}されました`,
             blocks: [
               {
                 type: 'section',
@@ -426,7 +427,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           // フォールバック: slack_thread_ts がない場合は従来通りトップレベル
           await sendProjectNotificationIfEnabled(
             {
-              text: `${staffName} の ${typeLabel} が${action}されました（${projectName}）`,
+              text: `${projectName}｜${staffName}の${typeLabel}が${action}されました`,
               blocks: [
                 {
                   type: 'section',

@@ -107,7 +107,7 @@ export async function POST(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `✅ *承認* されました\n👤 承認者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+              text: `✅ ${projectName}｜*${staffName}* のシフトが *承認* されました\n👤 承認者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
             },
           },
         ]
@@ -125,7 +125,7 @@ export async function POST(
         }
 
         await sendSlackBotMessage(slackChannelId, {
-          text: `✅ ${staffName} のシフトが承認されました`,
+          text: `✅ ${projectName}｜${staffName}のシフトが承認されました`,
           blocks: threadBlocks,
         }, { thread_ts: threadTs })
       } else {
