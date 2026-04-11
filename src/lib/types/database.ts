@@ -952,49 +952,82 @@ export interface Database {
           id: string
           staff_id: string
           project_id: string | null
-          year_month: string
-          call_count: number
-          appointment_count: number
-          other_counts: Json | null
+          period_start: string
+          period_end: string
+          period_type: string
+          summary: Json | null
+          total_actual_hours: number | null
+          total_scheduled_hours: number | null
+          total_overtime_hours: number | null
+          total_night_hours: number | null
+          total_holiday_hours: number | null
+          total_days_worked: number | null
+          total_days_late: number | null
+          total_days_early_leave: number | null
+          total_days_absent: number | null
           status: string
-          submitted_at: string | null
           approved_at: string | null
           approved_by: string | null
           notes: string | null
           created_at: string
           updated_at: string
+          created_by: string | null
+          updated_by: string | null
+          deleted_at: string | null
         }
         Insert: {
           id?: string
           staff_id: string
           project_id?: string | null
-          year_month: string
-          call_count?: number
-          appointment_count?: number
-          other_counts?: Json | null
+          period_start: string
+          period_end: string
+          period_type?: string
+          summary?: Json | null
+          total_actual_hours?: number | null
+          total_scheduled_hours?: number | null
+          total_overtime_hours?: number | null
+          total_night_hours?: number | null
+          total_holiday_hours?: number | null
+          total_days_worked?: number | null
+          total_days_late?: number | null
+          total_days_early_leave?: number | null
+          total_days_absent?: number | null
           status?: string
-          submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
+          created_by?: string | null
+          updated_by?: string | null
+          deleted_at?: string | null
         }
         Update: {
           id?: string
           staff_id?: string
           project_id?: string | null
-          year_month?: string
-          call_count?: number
-          appointment_count?: number
-          other_counts?: Json | null
+          period_start?: string
+          period_end?: string
+          period_type?: string
+          summary?: Json | null
+          total_actual_hours?: number | null
+          total_scheduled_hours?: number | null
+          total_overtime_hours?: number | null
+          total_night_hours?: number | null
+          total_holiday_hours?: number | null
+          total_days_worked?: number | null
+          total_days_late?: number | null
+          total_days_early_leave?: number | null
+          total_days_absent?: number | null
           status?: string
-          submitted_at?: string | null
           approved_at?: string | null
           approved_by?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
+          created_by?: string | null
+          updated_by?: string | null
+          deleted_at?: string | null
         }
         Relationships: [
           {

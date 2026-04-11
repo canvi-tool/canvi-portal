@@ -19,6 +19,20 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
   rejected: 'destructive',
 }
 
+// Helper functions to extract legacy fields from the new summary JSON structure
+function getYearMonth(report: { period_start: string }): string {
+  return report.period_start?.slice(0, 7) ?? ''
+}
+function getCallCount(report: { summary: unknown }): number {
+  return (report.summary as Record<string, unknown>)?.call_count as number ?? 0
+}
+function getAppointmentCount(report: { summary: unknown }): number {
+  return (report.summary as Record<string, unknown>)?.appointment_count as number ?? 0
+}
+function getOtherCounts(report: { summary: unknown }): Record<string, number> {
+  return ((report.summary as Record<string, unknown>)?.other_counts as Record<string, number>) ?? {}
+}
+
 export default function PerformanceDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -37,7 +51,7 @@ export default function PerformanceDetailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: `業務実績サマリー - ${(report as { staff_name?: string }).staff_name || ''} / ${(report as { project_name?: string }).project_name || ''} / ${report.year_month}\n架電件数: ${report.call_count}\nアポ件数: ${report.appointment_count}\n${report.notes || ''}`,
+          text: `業務実績サマリー - ${(report as { staff_name?: string }).staff_name || ''} / ${(report as { project_name?: string }).project_name || ''} / ${getYearMonth(report)}\n架電件数: ${getCallCount(report)}\nアポ件数: ${getAppointmentCount(report)}\n${report.notes || ''}`,
           context: 'パフォーマンスレポートの分析と改善提案',
         }),
       })
@@ -70,9 +84,14 @@ export default function PerformanceDetailPage() {
     )
   }
 
+  const callCount = getCallCount(report)
+  const appointmentCount = getAppointmentCount(report)
+  const yearMonth = getYearMonth(report)
+  const otherCounts = getOtherCounts(report)
+
   const conversion =
-    report.call_count > 0
-      ? Math.round((report.appointment_count / report.call_count) * 100 * 10) / 10
+    callCount > 0
+      ? Math.round((appointmentCount / callCount) * 100 * 10) / 10
       : 0
 
   const workReportSummary = (report as {
@@ -92,12 +111,10 @@ export default function PerformanceDetailPage() {
     }>
   }).kpi_targets
 
-  const otherCounts = (report.other_counts as Record<string, number> | null) || {}
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`業務実績 - ${report.year_month}`}
+        title={`業務実績 - ${yearMonth}`}
         description={`${(report as { staff_name?: string }).staff_name || ''} / ${(report as { project_name?: string }).project_name || '未設定'}`}
         actions={
           <div className="flex items-center gap-2">
@@ -125,7 +142,7 @@ export default function PerformanceDetailPage() {
               <p className="text-sm text-muted-foreground">架電件数</p>
             </div>
             <p className="text-3xl font-bold">
-              {report.call_count.toLocaleString('ja-JP')}
+              {callCount.toLocaleString('ja-JP')}
             </p>
           </CardContent>
         </Card>
@@ -136,7 +153,7 @@ export default function PerformanceDetailPage() {
               <p className="text-sm text-muted-foreground">アポ件数</p>
             </div>
             <p className="text-3xl font-bold">
-              {report.appointment_count.toLocaleString('ja-JP')}
+              {appointmentCount.toLocaleString('ja-JP')}
             </p>
           </CardContent>
         </Card>
@@ -157,7 +174,7 @@ export default function PerformanceDetailPage() {
             </div>
             <p className="text-3xl font-bold">
               {workReportSummary && workReportSummary.total_hours > 0
-                ? Math.round((report.call_count / workReportSummary.total_hours) * 10) / 10
+                ? Math.round((callCount / workReportSummary.total_hours) * 10) / 10
                 : '-'}
               <span className="text-sm font-normal text-muted-foreground ml-1">件/h</span>
             </p>
@@ -289,8 +306,8 @@ export default function PerformanceDetailPage() {
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
-            {report.submitted_at && (
-              <span>提出日: {new Date(report.submitted_at).toLocaleString('ja-JP')}</span>
+            {report.status === 'submitted' && report.updated_at && (
+              <span>提出日: {new Date(report.updated_at).toLocaleString('ja-JP')}</span>
             )}
             {report.approved_at && (
               <span>承認日: {new Date(report.approved_at).toLocaleString('ja-JP')}</span>

@@ -22,12 +22,14 @@ export interface CalculationContext {
   project: Tables<'projects'> | null
   /** アサインメント情報 */
   assignment: Tables<'project_assignments'> | null
-  /** 勤務報告（該当月・該当PJ） */
-  workReport: Tables<'work_reports'> | null
+  /** 勤務報告（該当月・該当PJ）- 日次業務報告 */
+  workReports: Tables<'work_reports'>[]
   /** 業務実績報告（該当月・該当PJ） */
   performanceReport: Tables<'performance_reports'> | null
   /** シフトデータ（該当月・該当PJ） */
   shifts: Tables<'shifts'>[]
+  /** 勤怠レコード（該当月・該当PJ） */
+  attendanceRecords: Tables<'attendance_records'>[]
 }
 
 // ---- Output Types ----

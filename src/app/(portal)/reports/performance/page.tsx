@@ -46,6 +46,17 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
   rejected: 'destructive',
 }
 
+// Helper functions to extract legacy fields from the new summary JSON structure
+function getYearMonth(report: { period_start: string }): string {
+  return report.period_start?.slice(0, 7) ?? ''
+}
+function getCallCount(report: { summary: unknown }): number {
+  return (report.summary as Record<string, unknown>)?.call_count as number ?? 0
+}
+function getAppointmentCount(report: { summary: unknown }): number {
+  return (report.summary as Record<string, unknown>)?.appointment_count as number ?? 0
+}
+
 export default function PerformanceReportsPage() {
   const router = useRouter()
 
@@ -83,8 +94,8 @@ export default function PerformanceReportsPage() {
 
   // Summary stats
   const summary = useMemo(() => {
-    const totalCalls = reports.reduce((sum, r) => sum + (r.call_count || 0), 0)
-    const totalAppts = reports.reduce((sum, r) => sum + (r.appointment_count || 0), 0)
+    const totalCalls = reports.reduce((sum, r) => sum + getCallCount(r), 0)
+    const totalAppts = reports.reduce((sum, r) => sum + getAppointmentCount(r), 0)
     const avgConversion =
       totalCalls > 0 ? Math.round((totalAppts / totalCalls) * 100 * 10) / 10 : 0
     return { totalCalls, totalAppts, avgConversion, reportCount: reports.length }
@@ -224,17 +235,19 @@ export default function PerformanceReportsPage() {
             </TableHeader>
             <TableBody>
               {reports.map((report) => {
+                const cc = getCallCount(report)
+                const ac = getAppointmentCount(report)
                 const conversion =
-                  report.call_count > 0
+                  cc > 0
                     ? Math.round(
-                        (report.appointment_count / report.call_count) * 100 * 10
+                        (ac / cc) * 100 * 10
                       ) / 10
                     : 0
 
                 return (
                   <TableRow key={report.id}>
                     <TableCell className="font-medium">
-                      {report.year_month}
+                      {getYearMonth(report)}
                     </TableCell>
                     <TableCell>
                       {(() => { const s = report.staff as { last_name?: string; first_name?: string } | null; return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '不明' })()}
@@ -243,10 +256,10 @@ export default function PerformanceReportsPage() {
                       {(report.project as { name?: string } | null)?.name || '未設定'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {report.call_count.toLocaleString('ja-JP')}
+                      {cc.toLocaleString('ja-JP')}
                     </TableCell>
                     <TableCell className="text-right">
-                      {report.appointment_count.toLocaleString('ja-JP')}
+                      {ac.toLocaleString('ja-JP')}
                     </TableCell>
                     <TableCell className="text-right">{conversion}%</TableCell>
                     <TableCell>

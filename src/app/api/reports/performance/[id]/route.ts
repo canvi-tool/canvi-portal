@@ -23,13 +23,14 @@ export async function GET(
     }
 
     // Fetch work report for the same period to get hours data
+    const derivedYearMonth = data.period_start?.slice(0, 7) ?? null
     let workReportSummary = null
-    if (data.staff_id && data.year_month) {
+    if (data.staff_id && derivedYearMonth) {
       const { data: workReport } = await supabase
         .from('work_reports')
         .select('total_hours, overtime_hours, working_days, standby_hours')
         .eq('staff_id', data.staff_id)
-        .eq('year_month', data.year_month)
+        .eq('year_month', derivedYearMonth)
         .maybeSingle()
 
       if (workReport) {

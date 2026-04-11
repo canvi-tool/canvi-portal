@@ -1,8 +1,11 @@
 /**
  * 待機単価計算ルール
  *
- * 勤務報告の待機時間/日数をもとに報酬を計算する。
+ * 待機時間/日数をもとに報酬を計算する。
  * rate_per_hour と rate_per_day の両方が設定されている場合は、両方を加算する。
+ * 現状: 待機専用のデータソースがないため、
+ *   performance_report の summary から standby_hours/standby_days を取得するか、
+ *   手動入力（params に standby_hours/standby_days を含める）で対応する。
  */
 
 import type { CalculationContext, CalculationResult, CalculationLog } from '../types'
@@ -10,6 +13,8 @@ import type { CalculationContext, CalculationResult, CalculationLog } from '../t
 interface StandbyRateParams {
   rate_per_hour?: number
   rate_per_day?: number
+  standby_hours?: number
+  standby_days?: number
 }
 
 export function calculateStandbyRate(
@@ -19,8 +24,17 @@ export function calculateStandbyRate(
   const logs: CalculationLog[] = []
   const { rate_per_hour = 0, rate_per_day = 0 } = params
 
-  const standbyHours = context.workReport?.standby_hours ?? 0
-  const standbyDays = context.workReport?.standby_days ?? 0
+  // paramsから直接、またはperformance_reportから取得
+  let standbyHours = params.standby_hours ?? 0
+  let standbyDays = params.standby_days ?? 0
+
+  if (standbyHours === 0 && standbyDays === 0 && context.performanceReport) {
+    const summary = context.performanceReport.summary as Record<string, unknown> | null
+    if (summary) {
+      standbyHours = Number(summary.standby_hours) || 0
+      standbyDays = Number(summary.standby_days) || 0
+    }
+  }
 
   logs.push({
     level: 'info',

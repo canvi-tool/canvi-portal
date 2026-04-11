@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('performance_reports')
       .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
-      .order('year_month', { ascending: false })
+      .order('period_start', { ascending: false })
       .order('created_at', { ascending: false })
 
     // オーナー以外はアサイン済みプロジェクトの業務実績のみ
@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (yearMonth) {
-      query = query.eq('year_month', yearMonth)
+      // Filter by period_start matching the given YYYY-MM
+      query = query.gte('period_start', `${yearMonth}-01`).lt('period_start', `${yearMonth}-32`)
     }
     if (staffId) {
       query = query.eq('staff_id', staffId)
@@ -81,12 +82,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Derive period_start / period_end from year_month
+    const periodStart = `${parsed.data.year_month}-01`
+    const periodEndDate = new Date(
+      Number(parsed.data.year_month.slice(0, 4)),
+      Number(parsed.data.year_month.slice(5, 7)),
+      0
+    )
+    const periodEnd = periodEndDate.toISOString().slice(0, 10)
+
     // Check for duplicate
     const { data: existing } = await supabase
       .from('performance_reports')
       .select('id, status')
       .eq('staff_id', parsed.data.staff_id)
-      .eq('year_month', parsed.data.year_month)
+      .eq('period_start', periodStart)
       .maybeSingle()
 
     if (existing && existing.status === 'approved') {
@@ -102,9 +112,11 @@ export async function POST(request: NextRequest) {
         .from('performance_reports')
         .update({
           project_id: parsed.data.project_id || null,
-          call_count: parsed.data.call_count,
-          appointment_count: parsed.data.appointment_count,
-          other_counts: parsed.data.other_counts || null,
+          summary: {
+            call_count: parsed.data.call_count,
+            appointment_count: parsed.data.appointment_count,
+            other_counts: parsed.data.other_counts || {},
+          },
           notes: parsed.data.notes || null,
           status: targetStatus,
           updated_at: new Date().toISOString(),
@@ -125,10 +137,14 @@ export async function POST(request: NextRequest) {
       .insert({
         staff_id: parsed.data.staff_id,
         project_id: parsed.data.project_id || null,
-        year_month: parsed.data.year_month,
-        call_count: parsed.data.call_count,
-        appointment_count: parsed.data.appointment_count,
-        other_counts: parsed.data.other_counts || null,
+        period_start: periodStart,
+        period_end: periodEnd,
+        period_type: 'monthly',
+        summary: {
+          call_count: parsed.data.call_count,
+          appointment_count: parsed.data.appointment_count,
+          other_counts: parsed.data.other_counts || {},
+        },
         status: targetStatus,
         notes: parsed.data.notes || null,
       })

@@ -176,27 +176,39 @@ export async function calculatePaymentForStaff(
 
     if (!rules || rules.length === 0) continue
 
-    // 勤務報告取得
-    const { data: workReport } = await supabase
+    // 日次業務報告取得（該当月・該当PJ）
+    const { data: workReports } = await supabase
       .from('work_reports')
       .select('*')
       .eq('staff_id', staffId)
-      .eq('year_month', yearMonth)
       .eq('project_id', assignment.project_id)
-      .maybeSingle()
+      .gte('report_date', monthStart)
+      .lte('report_date', monthEnd)
 
-    // 業務実績報告取得
+    // 業務実績報告取得（period_start/period_end で月範囲を検索）
     const { data: performanceReport } = await supabase
       .from('performance_reports')
       .select('*')
       .eq('staff_id', staffId)
-      .eq('year_month', yearMonth)
       .eq('project_id', assignment.project_id)
+      .lte('period_start', monthEnd)
+      .gte('period_end', monthStart)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     // シフト取得
     const { data: shifts } = await supabase
       .from('shifts')
+      .select('*')
+      .eq('staff_id', staffId)
+      .eq('project_id', assignment.project_id)
+      .gte('shift_date', monthStart)
+      .lte('shift_date', monthEnd)
+
+    // 勤怠レコード取得
+    const { data: attendanceRecords } = await supabase
+      .from('attendance_records')
       .select('*')
       .eq('staff_id', staffId)
       .eq('project_id', assignment.project_id)
@@ -211,9 +223,10 @@ export async function calculatePaymentForStaff(
       staff,
       project: project ?? null,
       assignment,
-      workReport: workReport ?? null,
+      workReports: workReports ?? [],
       performanceReport: performanceReport ?? null,
       shifts: shifts ?? [],
+      attendanceRecords: attendanceRecords ?? [],
     }
 
     // アサインメント内で先に計算されたルール結果
