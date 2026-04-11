@@ -84,6 +84,12 @@ const PREFECTURES = [
   '熊本県','大分県','宮崎県','鹿児島県','沖縄県',
 ]
 
+const SALARY_TYPE_LABELS: Record<string, string> = {
+  monthly: '月給制',
+  hourly: '時給制',
+  daily: '日給制',
+}
+
 const ORG_UNITS = [
   { value: '/管理部', label: '管理部' },
   { value: '/営業部', label: '営業部' },
@@ -157,6 +163,7 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
 
   // Watch fields
   const watchedEmploymentType = watch('employment_type')
+  const watchedSalaryType = watch('salary_type')
   const lastNameKana = watch('last_name_kana')
 
   // Auto-fill google email prefix from last_name_kana (convert katakana to romaji-like lowercase)
@@ -551,62 +558,100 @@ export function StaffForm({ defaultValues, onSubmit, isLoading, showProvisioning
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="月給" error={errors.monthly_salary?.message}>
+            <FormField label="給与体系" error={errors.salary_type?.message}>
               <Controller
-                name="monthly_salary"
+                name="salary_type"
                 control={control}
                 render={({ field }) => (
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={field.value ?? ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="0"
-                      className="pr-8"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
-                  </div>
+                  <Select
+                    value={field.value || null}
+                    onValueChange={(val) => {
+                      field.onChange(val)
+                      // 選択変更時に他の給与フィールドをクリア
+                      if (val === 'monthly') { setValue('hourly_rate', null); setValue('daily_rate', null) }
+                      if (val === 'hourly') { setValue('monthly_salary', null); setValue('daily_rate', null) }
+                      if (val === 'daily') { setValue('monthly_salary', null); setValue('hourly_rate', null) }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValueWithLabel
+                        value={field.value}
+                        placeholder="選択してください"
+                        labels={SALARY_TYPE_LABELS}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(SALARY_TYPE_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               />
             </FormField>
 
-            <FormField label="時給" error={errors.hourly_rate?.message}>
-              <Controller
-                name="hourly_rate"
-                control={control}
-                render={({ field }) => (
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={field.value ?? ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="0"
-                      className="pr-8"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
-                  </div>
-                )}
-              />
-            </FormField>
+            {watchedSalaryType === 'monthly' && (
+              <FormField label="月給額" error={errors.monthly_salary?.message}>
+                <Controller
+                  name="monthly_salary"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        placeholder="0"
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                    </div>
+                  )}
+                />
+              </FormField>
+            )}
 
-            <FormField label="日給" error={errors.daily_rate?.message}>
-              <Controller
-                name="daily_rate"
-                control={control}
-                render={({ field }) => (
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={field.value ?? ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="0"
-                      className="pr-8"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
-                  </div>
-                )}
-              />
-            </FormField>
+            {watchedSalaryType === 'hourly' && (
+              <FormField label="時給額" error={errors.hourly_rate?.message}>
+                <Controller
+                  name="hourly_rate"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        placeholder="0"
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                    </div>
+                  )}
+                />
+              </FormField>
+            )}
+
+            {watchedSalaryType === 'daily' && (
+              <FormField label="日給額" error={errors.daily_rate?.message}>
+                <Controller
+                  name="daily_rate"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        placeholder="0"
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">円</span>
+                    </div>
+                  )}
+                />
+              </FormField>
+            )}
 
             <FormField label="通勤手当" error={errors.transportation_allowance?.message}>
               <Controller

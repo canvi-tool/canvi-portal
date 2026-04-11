@@ -9,6 +9,8 @@ export const READONLY_FIELDS = new Set<string>([
   'daily_rate',
   'monthly_salary',
   'transportation_allowance',
+  'standard_monthly_remuneration',
+  'salary_type',
 ])
 
 /** 個人識別情報: 変更時は身分証添付必須 */

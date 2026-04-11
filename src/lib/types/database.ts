@@ -194,6 +194,7 @@ export interface Database {
           monthly_salary: number | null
           transportation_allowance: number | null
           standard_monthly_remuneration: number | null
+          salary_type: string | null
           bank_name: string | null
           bank_branch: string | null
           bank_account_type: string | null
@@ -237,6 +238,7 @@ export interface Database {
           monthly_salary?: number | null
           transportation_allowance?: number | null
           standard_monthly_remuneration?: number | null
+          salary_type?: string | null
           bank_name?: string | null
           bank_branch?: string | null
           bank_account_type?: string | null
@@ -280,6 +282,7 @@ export interface Database {
           monthly_salary?: number | null
           transportation_allowance?: number | null
           standard_monthly_remuneration?: number | null
+          salary_type?: string | null
           bank_name?: string | null
           bank_branch?: string | null
           bank_account_type?: string | null

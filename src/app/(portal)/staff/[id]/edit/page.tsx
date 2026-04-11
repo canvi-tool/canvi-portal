@@ -10,7 +10,6 @@ import { ConfirmChangesDialog, type FieldChange } from '../../_components/confir
 import { useStaff, useUpdateStaff } from '@/hooks/use-staff'
 import type { StaffFormValues } from '@/lib/validations/staff'
 import {
-  READONLY_FIELDS,
   computeAttachmentRequirement,
   needsAnyAttachment,
 } from '@/lib/profile/change-request-policy'
@@ -179,12 +178,8 @@ export default function EditStaffPage({ params }: EditStaffPageProps) {
       return
     }
 
-    // 編集不可フィールドが含まれている場合は警告
-    const readonlyChanged = changedKeys.filter(k => READONLY_FIELDS.has(k))
-    if (readonlyChanged.length > 0) {
-      toast.error(`雇用形態・報酬関連はこの画面から変更できません: ${readonlyChanged.join(', ')}`)
-      return
-    }
+    // 管理者の編集画面では報酬・雇用形態フィールドの変更を許可
+    // (READONLY_FIELDS はスタッフ本人のプロフィール変更申請でのみ制限)
 
     pendingSubmitRef.current = { data, changedKeys }
     setChanges(detectedChanges)

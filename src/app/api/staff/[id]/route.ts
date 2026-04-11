@@ -143,6 +143,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       monthly_salary: formData.monthly_salary ?? null,
       transportation_allowance: formData.transportation_allowance ?? null,
       standard_monthly_remuneration: formData.standard_monthly_remuneration ?? null,
+      salary_type: formData.salary_type || null,
       bank_name: formData.bank_name || null,
       bank_branch: formData.bank_branch || null,
       bank_account_type: formData.bank_account_type || null,

@@ -44,6 +44,7 @@ export const staffFormSchema = z.object({
   monthly_salary: z.number().nullable().optional(),
   transportation_allowance: z.number().nullable().optional(),
   standard_monthly_remuneration: z.number().nullable().optional(),
+  salary_type: z.enum(['monthly', 'hourly', 'daily']).nullable().optional(),
   notes: z.string().optional(),
 })
 
