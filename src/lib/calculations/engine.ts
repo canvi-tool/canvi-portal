@@ -136,11 +136,13 @@ export async function calculatePaymentForStaff(
   }
 
   // 2. アクティブなアサインメントを取得
+  // DB enum: proposed, confirmed, in_progress, completed, cancelled
   const { data: assignments } = await supabase
     .from('project_assignments')
     .select('*')
     .eq('staff_id', staffId)
-    .in('status', ['active', 'pending'])
+    .in('status', ['confirmed', 'in_progress'])
+    .is('deleted_at', null)
 
   if (!assignments || assignments.length === 0) {
     console.info(`[Engine] ${staff.last_name} ${staff.first_name}: アクティブなアサインメントがありません`)
