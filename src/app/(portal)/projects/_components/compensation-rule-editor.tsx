@@ -106,11 +106,33 @@ function ParamsFields({ ruleType, params, onChange, errors, existingRules }: Par
             <Label>
               単位名 <span className="text-destructive">*</span>
             </Label>
-            <Input
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={(params.unit_name as string) ?? ''}
               onChange={(e) => updateParam('unit_name', e.target.value)}
-              placeholder="例: 架電件数, アポ件数"
-            />
+            >
+              <option value="">選択してください</option>
+              <optgroup label="テレアポ系">
+                <option value="架電数">架電数</option>
+                <option value="アポ数">アポ数</option>
+                <option value="通電数">通電数</option>
+              </optgroup>
+              <optgroup label="インバウンド系">
+                <option value="受電数">受電数</option>
+                <option value="対応完了数">対応完了数</option>
+              </optgroup>
+              <optgroup label="ISR/SDR系">
+                <option value="即時架電数">即時架電数</option>
+                <option value="通常架電数">通常架電数</option>
+                <option value="Slack通知数">Slack通知数</option>
+                <option value="契約件数">契約件数</option>
+              </optgroup>
+              <optgroup label="その他">
+                <option value="勤務日数">勤務日数</option>
+                <option value="日報件数">日報件数</option>
+                <option value="シフト数">シフト数</option>
+              </optgroup>
+            </select>
             {errors?.unit_name && (
               <p className="text-sm text-destructive">{errors.unit_name}</p>
             )}
@@ -221,11 +243,33 @@ function ParamsFields({ ruleType, params, onChange, errors, existingRules }: Par
             <Label>
               変動単位名 <span className="text-destructive">*</span>
             </Label>
-            <Input
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={(params.variable_unit as string) ?? ''}
               onChange={(e) => updateParam('variable_unit', e.target.value)}
-              placeholder="例: アポ件数"
-            />
+            >
+              <option value="">選択してください</option>
+              <optgroup label="テレアポ系">
+                <option value="架電数">架電数</option>
+                <option value="アポ数">アポ数</option>
+                <option value="通電数">通電数</option>
+              </optgroup>
+              <optgroup label="インバウンド系">
+                <option value="受電数">受電数</option>
+                <option value="対応完了数">対応完了数</option>
+              </optgroup>
+              <optgroup label="ISR/SDR系">
+                <option value="即時架電数">即時架電数</option>
+                <option value="通常架電数">通常架電数</option>
+                <option value="Slack通知数">Slack通知数</option>
+                <option value="契約件数">契約件数</option>
+              </optgroup>
+              <optgroup label="その他">
+                <option value="勤務日数">勤務日数</option>
+                <option value="日報件数">日報件数</option>
+                <option value="シフト数">シフト数</option>
+              </optgroup>
+            </select>
             {errors?.variable_unit && (
               <p className="text-sm text-destructive">{errors.variable_unit}</p>
             )}

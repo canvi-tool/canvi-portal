@@ -6,67 +6,12 @@
  */
 
 import type { CalculationContext, CalculationResult, CalculationLog } from '../types'
+import { resolveCount } from './unit-resolver'
 
 interface FixedPlusVariableParams {
   fixed_amount: number
   variable_unit: string
   variable_rate: number
-}
-
-/**
- * unit_name に一致する件数を取得する（count-rate と同じロジック）。
- */
-function resolveCount(context: CalculationContext, unitName: string): number {
-  const normalized = unitName.toLowerCase().trim()
-
-  // 勤務日数
-  if (normalized === 'days' || normalized === '勤務日数' || normalized === '出勤日数') {
-    return (context.attendanceRecords || []).length
-  }
-
-  // 日報件数
-  if (normalized === 'report' || normalized === '日報' || normalized === '報告') {
-    return (context.workReports || []).length
-  }
-
-  // シフト件数
-  if (normalized === 'shift' || normalized === 'シフト' || normalized === 'シフト数') {
-    return (context.shifts || []).length
-  }
-
-  // performance_report の summary から検索
-  const perf = context.performanceReport
-  if (perf) {
-    const summary = perf.summary as Record<string, unknown> | null
-    if (summary && typeof summary === 'object') {
-      if (normalized in summary) {
-        return Number(summary[normalized]) || 0
-      }
-      for (const [key, value] of Object.entries(summary)) {
-        if (key.toLowerCase().trim() === normalized) {
-          return Number(value) || 0
-        }
-      }
-    }
-  }
-
-  // work_reports の custom_fields から集計
-  const reports = context.workReports || []
-  let totalCount = 0
-  for (const report of reports) {
-    const cf = report.custom_fields as Record<string, unknown> | null
-    if (cf && typeof cf === 'object') {
-      for (const [key, value] of Object.entries(cf)) {
-        if (key.toLowerCase().trim() === normalized) {
-          totalCount += Number(value) || 0
-        }
-      }
-    }
-  }
-  if (totalCount > 0) return totalCount
-
-  // フォールバック: 勤怠レコード数
-  return (context.attendanceRecords || []).length
 }
 
 export function calculateFixedPlusVariable(
