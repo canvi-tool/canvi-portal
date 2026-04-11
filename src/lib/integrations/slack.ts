@@ -1078,13 +1078,13 @@ export function buildClockInNotification(staffName: string, projectName?: string
   const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
   const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが出勤しました (${dateStr} ${timeStr})`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}さんが出勤しました (${dateStr} ${timeStr})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🟢 *${staffName}* さんが出勤しました`,
+          text: `🟢 ${projectName ? `${projectName}｜` : ''}*${staffName}* さんが出勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
@@ -1103,13 +1103,13 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
   const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
   const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが退勤しました (${dateStr} ${timeStr}, 勤務${workHours})`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}さんが退勤しました (${dateStr} ${timeStr}, 勤務${workHours})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🔴 *${staffName}* さんが退勤しました`,
+          text: `🔴 ${projectName ? `${projectName}｜` : ''}*${staffName}* さんが退勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
@@ -1181,7 +1181,7 @@ export function buildReportOverdueNotification(staffNames: string[], date: strin
  */
 export function buildOvertimeWarningNotification(staffName: string, hours: number, date: string): SlackMessage {
   return {
-    text: `【残業警告】${staffName}さんの勤務時間が${hours}時間を超えています (${date})`,
+    text: `【残業警告】${staffName}さんの勤務時間が${hours}時間を超過 (${date})`,
     blocks: [
       {
         type: 'section',
@@ -1241,7 +1241,7 @@ export function buildBreakEndNotification(staffName: string, breakMinutes: numbe
  */
 export function buildShiftSubmittedNotification(staffName: string, shiftDate: string, startTime: string, endTime: string): SlackMessage {
   return {
-    text: `${staffName}さんがシフトを提出しました (${shiftDate})`,
+    text: `${staffName}さんがシフトを提出しました (${shiftDate} ${startTime}〜${endTime})`,
     blocks: [
       {
         type: 'section',
@@ -1286,7 +1286,7 @@ export function buildShiftOverdueNotification(staffNames: string[], deadline: st
  */
 export function buildReportSubmittedNotification(staffName: string, date: string, workHours?: string): SlackMessage {
   return {
-    text: `${staffName}さんが日報を提出しました (${date})`,
+    text: `${staffName}さんが日報を提出しました (${date}${workHours ? ` 勤務${workHours}` : ''})`,
     blocks: [
       {
         type: 'section',
@@ -1308,13 +1308,13 @@ export function buildReportSubmittedNotification(staffName: string, date: string
  */
 export function buildMemberAssignedNotification(staffName: string, projectName: string, role?: string): SlackMessage {
   return {
-    text: `${staffName}さんが${projectName}にアサインされました`,
+    text: `${projectName}｜${staffName}さんがアサインされました${role ? ` (${role})` : ''}`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:wave: *${staffName}* さんが *${projectName}* にアサインされました${role ? ` (${role})` : ''}`,
+          text: `:wave: ${projectName}｜*${staffName}* さんがアサインされました${role ? ` (${role})` : ''}`,
         },
       },
     ],
@@ -1326,13 +1326,13 @@ export function buildMemberAssignedNotification(staffName: string, projectName: 
  */
 export function buildMemberRemovedNotification(staffName: string, projectName: string): SlackMessage {
   return {
-    text: `${staffName}さんが${projectName}からアサイン解除されました`,
+    text: `${projectName}｜${staffName}さんがアサイン解除されました`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:door: *${staffName}* さんが *${projectName}* からアサイン解除されました`,
+          text: `:door: ${projectName}｜*${staffName}* さんがアサイン解除されました`,
         },
       },
     ],
@@ -1348,13 +1348,13 @@ export function buildBulkMemberAssignedNotification(staffNames: string[], projec
   }
   const nameList = staffNames.map(n => `• ${n}`).join('\n')
   return {
-    text: `${staffNames.length}名が${projectName}にアサインされました`,
+    text: `${projectName}｜${staffNames.length}名がアサインされました${role ? ` (${role})` : ''}`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:wave: *${staffNames.length}名* が *${projectName}* にアサインされました${role ? ` (${role})` : ''}\n\n${nameList}`,
+          text: `:wave: ${projectName}｜*${staffNames.length}名* がアサインされました${role ? ` (${role})` : ''}\n\n${nameList}`,
         },
       },
     ],
@@ -1447,7 +1447,7 @@ export async function resolveStaffSlackUserId(
 export function buildClockOutMissingDMNotification(staffName: string, date: string, projectName?: string): SlackMessage {
   const projectText = projectName ? ` (${projectName})` : ''
   return {
-    text: `【退勤未打刻】${staffName}さん、${date}${projectText}の退勤打刻がされていません`,
+    text: `【退勤未打刻】${projectName ? `${projectName}｜` : ''}${staffName}さん、${date}の退勤打刻がされていません`,
     blocks: [
       {
         type: 'section',
@@ -1525,7 +1525,7 @@ export function buildShiftAttendanceDiffNotification(
   }
 
   return {
-    text: `【シフト乖離】${date}${projectText} - ${entries.length}件の乖離を検知`,
+    text: `【シフト乖離】${projectName ? `${projectName}｜` : ''}${date} - ${entries.length}件の乖離を検知`,
     blocks,
   }
 }
