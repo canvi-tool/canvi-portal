@@ -150,6 +150,42 @@ async function createCompensationRule(
   return res.json()
 }
 
+async function updateCompensationRule(
+  projectId: string,
+  assignmentId: string,
+  ruleId: string,
+  data: CompensationRuleFormValues
+): Promise<CompensationRule> {
+  const res = await fetch(
+    `/api/projects/${projectId}/assignments/${assignmentId}/compensation-rules/${ruleId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '報酬ルールの更新に失敗しました')
+  }
+  return res.json()
+}
+
+async function deleteCompensationRule(
+  projectId: string,
+  assignmentId: string,
+  ruleId: string
+): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${projectId}/assignments/${assignmentId}/compensation-rules/${ruleId}`,
+    { method: 'DELETE' }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '報酬ルールの削除に失敗しました')
+  }
+}
+
 async function fetchStaffList(): Promise<Tables<'staff'>[]> {
   const res = await fetch('/api/staff?status=active')
   if (!res.ok) throw new Error('スタッフの取得に失敗しました')
@@ -307,6 +343,57 @@ export function useCreateCompensationRule(projectId: string, assignmentId: strin
       queryClient.invalidateQueries({
         queryKey: projectKeys.compensationRules(projectId, assignmentId),
       })
+      queryClient.invalidateQueries({ queryKey: projectKeys.assignments(projectId) })
+    },
+  })
+}
+
+export function useUpdateCompensationRule(projectId: string, assignmentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ruleId, data }: { ruleId: string; data: CompensationRuleFormValues }) =>
+      updateCompensationRule(projectId, assignmentId, ruleId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: projectKeys.compensationRules(projectId, assignmentId),
+      })
+      queryClient.invalidateQueries({ queryKey: projectKeys.assignments(projectId) })
+    },
+  })
+}
+
+export function useDeleteCompensationRule(projectId: string, assignmentId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ruleId: string) =>
+      deleteCompensationRule(projectId, assignmentId, ruleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: projectKeys.compensationRules(projectId, assignmentId),
+      })
+      queryClient.invalidateQueries({ queryKey: projectKeys.assignments(projectId) })
+    },
+  })
+}
+
+export function useBulkCreateCompensationRule(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      assignmentIds,
+      data,
+    }: {
+      assignmentIds: string[]
+      data: CompensationRuleFormValues
+    }) =>
+      Promise.allSettled(
+        assignmentIds.map((aid) => createCompensationRule(projectId, aid, data))
+      ).then((results) => {
+        const created = results.filter((r) => r.status === 'fulfilled').length
+        if (created === 0) throw new Error('一括追加に失敗しました')
+        return { created }
+      }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.assignments(projectId) })
     },
   })

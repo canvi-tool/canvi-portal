@@ -32,7 +32,7 @@ import {
 } from '@/lib/validations/assignment'
 import { COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
 import type { CompensationRule } from '@/hooks/use-projects'
-import { Loader2, Plus, Trash2, GripVertical } from 'lucide-react'
+import { Loader2, Plus, Trash2, GripVertical, Pencil } from 'lucide-react'
 
 // ---- Dynamic Params Fields ----
 
@@ -375,23 +375,31 @@ interface CompensationRuleEditorProps {
   projectId: string
   assignmentId: string
   onCreateRule: (data: CompensationRuleFormValues) => Promise<void>
+  onUpdateRule?: (ruleId: string, data: CompensationRuleFormValues) => Promise<void>
   onDeleteRule?: (ruleId: string) => void
   isCreating?: boolean
+  isUpdating?: boolean
   isDeleting?: boolean
 }
 
 export function CompensationRuleEditor({
   rules,
   onCreateRule,
+  onUpdateRule,
   onDeleteRule,
   isCreating = false,
+  isUpdating = false,
   isDeleting = false,
 }: CompensationRuleEditorProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingRule, setEditingRule] = useState<CompensationRule | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [ruleType, setRuleType] = useState<CompensationRuleTypeValue>('time_rate')
   const [ruleParams, setRuleParams] = useState<Record<string, unknown>>({})
   const [paramsErrors, setParamsErrors] = useState<Record<string, string>>({})
+
+  const isEditing = !!editingRule
+  const isSaving = isEditing ? isUpdating : isCreating
 
   const {
     register,
@@ -414,7 +422,8 @@ export function CompensationRuleEditor({
     },
   })
 
-  const openDialog = () => {
+  const openCreateDialog = () => {
+    setEditingRule(null)
     reset({
       rule_type: 'time_rate',
       name: '',
@@ -427,6 +436,26 @@ export function CompensationRuleEditor({
     })
     setRuleType('time_rate')
     setRuleParams({})
+    setParamsErrors({})
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (rule: CompensationRule) => {
+    setEditingRule(rule)
+    const rt = (rule.rule_type || 'time_rate') as CompensationRuleTypeValue
+    const params = (rule.params as Record<string, unknown>) || {}
+    reset({
+      rule_type: rt,
+      name: rule.name || '',
+      description: '',
+      priority: rule.priority ?? 0,
+      is_active: rule.is_active ?? true,
+      effective_from: rule.effective_from || '',
+      effective_until: rule.effective_to || '',
+      params: params,
+    })
+    setRuleType(rt)
+    setRuleParams(params)
     setParamsErrors({})
     setDialogOpen(true)
   }
@@ -448,8 +477,13 @@ export function CompensationRuleEditor({
     }
 
     try {
-      await onCreateRule(formData)
+      if (editingRule && onUpdateRule) {
+        await onUpdateRule(editingRule.id, formData)
+      } else {
+        await onCreateRule(formData)
+      }
       setDialogOpen(false)
+      setEditingRule(null)
       reset()
       setRuleParams({})
     } catch {
@@ -462,7 +496,7 @@ export function CompensationRuleEditor({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium">報酬ルール</h4>
-        <Button variant="outline" size="sm" onClick={openDialog}>
+        <Button variant="outline" size="sm" onClick={openCreateDialog}>
           <Plus className="h-3.5 w-3.5 mr-1" />
           ルール追加
         </Button>
@@ -505,6 +539,17 @@ export function CompensationRuleEditor({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {onUpdateRule && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openEditDialog(rule)}
+                      disabled={isUpdating}
+                      title="修正"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   {onDeleteRule && (
                     <Button
                       variant="ghost"
@@ -526,9 +571,9 @@ export function CompensationRuleEditor({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>報酬ルールを追加</DialogTitle>
+            <DialogTitle>{isEditing ? '報酬ルールを修正' : '報酬ルールを追加'}</DialogTitle>
             <DialogDescription>
-              このアサインに適用する報酬ルールを設定します
+              {isEditing ? '報酬ルールの内容を修正します' : 'このアサインに適用する報酬ルールを設定します'}
             </DialogDescription>
           </DialogHeader>
 
@@ -614,9 +659,9 @@ export function CompensationRuleEditor({
               <DialogClose render={<Button variant="outline" />}>
                 キャンセル
               </DialogClose>
-              <Button type="submit" disabled={isCreating}>
-                {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                追加
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? '保存' : '追加'}
               </Button>
             </DialogFooter>
           </form>
