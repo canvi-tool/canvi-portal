@@ -1201,14 +1201,6 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setAvailabilitySheetOpen(true)}
-            >
-              <Link2 className="h-4 w-4 mr-1" />
-              日程調整URL発行
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => router.push('/shifts/pending')}
             >
               <Clock className="h-4 w-4 mr-1" />
@@ -1452,6 +1444,19 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             </button>
           </div>
         )}
+
+        {/* 右端に押しやるスペーサー */}
+        <div className="flex-1" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 h-9"
+          onClick={() => setAvailabilitySheetOpen(true)}
+        >
+          <Link2 className="h-4 w-4 mr-1" />
+          日程調整URL発行
+        </Button>
 
         {loading && (
           <span className="text-xs text-muted-foreground">読み込み中...</span>
