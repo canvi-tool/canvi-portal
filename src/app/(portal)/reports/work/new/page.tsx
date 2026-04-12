@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft, Send, Loader2, RefreshCw } from 'lucide-react'
@@ -104,6 +104,28 @@ export default function NewDailyReportPage() {
       setIsFetchingKpi(false)
     }
   }, [reportDate, projectId])
+
+  // --- 架電数目標の自動計算（シフト時間ベース） ---
+  useEffect(() => {
+    if (reportType !== 'outbound' || !reportDate || !projectId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `/api/reports/call-target?date=${reportDate}&project_id=${projectId}`
+        )
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (cancelled) return
+        if (data.callTarget > 0) {
+          setCallTarget(String(data.callTarget))
+        }
+      } catch {
+        // silently ignore - user can still input manually
+      }
+    })()
+    return () => { cancelled = true }
+  }, [reportType, reportDate, projectId])
 
   // --- Inbound state ---
   const [incomingCount, setIncomingCount] = useState('')
