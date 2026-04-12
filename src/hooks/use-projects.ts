@@ -280,6 +280,36 @@ export function useBulkUpdateProjectStatus() {
   })
 }
 
+export type BulkProjectUpdate = {
+  ids: string[]
+  status?: string
+  report_type?: string | null
+  shift_approval_mode?: 'AUTO' | 'APPROVAL'
+}
+
+async function bulkUpdateProjects(params: BulkProjectUpdate): Promise<{ updated: number }> {
+  const res = await fetch('/api/projects/bulk', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: '一括更新に失敗しました' }))
+    throw new Error(err.error || '一括更新に失敗しました')
+  }
+  return res.json()
+}
+
+export function useBulkUpdateProjects() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: bulkUpdateProjects,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
+    },
+  })
+}
+
 export function useAssignments(projectId: string) {
   return useQuery({
     queryKey: projectKeys.assignments(projectId),

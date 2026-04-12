@@ -19,16 +19,37 @@ import {
   SelectTrigger,
   SelectValueWithLabel,
 } from '@/components/ui/select'
-import { PROJECT_STATUS_LABELS } from '@/lib/constants'
-import { useProjects, useBulkUpdateProjectStatus, type Project } from '@/hooks/use-projects'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { PROJECT_STATUS_LABELS, SHIFT_APPROVAL_MODE_LABELS } from '@/lib/constants'
+import { DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
+import { useProjects, useBulkUpdateProjects, type Project } from '@/hooks/use-projects'
 import { toast } from 'sonner'
-import { Plus, Search, Briefcase, Users } from 'lucide-react'
+import { Plus, Search, Briefcase, Users, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/components/providers/auth-provider'
 
 const BULK_STATUS_OPTIONS = [
-  { value: 'proposing', label: '提案中に変更' },
-  { value: 'active', label: '契約中に変更' },
-  { value: 'ended', label: '契約終了に変更' },
+  { value: 'proposing', label: '提案中' },
+  { value: 'active', label: '契約中' },
+  { value: 'ended', label: '契約終了' },
+]
+
+const BULK_REPORT_TYPE_OPTIONS = [
+  { value: 'training', label: '研修日報' },
+  { value: 'outbound', label: '架電日報' },
+  { value: 'inbound', label: '受電日報' },
+  { value: 'leon_is', label: 'レオン矯正IS' },
+]
+
+const BULK_SHIFT_APPROVAL_OPTIONS = [
+  { value: 'AUTO', label: '自動承認' },
+  { value: 'APPROVAL', label: '承認制' },
 ]
 
 const PROJECT_TYPE_TABS = [
@@ -57,7 +78,7 @@ export default function ProjectsPage() {
   const [typeTab, setTypeTab] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const bulkUpdate = useBulkUpdateProjectStatus()
+  const bulkUpdate = useBulkUpdateProjects()
 
   const { data: projects, isLoading } = useProjects({
     search: search || undefined,
@@ -82,11 +103,13 @@ export default function ProjectsPage() {
     return counts
   }, [projects])
 
-  const handleBulkStatusChange = async (status: string) => {
+  const handleBulkUpdate = async (field: string, value: string | null) => {
     const ids = Array.from(selectedIds)
     try {
-      const result = await bulkUpdate.mutateAsync({ ids, status })
-      toast.success(`${result.updated}件のプロジェクトのステータスを更新しました`)
+      const params: Record<string, unknown> = { ids }
+      params[field] = value
+      const result = await bulkUpdate.mutateAsync(params as { ids: string[]; status?: string; report_type?: string | null; shift_approval_mode?: 'AUTO' | 'APPROVAL' })
+      toast.success(`${result.updated}件のプロジェクトを更新しました`)
       setSelectedIds(new Set())
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '一括更新に失敗しました')
@@ -133,6 +156,27 @@ export default function ProjectsPage() {
       accessor: (row) => row.client_name ?? '',
       cell: (row) =>
         row.client_name || <span className="text-muted-foreground">-</span>,
+    },
+    {
+      key: 'report_type',
+      header: '日報タイプ',
+      accessor: (row) => row.report_type ?? '',
+      cell: (row) => {
+        const rt = row.report_type
+        if (!rt) return <span className="text-muted-foreground">-</span>
+        const label = DAILY_REPORT_TYPE_LABELS[rt as keyof typeof DAILY_REPORT_TYPE_LABELS]
+        const colorMap: Record<string, string> = {
+          training: 'bg-blue-100 text-blue-700 border-blue-200',
+          outbound: 'bg-orange-100 text-orange-700 border-orange-200',
+          inbound: 'bg-green-100 text-green-700 border-green-200',
+          leon_is: 'bg-purple-100 text-purple-700 border-purple-200',
+        }
+        return (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${colorMap[rt] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+            {label || rt}
+          </span>
+        )
+      },
     },
     {
       key: 'start_date',
@@ -297,17 +341,72 @@ export default function ProjectsPage() {
         totalCount={filteredProjects.length}
         onClearSelection={() => setSelectedIds(new Set())}
       >
-        {BULK_STATUS_OPTIONS.map((opt) => (
-          <Button
-            key={opt.value}
-            variant="secondary"
-            size="sm"
-            disabled={bulkUpdate.isPending}
-            onClick={() => handleBulkStatusChange(opt.value)}
-          >
-            {opt.label}
-          </Button>
-        ))}
+        {/* ステータス一括変更 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+            ステータス変更
+            <ChevronDown className="h-3.5 w-3.5 ml-1" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>ステータスを変更</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {BULK_STATUS_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => handleBulkUpdate('status', opt.value)}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* 日報タイプ一括変更 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+            日報タイプ変更
+            <ChevronDown className="h-3.5 w-3.5 ml-1" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>日報タイプを変更</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {BULK_REPORT_TYPE_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => handleBulkUpdate('report_type', opt.value)}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => handleBulkUpdate('report_type', null)}
+              className="text-muted-foreground"
+            >
+              未設定に戻す
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* シフト承認モード一括変更 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+            シフト承認変更
+            <ChevronDown className="h-3.5 w-3.5 ml-1" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>シフト承認モードを変更</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {BULK_SHIFT_APPROVAL_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => handleBulkUpdate('shift_approval_mode', opt.value)}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </BulkActionBar>
     </div>
   )

@@ -497,6 +497,7 @@ export interface Database {
           client_name: string | null
           custom_fields: Json | null
           metadata: Json | null
+          report_type: string | null
           shift_approval_mode: 'AUTO' | 'APPROVAL'
           slack_channel_id: string | null
           slack_channel_name: string | null
@@ -519,6 +520,7 @@ export interface Database {
           client_name?: string | null
           custom_fields?: Json | null
           metadata?: Json | null
+          report_type?: string | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           slack_channel_id?: string | null
           slack_channel_name?: string | null
@@ -542,6 +544,7 @@ export interface Database {
           client_name?: string | null
           custom_fields?: Json | null
           metadata?: Json | null
+          report_type?: string | null
           shift_approval_mode?: 'AUTO' | 'APPROVAL'
           slack_channel_id?: string | null
           slack_channel_name?: string | null
