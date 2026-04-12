@@ -4,8 +4,6 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth/rbac'
 
 const CALLS_PER_HOUR = 25
-const BREAK_THRESHOLD_HOURS = 5
-const BREAK_DURATION_HOURS = 1
 
 /**
  * GET /api/reports/call-target?date=2026-04-12&project_id=xxx
@@ -71,16 +69,15 @@ export async function GET(request: NextRequest) {
 
     if (workShifts.length === 0) {
       return NextResponse.json({
-        callTarget: 0,
         shiftHours: 0,
-        effectiveHours: 0,
+        shiftMinutes: 0,
+        callsPerHour: CALLS_PER_HOUR,
         shifts: 0,
         shiftDetails: [],
         isBpo,
         projectName: project?.name ?? '',
         projectType: project?.project_type ?? '',
         hasShift: false,
-        formula: '',
         staffId: user.staffId,
       })
     }
@@ -99,34 +96,18 @@ export async function GET(request: NextRequest) {
     }
 
     const totalHours = totalMinutes / 60
-    const effectiveHours =
-      totalHours > BREAK_THRESHOLD_HOURS
-        ? totalHours - BREAK_DURATION_HOURS
-        : totalHours
-    const callTarget = isBpo ? Math.ceil(effectiveHours * CALLS_PER_HOUR) : 0
-
-    // 算出方法の説明文
     const roundedTotal = Math.round(totalHours * 10) / 10
-    const roundedEff = Math.round(effectiveHours * 10) / 10
-    let formula = ''
-    if (isBpo) {
-      formula = `${roundedEff}h × ${CALLS_PER_HOUR}件/h = ${callTarget}件`
-      if (totalHours > BREAK_THRESHOLD_HOURS) {
-        formula = `${roundedTotal}h - 休憩1h = ${roundedEff}h → ${roundedEff}h × ${CALLS_PER_HOUR}件/h = ${callTarget}件`
-      }
-    }
-
+    // 休憩はクライアント側で入力・計算するため、ここではシフト合計のみ返す
     return NextResponse.json({
-      callTarget,
       shiftHours: roundedTotal,
-      effectiveHours: roundedEff,
+      shiftMinutes: totalMinutes,
+      callsPerHour: CALLS_PER_HOUR,
       shifts: workShifts.length,
       shiftDetails,
       isBpo,
       projectName: project?.name ?? '',
       projectType: project?.project_type ?? '',
       hasShift: true,
-      formula,
       staffId: user.staffId,
     })
   } catch (error) {

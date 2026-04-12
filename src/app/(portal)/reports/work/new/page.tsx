@@ -107,19 +107,19 @@ export default function NewDailyReportPage() {
 
   // --- シフト情報 & 架電数目標の自動計算 ---
   type ShiftInfo = {
-    callTarget: number
     shiftHours: number
-    effectiveHours: number
+    shiftMinutes: number
+    callsPerHour: number
     shifts: number
     shiftDetails: { id: string; startTime: string; endTime: string; status: string }[]
     isBpo: boolean
     projectName: string
     projectType: string
     hasShift: boolean
-    formula: string
     staffId: string
   }
   const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null)
+  const [breakMinutes, setBreakMinutes] = useState(0)
   const [isCreatingShift, setIsCreatingShift] = useState(false)
   const [newShiftStart, setNewShiftStart] = useState('09:00')
   const [newShiftEnd, setNewShiftEnd] = useState('18:00')
@@ -139,13 +139,25 @@ export default function NewDailyReportPage() {
         const data: ShiftInfo = await res.json()
         if (cancelled) return
         setShiftInfo(data)
-        setCallTarget(String(data.callTarget))
+        setBreakMinutes(0) // プロジェクト変更時にリセット
       } catch {
         // silently ignore
       }
     })()
     return () => { cancelled = true }
   }, [reportType, reportDate, projectId])
+
+  // 休憩時間を考慮した架電数目標の自動計算
+  useEffect(() => {
+    if (!shiftInfo?.hasShift || !shiftInfo.isBpo) return
+    const effectiveMinutes = shiftInfo.shiftMinutes - breakMinutes
+    if (effectiveMinutes <= 0) {
+      setCallTarget('0')
+      return
+    }
+    const effectiveHours = effectiveMinutes / 60
+    setCallTarget(String(Math.ceil(effectiveHours * shiftInfo.callsPerHour)))
+  }, [shiftInfo, breakMinutes])
 
   const handleCreateShift = useCallback(async (startTime: string, endTime: string) => {
     if (!shiftInfo?.staffId || !projectId || !reportDate) return
@@ -168,12 +180,11 @@ export default function NewDailyReportPage() {
         throw new Error(err.error || 'シフト登録に失敗しました')
       }
       toast.success('シフトを登録しました')
-      // リフェッチ
+      // リフェッチ（callTargetはuseEffectで自動計算される）
       const r2 = await fetch(`/api/reports/call-target?date=${reportDate}&project_id=${projectId}`)
       if (r2.ok) {
         const data: ShiftInfo = await r2.json()
         setShiftInfo(data)
-        setCallTarget(String(data.callTarget))
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'シフト登録に失敗しました')
@@ -535,8 +546,26 @@ export default function NewDailyReportPage() {
                       ))}
                       <div className="text-xs text-muted-foreground">
                         合計: {shiftInfo.shiftHours}時間
-                        {shiftInfo.shiftHours > 5 && ` (休憩1h差引後: ${shiftInfo.effectiveHours}h)`}
                       </div>
+                      {shiftInfo.isBpo && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                          <Label className="text-xs whitespace-nowrap">休憩時間</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="120"
+                            step="5"
+                            value={breakMinutes || ''}
+                            onChange={(e) => {
+                              const v = Math.min(120, Math.max(0, Number(e.target.value) || 0))
+                              setBreakMinutes(v)
+                            }}
+                            placeholder="0"
+                            className="w-[80px] h-7 text-sm"
+                          />
+                          <span className="text-xs text-muted-foreground">分</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -608,9 +637,16 @@ export default function NewDailyReportPage() {
                     onChange={(e) => setCallTarget(e.target.value)}
                     placeholder="0"
                   />
-                  {shiftInfo && shiftInfo.isBpo && shiftInfo.formula && (
+                  {shiftInfo && shiftInfo.isBpo && shiftInfo.hasShift && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      {shiftInfo.projectName}: {shiftInfo.formula}
+                      {shiftInfo.projectName}: {(() => {
+                        const effectiveMin = shiftInfo.shiftMinutes - breakMinutes
+                        const effectiveH = Math.round((effectiveMin / 60) * 10) / 10
+                        if (breakMinutes > 0) {
+                          return `${shiftInfo.shiftHours}h - 休憩${breakMinutes}分 = ${effectiveH}h × ${shiftInfo.callsPerHour}件/h = ${callTarget}件`
+                        }
+                        return `${shiftInfo.shiftHours}h × ${shiftInfo.callsPerHour}件/h = ${callTarget}件`
+                      })()}
                     </div>
                   )}
                   {shiftInfo && !shiftInfo.isBpo && projectId && (
