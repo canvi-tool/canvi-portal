@@ -134,9 +134,10 @@ export async function POST(request: NextRequest) {
               timeZone: 'Asia/Tokyo',
             })
           : '-'
-      const text = `:memo: 打刻修正申請\n*${staffName}* さんから打刻修正の申請があります${proj?.name ? `（${proj.name}）` : ''}\n• 出勤: ${fmt(rec.clock_in)} → ${fmt(parsed.data.requested_clock_in ?? rec.clock_in)}\n• 退勤: ${fmt(rec.clock_out)} → ${fmt(parsed.data.requested_clock_out ?? rec.clock_out)}\n• 休憩: ${rec.break_minutes ?? 0}分 → ${parsed.data.requested_break_minutes ?? rec.break_minutes ?? 0}分\n• 理由: ${parsed.data.reason}`
+      const text = `${proj?.name ? `${proj.name}｜` : ''}${staffName}の打刻修正が申請されました`
+      const blockText = `:memo: 打刻修正申請\n*${staffName}* さんから打刻修正の申請があります${proj?.name ? `（${proj.name}）` : ''}\n• 出勤: ${fmt(rec.clock_in)} → ${fmt(parsed.data.requested_clock_in ?? rec.clock_in)}\n• 退勤: ${fmt(rec.clock_out)} → ${fmt(parsed.data.requested_clock_out ?? rec.clock_out)}\n• 休憩: ${rec.break_minutes ?? 0}分 → ${parsed.data.requested_break_minutes ?? rec.break_minutes ?? 0}分\n• 理由: ${parsed.data.reason}`
       const blocks: SlackBlock[] = [
-        { type: 'section', text: { type: 'mrkdwn', text } },
+        { type: 'section', text: { type: 'mrkdwn', text: blockText } },
         {
           type: 'actions',
           block_id: 'correction_actions',

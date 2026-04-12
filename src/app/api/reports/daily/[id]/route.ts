@@ -211,7 +211,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
 
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} が ${typeLabel} を${actionLabel}しました（${projectName}）`,
+            text: `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`,
             blocks: [
               {
                 type: 'section',
@@ -256,7 +256,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           // スレッド内に報告内容の詳細を投稿
           const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
+            text: `${projectName}｜${staffName}の${typeLabel}詳細`,
             blocks: detailBlocks,
           }, { thread_ts: existingThreadTs })
         } else {
@@ -266,7 +266,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
           const result = await sendProjectNotificationIfEnabled(
             {
-              text: `${staffName} が ${typeLabel} を${actionLabel}しました（${projectName}）`,
+              text: `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`,
               blocks: [
                 {
                   type: 'section',
@@ -320,7 +320,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
             const detailBlocks = buildReportDetailBlocks(report_type, customFields, staffName, report_date)
             await sendSlackBotMessage(proj.slack_channel_id, {
-              text: `${staffName} の ${typeLabel} 詳細（${actionLabel}）`,
+              text: `${projectName}｜${staffName}の${typeLabel}詳細`,
               blocks: detailBlocks,
             }, { thread_ts: result.ts })
           }

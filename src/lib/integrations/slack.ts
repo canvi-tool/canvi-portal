@@ -1197,12 +1197,12 @@ export function buildOvertimeWarningNotification(staffName: string, hours: numbe
 /**
  * 休憩開始通知
  */
-export function buildBreakStartNotification(staffName: string, time?: string): SlackMessage {
+export function buildBreakStartNotification(staffName: string, time?: string, projectName?: string): SlackMessage {
   const now = new Date()
   const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
   const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが休憩に入りました (${dateStr} ${timeStr})`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}さんが休憩に入りました (${dateStr} ${timeStr})`,
     blocks: [
       {
         type: 'section',
@@ -1218,12 +1218,12 @@ export function buildBreakStartNotification(staffName: string, time?: string): S
 /**
  * 休憩終了通知
  */
-export function buildBreakEndNotification(staffName: string, breakMinutes: number, time?: string): SlackMessage {
+export function buildBreakEndNotification(staffName: string, breakMinutes: number, time?: string, projectName?: string): SlackMessage {
   const now = new Date()
   const dateStr = now.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'Asia/Tokyo' })
   const timeStr = time || now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
   return {
-    text: `${staffName}さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
     blocks: [
       {
         type: 'section',
@@ -1239,15 +1239,15 @@ export function buildBreakEndNotification(staffName: string, breakMinutes: numbe
 /**
  * シフト提出通知
  */
-export function buildShiftSubmittedNotification(staffName: string, shiftDate: string, startTime: string, endTime: string): SlackMessage {
+export function buildShiftSubmittedNotification(staffName: string, shiftDate: string, startTime: string, endTime: string, projectName?: string): SlackMessage {
   return {
-    text: `${staffName}さんがシフトを提出しました (${shiftDate} ${startTime}〜${endTime})`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}のシフトが提出されました (${shiftDate} ${startTime}〜${endTime})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:calendar: *${staffName}* さんがシフトを提出しました`,
+          text: `:calendar: ${projectName ? `*${projectName}*｜` : ''}*${staffName}* のシフトが提出されました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日付:* ${shiftDate}` },
@@ -1284,15 +1284,15 @@ export function buildShiftOverdueNotification(staffNames: string[], deadline: st
 /**
  * 日報提出通知
  */
-export function buildReportSubmittedNotification(staffName: string, date: string, workHours?: string): SlackMessage {
+export function buildReportSubmittedNotification(staffName: string, date: string, workHours?: string, projectName?: string): SlackMessage {
   return {
-    text: `${staffName}さんが日報を提出しました (${date}${workHours ? ` 勤務${workHours}` : ''})`,
+    text: `${projectName ? `${projectName}｜` : ''}${staffName}の日報が提出されました (${date}${workHours ? ` 勤務${workHours}` : ''})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:memo: *${staffName}* さんが日報を提出しました`,
+          text: `:memo: ${projectName ? `*${projectName}*｜` : ''}*${staffName}* の日報が提出されました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日付:* ${date}` },

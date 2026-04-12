@@ -132,7 +132,7 @@ export async function POST(
         // スレッドがない場合は新規メッセージで通知
         await sendProjectNotificationIfEnabled(
           {
-            text: `✅ ${staffName} のシフトが承認されました（${projectName}）`,
+            text: `✅ ${projectName}｜${staffName}のシフトが承認されました`,
             blocks: [
               {
                 type: 'section',

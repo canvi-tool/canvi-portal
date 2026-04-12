@@ -644,7 +644,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
       }
 
       await sendSlackBotMessage(channelId, {
-        text: `${actionLabel}されました`,
+        text: `${projectName ? `${projectName}｜` : ''}${staffName}の${typeLabel}が${actionLabel}されました`,
         blocks: threadBlocks,
       }, { thread_ts: threadTs })
     }
@@ -824,7 +824,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
       }
 
       await sendSlackBotMessage(channelId, {
-        text: `${actionLabel}されました`,
+        text: `${projectName ? `${projectName}｜` : ''}${staffName}のシフトが${actionLabel}されました`,
         blocks: threadBlocks,
       }, { thread_ts: threadTs })
     }
@@ -944,7 +944,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
   // 申請取得
   const { data: req } = await supabase
     .from('attendance_correction_requests')
-    .select('*, project:project_id(id, name, slack_channel_id)')
+    .select('*, project:project_id(id, name, slack_channel_id), requester:requested_by_user_id(display_name)')
     .eq('id', correctionId)
     .single()
 
@@ -1033,6 +1033,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
 
   const actionLabel = isApprove ? '承認' : '差戻し'
   const projectName = (r.project as { name?: string } | null)?.name || ''
+  const requesterName = (r.requester as { display_name?: string } | null)?.display_name || 'メンバー'
 
   // 元メッセージ更新（ボタン除去）
   const botToken = await resolveSlackBotToken()
@@ -1067,7 +1068,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `打刻修正が${actionLabel}されました`,
+        text: `${projectName ? `${projectName}｜` : ''}${requesterName}の打刻修正が${actionLabel}されました`,
         blocks: messageBlocks,
       }),
     })
@@ -1101,7 +1102,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
     }
     await sendSlackBotMessage(
       channelId,
-      { text: `打刻修正が${actionLabel}されました`, blocks: threadBlocks },
+      { text: `${projectName ? `${projectName}｜` : ''}${requesterName}の打刻修正が${actionLabel}されました`, blocks: threadBlocks },
       { thread_ts: threadTs }
     )
   }
@@ -1448,9 +1449,10 @@ async function handleCorrectionSubmit(payload: Record<string, unknown>) {
         ],
       } as unknown as SlackBlock,
     ]
+    const notificationText = `${proj?.name ? `${proj.name}｜` : ''}${displayName || 'メンバー'}の打刻修正が申請されました`
     const { sendProjectNotification } = await import('@/lib/integrations/slack')
     const result = await sendProjectNotification(
-      { text, blocks },
+      { text: notificationText, blocks },
       proj?.slack_channel_id || null,
       { projectId: r.project_id, staffId: r.staff_id }
     )
@@ -1761,7 +1763,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
       await sendSlackBotMessage(
         replyChannel,
         {
-          text: `${staffName} に打刻修正のお願いです`,
+          text: `${fixProjectName ? `${fixProjectName}｜` : ''}${staffName}の打刻修正が依頼されました`,
           blocks: [
             {
               type: 'section',
@@ -2104,8 +2106,10 @@ async function handleDiffMemberFixSubmit(payload: Record<string, unknown>) {
         ],
       } as unknown as SlackBlock,
     ]
+    const diffFixProjectName = (r.project as { name?: string } | null)?.name || ''
+    const diffFixNotificationText = `${diffFixProjectName ? `${diffFixProjectName}｜` : ''}${displayName || 'メンバー'}の打刻修正が申請されました`
     if (channelId && threadTs) {
-      await sendSlackBotMessage(channelId, { text, blocks }, { thread_ts: threadTs })
+      await sendSlackBotMessage(channelId, { text: diffFixNotificationText, blocks }, { thread_ts: threadTs })
     }
   } catch (e) {
     console.error('diff_member_fix_modal notify error:', e)

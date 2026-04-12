@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
 
         const result = await sendProjectNotificationIfEnabled(
           {
-            text: `📅 ${staffName} のシフトが登録されました（${project.name || ''}）`,
+            text: `📅 ${project.name}｜${staffName}のシフトが登録されました`,
             blocks: [
               {
                 type: 'section',

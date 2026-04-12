@@ -170,14 +170,14 @@ export async function POST(
         })
 
         await sendSlackBotMessage(slackChannelId, {
-          text: `🔄 ${staffName} がシフトを再提出しました（${projectName}）`,
+          text: `🔄 ${projectName}｜${staffName}のシフトが再提出されました`,
           blocks: resubmitBlocks,
         }, { thread_ts: existingThreadTs })
       } else {
         // 新規提出 → 新しいメッセージ（ボタン付き）
         const result = await sendProjectNotificationIfEnabled(
           {
-            text: `📅 ${staffName} がシフトを申請しました（${projectName}）`,
+            text: `📅 ${projectName}｜${staffName}のシフトが申請されました`,
             blocks: [
               {
                 type: 'section',
@@ -244,7 +244,7 @@ export async function POST(
             })
           }
           await sendSlackBotMessage(slackChannelId, {
-            text: `📋 ${staffName} のシフト詳細`,
+            text: `📋 ${projectName}｜${staffName}のシフト詳細`,
             blocks: detailBlocks,
           }, { thread_ts: threadTs })
         }

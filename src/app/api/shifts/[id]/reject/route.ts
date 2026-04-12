@@ -129,7 +129,7 @@ export async function POST(
         // スレッドがない場合は新規メッセージで通知
         await sendProjectNotificationIfEnabled(
           {
-            text: `🔙 ${staffName} のシフトが差戻しされました（${projectName}）`,
+            text: `🔙 ${projectName}｜${staffName}のシフトが差戻しされました`,
             blocks: [
               {
                 type: 'section',
