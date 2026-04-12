@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getUser } from '@/lib/auth/session'
 
@@ -17,8 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'date パラメータが必要です' }, { status: 400 })
     }
 
-    const apiUrl = process.env.CANVI_CALL_API_URL
-    const apiKey = process.env.CANVI_CALL_API_KEY
+    const apiUrl = process.env.CANVI_CALL_API_URL?.trim()
+    const apiKey = process.env.CANVI_CALL_API_KEY?.trim()
 
     if (!apiUrl || !apiKey) {
       return NextResponse.json(
@@ -35,11 +36,11 @@ export async function GET(request: NextRequest) {
 
     const res = await fetch(url, {
       headers: { 'X-API-Key': apiKey },
-      next: { revalidate: 0 },
+      cache: 'no-store',
     })
 
     const responseText = await res.text()
-    console.log('[canvi-call KPI] Response status:', res.status, 'body:', responseText)
+    console.log('[canvi-call KPI] Response status:', res.status, 'body:', responseText.substring(0, 500))
 
     if (!res.ok) {
       const err = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('canvi-call KPI proxy error:', error)
     return NextResponse.json(
-      { error: 'サーバーエラーが発生しました' },
+      { error: `サーバーエラー: ${error instanceof Error ? error.message : 'unknown'}` },
       { status: 500 }
     )
   }
