@@ -29,6 +29,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import {
   Search,
@@ -41,6 +45,10 @@ import {
   PackageX,
   Undo2,
   AlertTriangle,
+  ArrowRightLeft,
+  Wrench,
+  Check,
+  RotateCcw,
 } from 'lucide-react'
 import {
   EQUIPMENT_STATUS_LABELS,
@@ -75,6 +83,7 @@ export interface EquipmentItem {
   purchase_date: string | null
   remarks: string | null
   created_at: string
+  deleted_at: string | null
   category: CategoryCode | null
   maker: MakerCode | null
 }
@@ -145,6 +154,15 @@ function PledgeStatusBadge({ status }: { status: string }) {
   )
 }
 
+// ---------- Status change config ----------
+
+const STATUS_CHANGE_ICONS: Record<string, React.ReactNode> = {
+  available: <PackageCheck className="h-4 w-4 text-green-600" />,
+  lent: <Package className="h-4 w-4 text-blue-600" />,
+  maintenance: <Wrench className="h-4 w-4 text-amber-600" />,
+  disposed: <PackageX className="h-4 w-4 text-gray-500" />,
+}
+
 // ---------- Stats ----------
 
 const STAT_ICONS: Record<string, React.ReactNode> = {
@@ -162,6 +180,7 @@ interface EquipmentPageClientProps {
   categoryCodes: CategoryCode[]
   makerCodes: MakerCode[]
   staffList: StaffOption[]
+  initialTrashed: EquipmentItem[]
 }
 
 export function EquipmentPageClient({
@@ -170,6 +189,7 @@ export function EquipmentPageClient({
   categoryCodes: initialCategoryCodes,
   makerCodes: initialMakerCodes,
   staffList,
+  initialTrashed,
 }: EquipmentPageClientProps) {
   const router = useRouter()
 
@@ -284,38 +304,56 @@ export function EquipmentPageClient({
   }
 
   const handleDeleteEquipment = async (id: string) => {
-    if (!confirm('この備品を削除しますか？')) return
+    if (!confirm('この備品をゴミ箱に移動しますか？')) return
     try {
       const res = await fetch(`/api/equipment/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
-        toast.error(data.error || '削除に失敗しました')
+        toast.error(data.error || 'ゴミ箱への移動に失敗しました')
         return
       }
-      toast.success('備品を削除しました')
+      toast.success('備品をゴミ箱に移動しました')
       handleRefresh()
     } catch {
-      toast.error('削除に失敗しました')
+      toast.error('ゴミ箱への移動に失敗しました')
     }
   }
 
-  const handleDisposeEquipment = async (id: string) => {
-    if (!confirm('この備品を廃棄済にしますか？この操作は取り消せません。')) return
+  const handleRestoreEquipment = async (id: string) => {
+    try {
+      const res = await fetch(`/api/equipment/${id}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || '復元に失敗しました')
+        return
+      }
+      toast.success('備品を復元しました')
+      handleRefresh()
+    } catch {
+      toast.error('復元に失敗しました')
+    }
+  }
+
+  const handleChangeStatus = async (id: string, newStatus: string) => {
+    const label = EQUIPMENT_STATUS_LABELS[newStatus] || newStatus
+    if (newStatus === 'disposed') {
+      if (!confirm('この備品を廃棄済にしますか？')) return
+    }
     try {
       const res = await fetch(`/api/equipment/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'disposed' }),
+        body: JSON.stringify({ status: newStatus }),
       })
       if (!res.ok) {
         const data = await res.json()
-        toast.error(data.error || '廃棄処理に失敗しました')
+        toast.error(data.error || 'ステータス変更に失敗しました')
         return
       }
-      toast.success('備品を廃棄済にしました')
+      toast.success(`ステータスを「${label}」に変更しました`)
       handleRefresh()
     } catch {
-      toast.error('廃棄処理に失敗しました')
+      toast.error('ステータス変更に失敗しました')
     }
   }
 
@@ -331,9 +369,33 @@ export function EquipmentPageClient({
   return (
     <>
       <Tabs defaultValue="inventory">
-        <TabsList>
-          <TabsTrigger value="inventory">在庫管理</TabsTrigger>
-          <TabsTrigger value="lending">貸与管理</TabsTrigger>
+        <TabsList className="bg-muted/60 p-1 rounded-lg">
+          <TabsTrigger
+            value="inventory"
+            className="data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold dark:data-[state=active]:bg-zinc-800 px-6 py-2 rounded-md transition-all"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            在庫管理
+          </TabsTrigger>
+          <TabsTrigger
+            value="lending"
+            className="data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold dark:data-[state=active]:bg-zinc-800 px-6 py-2 rounded-md transition-all"
+          >
+            <PackageCheck className="h-4 w-4 mr-2" />
+            貸与管理
+          </TabsTrigger>
+          <TabsTrigger
+            value="trash"
+            className="data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold dark:data-[state=active]:bg-zinc-800 px-6 py-2 rounded-md transition-all"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            ゴミ箱
+            {initialTrashed.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-5 min-w-[20px] px-1.5 text-[10px] bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                {initialTrashed.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* ==================== 在庫管理タブ ==================== */}
@@ -470,21 +532,35 @@ export function EquipmentPageClient({
                                 <Pencil className="h-4 w-4 mr-2" />
                                 編集
                               </DropdownMenuItem>
-                              {item.status !== 'disposed' && (
-                                <DropdownMenuItem
-                                  className="text-amber-600"
-                                  onClick={() => handleDisposeEquipment(item.id)}
-                                >
-                                  <PackageX className="h-4 w-4 mr-2" />
-                                  廃棄する
-                                </DropdownMenuItem>
-                              )}
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                  ステータス変更
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  {Object.entries(EQUIPMENT_STATUS_LABELS).map(([statusKey, statusLabel]) => (
+                                    <DropdownMenuItem
+                                      key={statusKey}
+                                      onClick={() => handleChangeStatus(item.id, statusKey)}
+                                      disabled={item.status === statusKey}
+                                      className={item.status === statusKey ? 'opacity-50' : ''}
+                                    >
+                                      <span className="mr-2">{STATUS_CHANGE_ICONS[statusKey]}</span>
+                                      {statusLabel}
+                                      {item.status === statusKey && (
+                                        <Check className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
+                                      )}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => handleDeleteEquipment(item.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                削除
+                                ゴミ箱に移動
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -628,6 +704,79 @@ export function EquipmentPageClient({
                         </TableRow>
                       )
                     })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ==================== ゴミ箱タブ ==================== */}
+        <TabsContent value="trash">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 px-4 py-3 flex items-start gap-3">
+              <Trash2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="text-sm text-muted-foreground">
+                <p>削除された備品はここに移動されます。復元ボタンで在庫管理に戻すことができます。</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>管理番号</TableHead>
+                    <TableHead>機器種別</TableHead>
+                    <TableHead>品名（機種名）</TableHead>
+                    <TableHead>削除前ステータス</TableHead>
+                    <TableHead>所有者</TableHead>
+                    <TableHead>削除日時</TableHead>
+                    <TableHead className="w-[80px]">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {initialTrashed.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        ゴミ箱は空です
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    initialTrashed.map((item) => (
+                      <TableRow key={item.id} className="opacity-70 hover:opacity-100 transition-opacity">
+                        <TableCell className="font-mono text-xs">
+                          {item.management_number}
+                        </TableCell>
+                        <TableCell>{item.category?.name || item.category_code}</TableCell>
+                        <TableCell>{item.product_name || '-'}</TableCell>
+                        <TableCell>
+                          <EquipmentStatusBadge status={item.status} />
+                        </TableCell>
+                        <TableCell>{item.owner || '-'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {item.deleted_at
+                            ? new Date(item.deleted_at).toLocaleDateString('ja-JP', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRestoreEquipment(item.id)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                            復元
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>

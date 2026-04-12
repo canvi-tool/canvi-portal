@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 
 // GET: 備品一覧（フィルタ・検索対応）
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     if (!isOwner(user)) return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = (await createServerSupabaseClient()) as any
+    const supabase = createAdminClient() as any
     const body = await request.json()
     const { category_code, maker_code, product_name, status: itemStatus, owner, purchase_date, remarks } = body
 
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
-    const nextSerial = existing && existing.length > 0 ? existing[0].serial_number + 1 : 1
+    const nextSerial = existing && existing.length > 0 ? Number(existing[0].serial_number) + 1 : 1
     if (nextSerial > 99) {
       return NextResponse.json({ error: '管理番号が上限（99）に達しています。同じ種別・メーカーの組み合わせではこれ以上登録できません。' }, { status: 400 })
     }

@@ -14,15 +14,17 @@ export default async function EquipmentPage() {
   let categoryCodes: Awaited<ReturnType<typeof fetchCategoryCodes>> = []
   let makerCodes: Awaited<ReturnType<typeof fetchMakerCodes>> = []
   let staffList: Awaited<ReturnType<typeof fetchStaffList>> = []
+  let trashedItems: Awaited<ReturnType<typeof fetchTrashedItems>> = []
 
   try {
-    ;[equipmentItems, lendingRecords, categoryCodes, makerCodes, staffList] =
+    ;[equipmentItems, lendingRecords, categoryCodes, makerCodes, staffList, trashedItems] =
       await Promise.all([
         fetchEquipmentItems(),
         fetchLendingRecords(),
         fetchCategoryCodes(),
         fetchMakerCodes(),
         fetchStaffList(),
+        fetchTrashedItems(),
       ])
   } catch (err) {
     console.error('Equipment page error:', err)
@@ -40,6 +42,7 @@ export default async function EquipmentPage() {
         categoryCodes={categoryCodes}
         makerCodes={makerCodes}
         staffList={staffList}
+        initialTrashed={trashedItems}
       />
     </div>
   )
@@ -123,6 +126,26 @@ async function fetchMakerCodes() {
 
   if (error) {
     console.error('Maker codes query error:', error)
+    return []
+  }
+  return data || []
+}
+
+async function fetchTrashedItems() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServerSupabaseClient()) as any
+  const { data, error } = await supabase
+    .from('equipment_items')
+    .select(`
+      *,
+      category:category_code(code, name),
+      maker:maker_code(code, name)
+    `)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+
+  if (error) {
+    console.error('Trashed items query error:', error)
     return []
   }
   return data || []

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       .order('serial_number', { ascending: false })
       .limit(1)
 
-    const nextSerial = existing && existing.length > 0 ? existing[0].serial_number + 1 : 1
+    const nextSerial = existing && existing.length > 0 ? Number(existing[0].serial_number) + 1 : 1
     const serialStr = String(nextSerial).padStart(2, '0')
     const managementNumber = `${category}${maker}${serialStr}`
 

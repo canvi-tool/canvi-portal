@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 
 type RouteParams = { params: Promise<{ id: string }> }
@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = (await createServerSupabaseClient()) as any
+    const supabase = createAdminClient() as any
 
     const { data, error } = await supabase
       .from('equipment_lending_records')
@@ -63,7 +63,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = (await createServerSupabaseClient()) as any
+    const supabase = createAdminClient() as any
     const body = await request.json()
 
     const allowedFields = [
@@ -123,7 +123,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = (await createServerSupabaseClient()) as any
+    const supabase = createAdminClient() as any
 
     const { data, error } = await supabase
       .from('equipment_lending_records')
