@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ import {
   RefreshCw,
   Loader2,
   ExternalLink,
+  Eye,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -132,10 +134,30 @@ function formatTimestamp(iso: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// localStorage helpers for persistent hidden state
+// ---------------------------------------------------------------------------
+const HIDDEN_ALERTS_KEY = 'canvi_hidden_alert_ids'
+
+function loadHiddenIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const stored = localStorage.getItem(HIDDEN_ALERTS_KEY)
+    if (stored) return new Set(JSON.parse(stored))
+  } catch { /* ignore */ }
+  return new Set()
+}
+
+function saveHiddenIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(HIDDEN_ALERTS_KEY, JSON.stringify([...ids]))
+  } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
-type StatusFilter = 'all' | 'critical' | 'warning' | 'info'
+type ViewTab = 'active' | 'hidden'
 
 export default function AlertsPage() {
   const router = useRouter()
@@ -144,10 +166,17 @@ export default function AlertsPage() {
   const [error, setError] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [severityFilter, setSeverityFilter] = useState<string>('all')
-  const [statusFilter] = useState<StatusFilter>('all')
+  const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [staffFilter, setStaffFilter] = useState<string>('all')
+  const [viewTab, setViewTab] = useState<ViewTab>('active')
 
-  // Dismissed alerts (session-only)
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  // Hidden alerts (persisted in localStorage)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+
+  // Load hidden IDs from localStorage on mount
+  useEffect(() => {
+    setHiddenIds(loadHiddenIds())
+  }, [])
 
   // Fetch alerts from API
   const fetchAlerts = useCallback(async () => {
@@ -161,6 +190,16 @@ export default function AlertsPage() {
       }
       const data: Alert[] = await res.json()
       setAlerts(data)
+
+      // Clean up hidden IDs that no longer exist in current alerts (auto-resolved)
+      const currentAlertIds = new Set(data.map((a) => a.id))
+      setHiddenIds((prev) => {
+        const cleaned = new Set([...prev].filter((id) => currentAlertIds.has(id)))
+        if (cleaned.size !== prev.size) {
+          saveHiddenIds(cleaned)
+        }
+        return cleaned
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
@@ -172,20 +211,50 @@ export default function AlertsPage() {
     fetchAlerts()
   }, [fetchAlerts])
 
+  // --- Unique filter options extracted from alerts ---
+  const projectOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const a of alerts) {
+      if (a.relatedProjectId && a.relatedProjectName) {
+        map.set(a.relatedProjectId, a.relatedProjectName)
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], 'ja'))
+  }, [alerts])
+
+  const staffOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const a of alerts) {
+      if (a.relatedStaffId && a.relatedStaffName) {
+        map.set(a.relatedStaffId, a.relatedStaffName)
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], 'ja'))
+  }, [alerts])
+
   // --- Derived data ---
 
   const activeAlerts = useMemo(() => {
-    return alerts.filter((a) => !dismissedIds.has(a.id))
-  }, [alerts, dismissedIds])
+    return alerts.filter((a) => !hiddenIds.has(a.id))
+  }, [alerts, hiddenIds])
+
+  const hiddenAlerts = useMemo(() => {
+    return alerts.filter((a) => hiddenIds.has(a.id))
+  }, [alerts, hiddenIds])
+
+  const currentList = viewTab === 'active' ? activeAlerts : hiddenAlerts
 
   const filtered = useMemo(() => {
-    return activeAlerts.filter((a) => {
+    return currentList.filter((a) => {
       if (typeFilter !== 'all' && a.type !== typeFilter) return false
       if (severityFilter !== 'all' && a.severity !== severityFilter) return false
-      if (statusFilter !== 'all' && a.severity !== statusFilter.toUpperCase()) return false
+      if (projectFilter !== 'all' && a.relatedProjectId !== projectFilter) return false
+      if (staffFilter !== 'all' && a.relatedStaffId !== staffFilter) return false
       return true
     })
-  }, [activeAlerts, typeFilter, severityFilter, statusFilter])
+  }, [currentList, typeFilter, severityFilter, projectFilter, staffFilter])
 
   const criticalCount = activeAlerts.filter((a) => a.severity === 'CRITICAL').length
   const warningCount = activeAlerts.filter((a) => a.severity === 'WARNING').length
@@ -193,12 +262,30 @@ export default function AlertsPage() {
 
   // --- Actions ---
 
-  function dismissAlert(id: string) {
-    setDismissedIds((prev) => new Set(prev).add(id))
+  function hideAlert(id: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev).add(id)
+      saveHiddenIds(next)
+      return next
+    })
   }
 
-  function dismissAll() {
-    setDismissedIds(new Set(activeAlerts.map((a) => a.id)))
+  function unhideAlert(id: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      saveHiddenIds(next)
+      return next
+    })
+  }
+
+  function hideAll() {
+    setHiddenIds((prev) => {
+      const next = new Set(prev)
+      for (const a of activeAlerts) next.add(a.id)
+      saveHiddenIds(next)
+      return next
+    })
   }
 
   // --- Render ---
@@ -207,7 +294,7 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <PageHeader
         title="AIアラート"
-        description="勤怠・日報・シフトの異常を自動検知して表示します（直近14日間）"
+        description="勤怠・日報・シフトの異常を自動検知して表示します（直近14日間）。解消されたアラートは自動で消えます。"
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={fetchAlerts} disabled={isLoading}>
@@ -218,13 +305,33 @@ export default function AlertsPage() {
               )}
               更新
             </Button>
-            <Button variant="outline" size="sm" onClick={dismissAll} disabled={activeAlerts.length === 0}>
-              <BellOff className="size-4" />
-              全て非表示
-            </Button>
+            {viewTab === 'active' && (
+              <Button variant="outline" size="sm" onClick={hideAll} disabled={activeAlerts.length === 0}>
+                <BellOff className="size-4" />
+                全て非表示
+              </Button>
+            )}
           </div>
         }
       />
+
+      {/* Active / Hidden tabs */}
+      <Tabs value={viewTab} onValueChange={(v) => setViewTab(v as ViewTab)}>
+        <TabsList>
+          <TabsTrigger value="active" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold">
+            アクティブ
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              {activeAlerts.length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="hidden" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold">
+            非表示
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              {hiddenAlerts.length}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -251,35 +358,75 @@ export default function AlertsPage() {
             <SelectItem value="INFO">情報</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <SelectTrigger size="sm">
+            <SelectValueWithLabel
+              value={projectFilter}
+              placeholder="PJで絞り込み"
+              labels={{
+                all: '全てのPJ',
+                ...Object.fromEntries(projectOptions),
+              }}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全てのPJ</SelectItem>
+            {projectOptions.map(([id, name]) => (
+              <SelectItem key={id} value={id}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={staffFilter} onValueChange={setStaffFilter}>
+          <SelectTrigger size="sm">
+            <SelectValueWithLabel
+              value={staffFilter}
+              placeholder="スタッフで絞り込み"
+              labels={{
+                all: '全てのスタッフ',
+                ...Object.fromEntries(staffOptions),
+              }}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全てのスタッフ</SelectItem>
+            {staffOptions.map(([id, name]) => (
+              <SelectItem key={id} value={id}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Stats summary */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <div className="flex items-center gap-1.5">
-          <Bell className="size-4 text-muted-foreground" />
-          <span>
-            合計 <span className="font-semibold">{activeAlerts.length}件</span>
-          </span>
+      {/* Stats summary (active tab only) */}
+      {viewTab === 'active' && (
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <Bell className="size-4 text-muted-foreground" />
+            <span>
+              合計 <span className="font-semibold">{activeAlerts.length}件</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="size-4 text-destructive" />
+            <span>
+              重大 <span className="font-semibold text-destructive">{criticalCount}件</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="size-4 text-amber-500" />
+            <span>
+              警告 <span className="font-semibold text-amber-600">{warningCount}件</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Bell className="size-4 text-blue-500" />
+            <span>
+              情報 <span className="font-semibold text-blue-600">{infoCount}件</span>
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <AlertTriangle className="size-4 text-destructive" />
-          <span>
-            重大 <span className="font-semibold text-destructive">{criticalCount}件</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <AlertTriangle className="size-4 text-amber-500" />
-          <span>
-            警告 <span className="font-semibold text-amber-600">{warningCount}件</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Bell className="size-4 text-blue-500" />
-          <span>
-            情報 <span className="font-semibold text-blue-600">{infoCount}件</span>
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Error state */}
       {error && (
@@ -310,16 +457,25 @@ export default function AlertsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Check className="mb-2 size-8 text-green-500" />
-              <p className="text-sm">該当するアラートはありません</p>
-              <p className="text-xs mt-1">直近14日間に異常は検知されていません</p>
+              <p className="text-sm">
+                {viewTab === 'active'
+                  ? '該当するアラートはありません'
+                  : '非表示のアラートはありません'}
+              </p>
+              <p className="text-xs mt-1">
+                {viewTab === 'active'
+                  ? '直近14日間に異常は検知されていません'
+                  : '非表示にしたアラートが解消されると自動で消えます'}
+              </p>
             </CardContent>
           </Card>
         )}
 
         {filtered.map((alert) => {
           const Icon = typeIcon(alert.type)
+          const isHidden = hiddenIds.has(alert.id)
           return (
-            <Card key={alert.id}>
+            <Card key={alert.id} className={isHidden ? 'opacity-60' : ''}>
               <CardContent className="flex items-start gap-4 py-4">
                 {/* Icon */}
                 <div
@@ -346,8 +502,15 @@ export default function AlertsPage() {
                   <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>{formatTimestamp(alert.createdAt)}</span>
+                    {alert.relatedStaffName && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                        {alert.relatedStaffName}
+                      </span>
+                    )}
                     {alert.relatedProjectName && (
-                      <span>PJ: {alert.relatedProjectName}</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                        {alert.relatedProjectName}
+                      </span>
                     )}
                     {alert.projectManagerName && (
                       <span>管理者: {alert.projectManagerName}</span>
@@ -363,9 +526,15 @@ export default function AlertsPage() {
                       詳細
                     </Button>
                   )}
-                  <Button variant="ghost" size="sm" onClick={() => dismissAlert(alert.id)}>
-                    <BellOff className="size-3.5" />
-                  </Button>
+                  {isHidden ? (
+                    <Button variant="ghost" size="sm" onClick={() => unhideAlert(alert.id)} title="再表示">
+                      <Eye className="size-3.5" />
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => hideAlert(alert.id)} title="非表示にする">
+                      <BellOff className="size-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
