@@ -121,6 +121,8 @@ export default function NewDailyReportPage() {
   }
   const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null)
   const [isCreatingShift, setIsCreatingShift] = useState(false)
+  const [newShiftStart, setNewShiftStart] = useState('09:00')
+  const [newShiftEnd, setNewShiftEnd] = useState('18:00')
 
   useEffect(() => {
     if (reportType !== 'outbound' || !reportDate || !projectId) {
@@ -537,22 +539,37 @@ export default function NewDailyReportPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm text-amber-600">
                         <AlertTriangle className="h-4 w-4" />
                         この日のシフトが登録されていません
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isCreatingShift}
-                        onClick={() => handleCreateShift('09:00', '18:00')}
-                        className="text-xs gap-1.5"
-                      >
-                        {isCreatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
-                        シフトを登録する（9:00〜18:00）
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="time"
+                          value={newShiftStart}
+                          onChange={(e) => setNewShiftStart(e.target.value)}
+                          className="w-[120px] h-8 text-sm"
+                        />
+                        <span className="text-sm text-muted-foreground">〜</span>
+                        <Input
+                          type="time"
+                          value={newShiftEnd}
+                          onChange={(e) => setNewShiftEnd(e.target.value)}
+                          className="w-[120px] h-8 text-sm"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isCreatingShift || !newShiftStart || !newShiftEnd}
+                          onClick={() => handleCreateShift(newShiftStart, newShiftEnd)}
+                          className="text-xs gap-1.5 whitespace-nowrap"
+                        >
+                          {isCreatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
+                          シフトを登録
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
