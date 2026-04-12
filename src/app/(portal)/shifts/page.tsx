@@ -364,11 +364,21 @@ export default function ShiftsPage() {
         }
       }
       // PJ未割当のGCal取込イベント（上の Promise.all で並列取得済）
+      // 重複防止: 既にシフトとして存在する external_event_id を除外
       try {
         if (pendingRes && pendingRes.ok) {
           const pending = await pendingRes.json()
           if (Array.isArray(pending)) {
+            // Build a Set of known event IDs from existing shifts (raw list data)
+            const knownEventIds = new Set<string>()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const s of list as any[]) {
+              if (s.google_calendar_event_id) knownEventIds.add(s.google_calendar_event_id)
+              if (s.external_event_id) knownEventIds.add(s.external_event_id)
+            }
             for (const p of pending) {
+              // Skip pending events that already have a corresponding shift
+              if (p.external_event_id && knownEventIds.has(p.external_event_id)) continue
               const staffInfo = staffListRef.current.find((x) => x.id === p.staff_id)
               expanded.push({
                 id: `gcal_pending__${p.id}`,
@@ -1818,8 +1828,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                       return
                     }
                     toast.success('PJ対象外に設定しました')
+                    // Optimistically remove the pending event from local state
+                    setShifts(prev => prev.filter(s => s.id !== `gcal_pending__${pendingAssign.id}`))
                     setPendingAssign(null)
-                    fetchShifts()
+                    await fetchShifts()
                     return
                   }
                   const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}/assign`, {
@@ -1833,8 +1845,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                     return
                   }
                   toast.success('PJを割り当てました')
+                  // Optimistically remove the pending event from local state
+                  setShifts(prev => prev.filter(s => s.id !== `gcal_pending__${pendingAssign.id}`))
                   setPendingAssign(null)
-                  fetchShifts()
+                  await fetchShifts()
                 } catch {
                   toast.error('PJ割当に失敗しました')
                 } finally {

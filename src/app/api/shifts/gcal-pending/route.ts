@@ -79,7 +79,50 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json(data || [])
+    // Server-side deduplication: exclude pending events that already have a corresponding shift
+    // A pending event is considered a duplicate if its external_event_id matches
+    // a shift's external_event_id or google_calendar_event_id for the same staff
+    let filtered = data || []
+    if (filtered.length > 0) {
+      try {
+        const externalIds = filtered
+          .map((p: { external_event_id?: string }) => p.external_event_id)
+          .filter(Boolean) as string[]
+        if (externalIds.length > 0) {
+          // Query shifts that match by external_event_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: shiftsByExternal } = await (admin as any)
+            .from('shifts')
+            .select('external_event_id, google_calendar_event_id')
+            .in('external_event_id', externalIds) as { data: Array<{ external_event_id: string | null; google_calendar_event_id: string | null }> | null }
+          // Query shifts that match by google_calendar_event_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: shiftsByGcal } = await (admin as any)
+            .from('shifts')
+            .select('external_event_id, google_calendar_event_id')
+            .in('google_calendar_event_id', externalIds) as { data: Array<{ external_event_id: string | null; google_calendar_event_id: string | null }> | null }
+
+          const matchedIds = new Set<string>()
+          for (const s of shiftsByExternal || []) {
+            if (s.external_event_id) matchedIds.add(s.external_event_id)
+          }
+          for (const s of shiftsByGcal || []) {
+            if (s.google_calendar_event_id) matchedIds.add(s.google_calendar_event_id)
+          }
+
+          if (matchedIds.size > 0) {
+            filtered = filtered.filter(
+              (p: { external_event_id?: string }) =>
+                !p.external_event_id || !matchedIds.has(p.external_event_id)
+            )
+          }
+        }
+      } catch {
+        // Dedup failure is non-fatal; return unfiltered results
+      }
+    }
+
+    return NextResponse.json(filtered)
   } catch (error) {
     console.error('GET /api/shifts/gcal-pending error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })

@@ -259,8 +259,14 @@ export async function runIncrementalSyncForStaff(params: {
         return
       }
       // 旧互換: 他の Canvi ユーザー organizer
+      // ただし自分が attendee に含まれている場合はスキップしない（招待されたイベント）
       const organizer = (ev.organizerEmail || '').toLowerCase()
-      if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) return
+      if (organizer && organizer !== myEmail && canviEmailSet.has(organizer)) {
+        const isMeAttendee = Array.isArray(ev.attendees) && ev.attendees.some(
+          (a: { email?: string; self?: boolean }) => a.self === true || (a.email || '').toLowerCase() === myEmail
+        )
+        if (!isMeAttendee) return
+      }
       // 終日 or 時刻なし → スキップ
       if (ev.isAllDay || !ev.start || !ev.end) return
 

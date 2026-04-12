@@ -503,6 +503,89 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
     console.error('[canvi_calendar_create] gcal sync failed:', e)
   }
 
+  // ── 招待者（attendees）にもシフトを作成 ──
+  // GCal sync 側は organizer のカレンダーにイベント作成済み。
+  // 各 attendee の Canvi シフトを作成しておかないと、GCal import が
+  // 「他の Canvi ユーザー主催イベント」をスキップしてしまい予定が反映されない。
+  const attendeeShiftResults: Array<{ email: string; ok: boolean }> = []
+  {
+    // organizer のシフトから google_calendar_event_id を取得
+    const { data: orgShift } = await admin
+      .from('shifts')
+      .select('google_calendar_event_id')
+      .eq('id', inserted.id)
+      .maybeSingle()
+    const gcalEventId: string | null =
+      (orgShift as { google_calendar_event_id?: string | null } | null)?.google_calendar_event_id || null
+
+    const internalAttendees = attendees.filter(
+      (a) => a.staff_id && !a.external && a.staff_id !== staff.id
+    )
+    for (const att of internalAttendees) {
+      try {
+        const attStaffId = att.staff_id as string
+        // 重複チェック: 同じ staff × 同じ external_event_id のシフトが既にあればスキップ
+        if (gcalEventId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: existing } = await (admin as any)
+            .from('shifts')
+            .select('id')
+            .eq('staff_id', attStaffId)
+            .or(`external_event_id.eq.${gcalEventId},google_calendar_event_id.eq.${gcalEventId}`)
+            .is('deleted_at', null)
+            .maybeSingle()
+          if (existing?.id) {
+            console.log(`[canvi_calendar_create] attendee shift already exists for staff=${att.staff_id} event=${gcalEventId}`)
+            attendeeShiftResults.push({ email: att.email, ok: true })
+            continue
+          }
+        }
+
+        // attendee 用のシフトを作成
+        const { error: attErr } = await admin
+          .from('shifts')
+          .insert({
+            staff_id: att.staff_id,
+            project_id: projectId || null,
+            shift_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            shift_type: 'WORK',
+            title,
+            notes,
+            attendees,
+            status: 'APPROVED',
+            submitted_at: now,
+            approved_at: now,
+            approved_by: requester.id,
+            created_by: requester.id,
+            source: 'manual',
+            ...(gcalEventId
+              ? {
+                  google_calendar_event_id: gcalEventId,
+                  external_event_id: gcalEventId,
+                }
+              : {}),
+          } as never)
+
+        if (attErr) {
+          console.error(`[canvi_calendar_create] attendee shift insert failed for ${att.email}:`, attErr)
+          attendeeShiftResults.push({ email: att.email, ok: false })
+        } else {
+          attendeeShiftResults.push({ email: att.email, ok: true })
+        }
+      } catch (attError) {
+        console.error(`[canvi_calendar_create] attendee shift error for ${att.email}:`, attError)
+        attendeeShiftResults.push({ email: att.email, ok: false })
+      }
+    }
+    if (attendeeShiftResults.length > 0) {
+      const ok = attendeeShiftResults.filter((r) => r.ok).length
+      const fail = attendeeShiftResults.filter((r) => !r.ok).length
+      console.log(`[canvi_calendar_create] attendee shifts: ${ok} created, ${fail} failed`)
+    }
+  }
+
   const dateJP = (() => {
     const [y, mo, d] = date.split('-').map(Number)
     const dt = new Date(y, mo - 1, d)
@@ -530,6 +613,12 @@ export async function handleCanviCalendarCreate(payload: ViewSubmissionPayload):
       ? `:warning: Email未取得のSlackユーザー: ${unresolvedSlackIds.map((id) => `<@${id}>`).join(', ')} (users:read.email スコープ未付与の可能性)`
       : '',
     meetUrl ? `Google Meet: ${meetUrl}` : '',
+    (() => {
+      const failed = attendeeShiftResults.filter((r) => !r.ok)
+      return failed.length > 0
+        ? `:warning: シフト作成失敗の招待者: ${failed.map((r) => r.email).join(', ')}`
+        : ''
+    })(),
   ].filter(Boolean)
 
   await postSlackThread(metadata.channelId, metadata.messageTs, lines.join('\n'))
