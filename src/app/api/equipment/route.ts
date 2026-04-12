@@ -82,7 +82,10 @@ export async function POST(request: NextRequest) {
     }
 
     const nextSerial = existing && existing.length > 0 ? existing[0].serial_number + 1 : 1
-    const serialStr = String(nextSerial).padStart(4, '0')
+    if (nextSerial > 99) {
+      return NextResponse.json({ error: '管理番号が上限（99）に達しています。同じ種別・メーカーの組み合わせではこれ以上登録できません。' }, { status: 400 })
+    }
+    const serialStr = String(nextSerial).padStart(2, '0')
     const managementNumber = `${prefix}${serialStr}`
 
     const { data, error } = await supabase

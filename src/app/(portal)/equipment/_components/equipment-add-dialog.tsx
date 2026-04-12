@@ -188,7 +188,7 @@ export function EquipmentAddDialog({
   const managementNumberPreview = useMemo(() => {
     if (isEdit) return editItem.management_number
     if (!categoryCode || !makerCode) return '-'
-    return `${categoryCode}${makerCode}XXXX`
+    return `${categoryCode}${makerCode}XX`
   }, [categoryCode, makerCode, isEdit, editItem])
 
   const handleSubmit = async () => {
