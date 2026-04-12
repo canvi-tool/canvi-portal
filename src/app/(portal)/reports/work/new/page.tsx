@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus, Check, Pencil, RotateCcw } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -120,6 +120,11 @@ export default function NewDailyReportPage() {
   }
   const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null)
   const [breakMinutes, setBreakMinutes] = useState(0)
+  const [shiftConfirmed, setShiftConfirmed] = useState(false)
+  const [isEditingShift, setIsEditingShift] = useState(false)
+  const [editShiftStart, setEditShiftStart] = useState('')
+  const [editShiftEnd, setEditShiftEnd] = useState('')
+  const [isUpdatingShift, setIsUpdatingShift] = useState(false)
   const [isCreatingShift, setIsCreatingShift] = useState(false)
   const [newShiftStart, setNewShiftStart] = useState('09:00')
   const [newShiftEnd, setNewShiftEnd] = useState('18:00')
@@ -139,7 +144,9 @@ export default function NewDailyReportPage() {
         const data: ShiftInfo = await res.json()
         if (cancelled) return
         setShiftInfo(data)
-        setBreakMinutes(0) // プロジェクト変更時にリセット
+        setBreakMinutes(0)
+        setShiftConfirmed(false)
+        setIsEditingShift(false)
       } catch {
         // silently ignore
       }
@@ -193,6 +200,58 @@ export default function NewDailyReportPage() {
     }
   }, [shiftInfo?.staffId, projectId, reportDate])
 
+  // シフト修正（既存シフトの時間を更新）
+  const handleUpdateShift = useCallback(async () => {
+    if (!shiftInfo?.shiftDetails?.[0]?.id || !editShiftStart || !editShiftEnd) return
+    setIsUpdatingShift(true)
+    try {
+      const shiftId = shiftInfo.shiftDetails[0].id
+      const res = await fetch(`/api/shifts/${shiftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_time: editShiftStart,
+          end_time: editShiftEnd,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'シフト修正に失敗しました')
+      }
+      toast.success('シフトを修正しました')
+      // リフェッチ
+      const r2 = await fetch(`/api/reports/call-target?date=${reportDate}&project_id=${projectId}`)
+      if (r2.ok) {
+        const data: ShiftInfo = await r2.json()
+        setShiftInfo(data)
+      }
+      setIsEditingShift(false)
+      setShiftConfirmed(true)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'シフト修正に失敗しました')
+    } finally {
+      setIsUpdatingShift(false)
+    }
+  }, [shiftInfo, editShiftStart, editShiftEnd, reportDate, projectId])
+
+  // シフトを再取得
+  const handleRefetchShift = useCallback(async () => {
+    if (!reportDate || !projectId) return
+    try {
+      const res = await fetch(`/api/reports/call-target?date=${reportDate}&project_id=${projectId}`)
+      if (res.ok) {
+        const data: ShiftInfo = await res.json()
+        setShiftInfo(data)
+        setShiftConfirmed(false)
+        setIsEditingShift(false)
+        setBreakMinutes(0)
+        toast.success('シフト情報を再取得しました')
+      }
+    } catch {
+      toast.error('シフト再取得に失敗しました')
+    }
+  }, [reportDate, projectId])
+
   // --- Inbound state ---
   const [incomingCount, setIncomingCount] = useState('')
   const [completedCount, setCompletedCount] = useState('')
@@ -230,6 +289,11 @@ export default function NewDailyReportPage() {
 
   // --- Submit ---
   const handleSubmit = async (asDraft = false) => {
+    // 架電日報でシフトがある場合、シフト確認必須
+    if (reportType === 'outbound' && shiftInfo?.hasShift && !shiftConfirmed && !asDraft) {
+      toast.error('シフト情報を確認してください。「このシフトで報告する」または「修正する」を選択してください。')
+      return
+    }
     setIsSubmitting(true)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -525,15 +589,34 @@ export default function NewDailyReportPage() {
                 </Select>
               </div>
 
-              {/* シフト情報表示 */}
+              {/* シフト情報表示 + 確認/修正フロー */}
               {reportType === 'outbound' && projectId && shiftInfo && (
-                <div className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Clock className="h-4 w-4 text-blue-500" />
-                    当日のシフト
+                <div className={`rounded-lg border p-3 space-y-2 ${shiftInfo.hasShift && !shiftConfirmed ? 'border-amber-300 bg-amber-50/30' : shiftConfirmed ? 'border-green-300 bg-green-50/30' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      当日のシフト
+                      {shiftConfirmed && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex items-center gap-1">
+                          <Check className="h-3 w-3" /> 確認済
+                        </span>
+                      )}
+                    </div>
+                    {shiftInfo.hasShift && shiftConfirmed && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRefetchShift}
+                        className="text-xs gap-1 h-7"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        シフトを再取得
+                      </Button>
+                    )}
                   </div>
                   {shiftInfo.hasShift ? (
-                    <div className="text-sm text-muted-foreground space-y-1">
+                    <div className="text-sm text-muted-foreground space-y-2">
                       {shiftInfo.shiftDetails.map((s, i) => (
                         <div key={s.id || i} className="flex items-center gap-2">
                           <span className="font-mono">
@@ -547,7 +630,82 @@ export default function NewDailyReportPage() {
                       <div className="text-xs text-muted-foreground">
                         合計: {shiftInfo.shiftHours}時間
                       </div>
-                      {shiftInfo.isBpo && (
+
+                      {/* 確認/修正ボタン（未確認時のみ表示） */}
+                      {!shiftConfirmed && !isEditingShift && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setShiftConfirmed(true)}
+                            className="text-xs gap-1.5 bg-green-600 hover:bg-green-700"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            このシフトで報告する
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const first = shiftInfo.shiftDetails[0]
+                              setEditShiftStart(first?.startTime?.slice(0, 5) || '09:00')
+                              setEditShiftEnd(first?.endTime?.slice(0, 5) || '18:00')
+                              setIsEditingShift(true)
+                            }}
+                            className="text-xs gap-1.5"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            修正する
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* シフト修正フォーム */}
+                      {isEditingShift && !shiftConfirmed && (
+                        <div className="mt-2 pt-2 border-t space-y-2">
+                          <div className="text-xs font-medium text-amber-700">正しい稼働時間を入力してください</div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={editShiftStart}
+                              onChange={(e) => setEditShiftStart(e.target.value)}
+                              className="w-[120px] h-8 text-sm"
+                            />
+                            <span className="text-sm text-muted-foreground">〜</span>
+                            <Input
+                              type="time"
+                              value={editShiftEnd}
+                              onChange={(e) => setEditShiftEnd(e.target.value)}
+                              className="w-[120px] h-8 text-sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={isUpdatingShift || !editShiftStart || !editShiftEnd}
+                              onClick={handleUpdateShift}
+                              className="text-xs gap-1.5"
+                            >
+                              {isUpdatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                              この時間で確定
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsEditingShift(false)}
+                              className="text-xs"
+                            >
+                              キャンセル
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 休憩時間入力（確認済みかつBPOの場合のみ） */}
+                      {shiftConfirmed && shiftInfo.isBpo && (
                         <div className="flex items-center gap-2 mt-2 pt-2 border-t">
                           <Label className="text-xs whitespace-nowrap">休憩時間</Label>
                           <Input
