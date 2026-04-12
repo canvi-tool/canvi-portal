@@ -1,11 +1,11 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { getUser } from '@/lib/auth/session'
+import { getCurrentUser } from '@/lib/auth/rbac'
 
 // Proxy to canvi-call external API (server-side to keep API key secret)
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUser()
+    const user = await getCurrentUser()
     if (!user?.email) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
