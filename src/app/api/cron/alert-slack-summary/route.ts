@@ -33,9 +33,22 @@ export async function GET(request: NextRequest) {
   const timeLabel = `${String(jstHours).padStart(2, '0')}:00`
 
   const today = jstNow.toISOString().split('T')[0]
-  const from = new Date()
-  from.setDate(from.getDate() - 14)
-  const fromStr = from.toISOString().slice(0, 10)
+
+  // Calculate lookback date (14 days)
+  const lookbackDate = new Date()
+  lookbackDate.setDate(lookbackDate.getDate() - 14)
+  const lookbackStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(lookbackDate)
+
+  // Floor to 1st of current month (JST) - don't look back into previous months
+  const currentMonthFirst = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}-01`
+
+  // Use the later of the two dates
+  const fromStr = lookbackStr > currentMonthFirst ? lookbackStr : currentMonthFirst
 
   const results = {
     time: timeLabel,

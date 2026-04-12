@@ -79,15 +79,22 @@ export async function getRecentDerivedAlerts(
 
   const today = todayJstStr()
   // Use JST-based date arithmetic to avoid off-by-one from UTC conversion
-  const fromDate = new Date()
-  fromDate.setDate(fromDate.getDate() - lookbackDays)
+  const lookbackDate = new Date()
+  lookbackDate.setDate(lookbackDate.getDate() - lookbackDays)
   const fromFmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   })
-  const fromStr = fromFmt.format(fromDate)
+  const lookbackStr = fromFmt.format(lookbackDate)
+
+  // Floor to 1st of current month (JST) - don't look back into previous months
+  const jstNowForMonth = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const currentMonthFirst = `${jstNowForMonth.getUTCFullYear()}-${String(jstNowForMonth.getUTCMonth() + 1).padStart(2, '0')}-01`
+
+  // Use the later of the two dates
+  const fromStr = lookbackStr > currentMonthFirst ? lookbackStr : currentMonthFirst
   const nowHHmm = nowJstHHmm()
 
   const ownerScope = isOwner(user)
