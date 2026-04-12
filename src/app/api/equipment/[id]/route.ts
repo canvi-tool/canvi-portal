@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser } from '@/lib/auth/rbac'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -9,6 +9,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    if (!isOwner(user)) return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +46,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    if (!isOwner(user)) return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -93,6 +95,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    if (!isOwner(user)) return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
 
     const { id } = await params
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

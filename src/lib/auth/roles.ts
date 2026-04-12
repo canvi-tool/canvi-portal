@@ -23,7 +23,7 @@ export function canAccessRoute(role: Role, path: string): boolean {
   }
   // 管理者は設定・スタッフ管理・書類系を除くすべて
   if (role === 'admin') {
-    const adminBlocked = ['/settings', '/staff', '/contracts', '/documents', '/invoices', '/payments']
+    const adminBlocked = ['/settings', '/staff', '/contracts', '/documents', '/invoices', '/payments', '/equipment', '/leave', '/approvals/profile']
     return !adminBlocked.some((p) => path === p || path.startsWith(p + '/'))
   }
   // オーナーは全アクセス

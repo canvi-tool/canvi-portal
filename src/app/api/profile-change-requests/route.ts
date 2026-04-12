@@ -27,8 +27,7 @@ export async function GET(request: NextRequest) {
 
     if (status) query = query.eq('status', status)
 
-    const isManager = isOwner(user) || hasRole(user, 'admin')
-    if (!isManager) {
+    if (!isOwner(user)) {
       query = query.eq('requested_by', user.id)
     }
 

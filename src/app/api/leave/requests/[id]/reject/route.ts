@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, isAdmin } from '@/lib/auth/rbac'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 import { leaveApprovalSchema } from '@/lib/validations/leave'
 
 interface RouteParams {
@@ -20,8 +20,8 @@ export async function POST(
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    if (!isAdmin(user)) {
-      return NextResponse.json({ error: '有給申請の却下は管理者のみ実行できます' }, { status: 403 })
+    if (!isOwner(user)) {
+      return NextResponse.json({ error: '有給申請の却下はオーナーのみ実行できます' }, { status: 403 })
     }
 
     const body = await request.json().catch(() => ({}))

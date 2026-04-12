@@ -1,10 +1,14 @@
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 import { PageHeader } from '@/components/layout/page-header'
 import { EquipmentPageClient } from './_components/equipment-page-client'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EquipmentPage() {
+  const user = await getCurrentUser()
+  if (!user || !isOwner(user)) redirect('/dashboard')
   let equipmentItems: Awaited<ReturnType<typeof fetchEquipmentItems>> = []
   let lendingRecords: Awaited<ReturnType<typeof fetchLendingRecords>> = []
   let categoryCodes: Awaited<ReturnType<typeof fetchCategoryCodes>> = []

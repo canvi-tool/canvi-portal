@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
-    if (!isOwner(user) && !hasRole(user, 'admin')) {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    if (!isOwner(user)) {
+      return NextResponse.json({ error: 'オーナー権限が必要です' }, { status: 403 })
     }
     const path = new URL(request.url).searchParams.get('path')
     if (!path) return NextResponse.json({ error: 'path が必要です' }, { status: 400 })

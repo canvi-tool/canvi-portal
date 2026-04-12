@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentUser, isAdmin } from '@/lib/auth/rbac'
+import { getCurrentUser, isAdmin, isOwner } from '@/lib/auth/rbac'
 import { leaveGrantSchema } from '@/lib/validations/leave'
 
 // GET /api/leave/grants - 付与履歴一覧
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    if (!isAdmin(user)) {
-      return NextResponse.json({ error: '有給付与は管理者のみ実行できます' }, { status: 403 })
+    if (!isOwner(user)) {
+      return NextResponse.json({ error: '有給付与はオーナーのみ実行できます' }, { status: 403 })
     }
 
     const supabase = await createServerSupabaseClient()
