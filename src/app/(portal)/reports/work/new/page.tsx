@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus, Pencil } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
