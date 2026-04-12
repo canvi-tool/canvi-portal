@@ -207,9 +207,10 @@ export default function NewDailyReportPage() {
     try {
       const shiftId = shiftInfo.shiftDetails[0].id
       const res = await fetch(`/api/shifts/${shiftId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          _inlineUpdate: true,
           start_time: editShiftStart,
           end_time: editShiftEnd,
         }),
