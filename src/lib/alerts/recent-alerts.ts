@@ -78,9 +78,16 @@ export async function getRecentDerivedAlerts(
   const supabase = await createServerSupabaseClient()
 
   const today = todayJstStr()
-  const from = new Date()
-  from.setDate(from.getDate() - lookbackDays)
-  const fromStr = from.toISOString().slice(0, 10)
+  // Use JST-based date arithmetic to avoid off-by-one from UTC conversion
+  const fromDate = new Date()
+  fromDate.setDate(fromDate.getDate() - lookbackDays)
+  const fromFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const fromStr = fromFmt.format(fromDate)
   const nowHHmm = nowJstHHmm()
 
   const ownerScope = isOwner(user)
@@ -193,14 +200,26 @@ export async function getRecentDerivedAlerts(
   const staffIdsInShifts = Array.from(new Set(shifts.map((s) => s.staff_id).filter((x): x is string => !!x)))
   const dateSet = Array.from(new Set(shifts.map((s) => s.shift_date)))
 
+  // Fetch attendance_records and work_reports in parallel (both depend only on staffIdsInShifts + dateSet)
   const attendanceMap = new Map<string, { clock_in: string | null; clock_out: string | null }>()
+  const workReportStaffDates = new Set<string>()
+
   if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
-    const { data: arData } = await supabase
-      .from('attendance_records')
-      .select('staff_id, date, clock_in, clock_out')
-      .in('staff_id', staffIdsInShifts)
-      .in('date', dateSet)
-      .is('deleted_at', null)
+    const [{ data: arData }, { data: wrData }] = await Promise.all([
+      supabase
+        .from('attendance_records')
+        .select('staff_id, date, clock_in, clock_out')
+        .in('staff_id', staffIdsInShifts)
+        .in('date', dateSet)
+        .is('deleted_at', null),
+      supabase
+        .from('work_reports')
+        .select('staff_id, report_date')
+        .in('staff_id', staffIdsInShifts)
+        .in('report_date', dateSet)
+        .is('deleted_at', null),
+    ])
+
     for (const a of (arData || []) as Array<{ staff_id: string; date: string; clock_in: string | null; clock_out: string | null }>) {
       const key = `${a.staff_id}:${a.date}`
       const existing = attendanceMap.get(key)
@@ -213,17 +232,7 @@ export async function getRecentDerivedAlerts(
         attendanceMap.set(key, { clock_in: a.clock_in, clock_out: a.clock_out })
       }
     }
-  }
 
-  // work_reportsの存在をまとめて取得 (staff_id + report_date 基準)
-  const workReportStaffDates = new Set<string>()
-  if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
-    const { data: wrData } = await supabase
-      .from('work_reports')
-      .select('staff_id, report_date')
-      .in('staff_id', staffIdsInShifts)
-      .in('report_date', dateSet)
-      .is('deleted_at', null)
     for (const w of (wrData || []) as Array<{ staff_id: string | null; report_date: string | null }>) {
       if (w.staff_id && w.report_date) workReportStaffDates.add(`${w.staff_id}:${w.report_date}`)
     }
@@ -501,7 +510,11 @@ export async function getRecentDerivedAlerts(
       // Call the bulk activity endpoint
       const callRes = await fetch(
         `${apiUrl}/api/external/bulk-activity?from=${fromStr}&to=${today}`,
-        { headers: { 'X-API-Key': apiKey }, cache: 'no-store' }
+        {
+          headers: { 'X-API-Key': apiKey },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10_000),
+        }
       )
 
       if (callRes.ok) {
@@ -562,47 +575,42 @@ export async function getRecentDerivedAlerts(
         const callDateSet = [...new Set(callStaffDates.map(c => c.date))]
         const callStaffIds = [...new Set(callStaffDates.map(c => c.staffId))]
 
-        // Shifts by staff+date
+        // Shifts, attendance, and reports by staff+date (parallel)
         const shiftSet = new Set<string>()
+        const callAttendanceSet = new Set<string>()
+        const callReportSet = new Set<string>()
         if (callStaffIds.length > 0 && callDateSet.length > 0) {
-          const { data: callShifts } = await supabase
-            .from('shifts')
-            .select('staff_id, shift_date')
-            .in('staff_id', callStaffIds)
-            .in('shift_date', callDateSet)
-            .is('deleted_at', null)
+          const [{ data: callShifts }, { data: callAtt }, { data: callReports }] = await Promise.all([
+            supabase
+              .from('shifts')
+              .select('staff_id, shift_date')
+              .in('staff_id', callStaffIds)
+              .in('shift_date', callDateSet)
+              .is('deleted_at', null),
+            supabase
+              .from('attendance_records')
+              .select('staff_id, date')
+              .in('staff_id', callStaffIds)
+              .in('date', callDateSet)
+              .is('deleted_at', null)
+              .not('clock_in', 'is', null),
+            supabase
+              .from('work_reports')
+              .select('staff_id, report_date')
+              .in('staff_id', callStaffIds)
+              .in('report_date', callDateSet)
+              .is('deleted_at', null)
+              .neq('status', 'draft'),
+          ])
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const s of (callShifts || []) as any[]) {
             shiftSet.add(`${s.staff_id}:${s.shift_date}`)
           }
-        }
-
-        // Attendance by staff+date
-        const callAttendanceSet = new Set<string>()
-        if (callStaffIds.length > 0 && callDateSet.length > 0) {
-          const { data: callAtt } = await supabase
-            .from('attendance_records')
-            .select('staff_id, date')
-            .in('staff_id', callStaffIds)
-            .in('date', callDateSet)
-            .is('deleted_at', null)
-            .not('clock_in', 'is', null)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const a of (callAtt || []) as any[]) {
             callAttendanceSet.add(`${a.staff_id}:${a.date}`)
           }
-        }
-
-        // Reports by staff+date
-        const callReportSet = new Set<string>()
-        if (callStaffIds.length > 0 && callDateSet.length > 0) {
-          const { data: callReports } = await supabase
-            .from('work_reports')
-            .select('staff_id, report_date')
-            .in('staff_id', callStaffIds)
-            .in('report_date', callDateSet)
-            .is('deleted_at', null)
-            .neq('status', 'draft')
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const r of (callReports || []) as any[]) {
             callReportSet.add(`${r.staff_id}:${r.report_date}`)

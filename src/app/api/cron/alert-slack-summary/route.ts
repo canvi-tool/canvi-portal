@@ -96,12 +96,15 @@ export async function GET(request: NextRequest) {
 
     const attendanceMap = new Map<string, { clock_in: string | null; clock_out: string | null }>()
     if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
-      const { data: arData } = await admin
+      const { data: arData, error: arError } = await admin
         .from('attendance_records')
         .select('staff_id, date, clock_in, clock_out')
         .in('staff_id', staffIdsInShifts)
         .in('date', dateSet)
         .is('deleted_at', null)
+      if (arError) {
+        console.error('[alert-slack-summary] attendance_records query error:', arError)
+      }
       for (const a of (arData || []) as Array<{ staff_id: string; date: string; clock_in: string | null; clock_out: string | null }>) {
         const key = `${a.staff_id}:${a.date}`
         const existing = attendanceMap.get(key)
@@ -121,12 +124,15 @@ export async function GET(request: NextRequest) {
     // ========================================
     const workReportStaffDates = new Set<string>()
     if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
-      const { data: wrData } = await admin
+      const { data: wrData, error: wrError } = await admin
         .from('work_reports')
         .select('staff_id, report_date')
         .in('staff_id', staffIdsInShifts)
         .in('report_date', dateSet)
         .is('deleted_at', null)
+      if (wrError) {
+        console.error('[alert-slack-summary] work_reports query error:', wrError)
+      }
       for (const w of (wrData || []) as Array<{ staff_id: string | null; report_date: string | null }>) {
         if (w.staff_id && w.report_date) workReportStaffDates.add(`${w.staff_id}:${w.report_date}`)
       }
@@ -136,7 +142,7 @@ export async function GET(request: NextRequest) {
     // 4. 日報差戻しを取得
     // ========================================
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rejectedReports } = await (admin as any)
+    const { data: rejectedReports, error: rejectedError } = await (admin as any)
       .from('work_reports')
       .select('id, staff_id, project_id, report_date, review_comment, updated_at, staff:staff_id(last_name, first_name), project:project_id(id, name, slack_channel_id)')
       .eq('status', 'rejected')
@@ -147,7 +153,10 @@ export async function GET(request: NextRequest) {
         report_date: string; review_comment: string | null; updated_at: string;
         staff: { last_name: string; first_name: string } | null;
         project: { id: string; name: string; slack_channel_id: string | null } | null;
-      }> | null }
+      }> | null; error: unknown }
+    if (rejectedError) {
+      console.error('[alert-slack-summary] rejected work_reports query error:', rejectedError)
+    }
 
     // ========================================
     // 5. アラートを集計（DerivedAlert形式）
@@ -277,7 +286,11 @@ export async function GET(request: NextRequest) {
     // 各プロジェクトにSlack通知を送信
     for (const [projectId, projectAlerts] of alertsByProject) {
       const channelInfo = slackChannelMap.get(projectId)
-      if (!channelInfo) continue // Slackチャンネルがないプロジェクトはスキップ
+      if (!channelInfo) {
+        const skippedName = alertsByProject.get(projectId)?.[0]?.relatedProjectName || projectId
+        console.warn(`[alert-slack-summary] Skipping project ${skippedName}: no Slack channel configured (${projectAlerts.length} alerts)`)
+        continue
+      }
 
       try {
         const lines: string[] = []
@@ -300,8 +313,7 @@ export async function GET(request: NextRequest) {
           const title = typeAlerts[0].title
           lines.push(`*${title}* (${typeAlerts.length}件)`)
           for (const a of typeAlerts) {
-            const staffName = a.relatedStaffName || '不明'
-            lines.push(`  ${sevEmoji(a.severity)} ${staffName} - ${a.description}`)
+            lines.push(`  ${sevEmoji(a.severity)} ${a.description}`)
           }
           lines.push('')
         }
