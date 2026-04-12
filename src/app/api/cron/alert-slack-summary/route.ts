@@ -180,6 +180,13 @@ export async function GET(request: NextRequest) {
 
     const nowHHmm = `${String(jstHours).padStart(2, '0')}:${String(jstNow.getUTCMinutes()).padStart(2, '0')}`
 
+    // 日報アラート除外PJ（日報運用がないPJ）
+    const REPORT_EXCLUDED_PROJECT_IDS = new Set([
+      '32098ee2-33b5-44ae-8ad6-f6fecf433f41', // レオン矯正（IS）
+      '49942f85-d5f5-47a1-adfa-80eac2cdd10c', // ささえ
+      '8fd5c8b7-dda9-402c-a305-10dfc6021dae', // ミズテック（IS）
+    ])
+
     for (const s of targetShifts) {
       const staffName = s.staff ? `${s.staff.last_name} ${s.staff.first_name}` : '不明'
       const projectName = s.project?.name || '不明'
@@ -220,7 +227,7 @@ export async function GET(request: NextRequest) {
 
       // 日報送付漏れ
       const reportKey = `${s.staff_id}:${s.shift_date}`
-      if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey)) {
+      if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && !(s.project_id && REPORT_EXCLUDED_PROJECT_IDS.has(s.project_id))) {
         reportMissingEmitted.add(reportKey)
         const description = `${staffName} / ${projectName} (${s.shift_date}) の日報未提出`
         alerts.push({
@@ -259,6 +266,188 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // ========================================
+    // 5b. テレアポくん架電チェック (canvi-call integration)
+    // ========================================
+    try {
+      const apiUrl = process.env.CANVI_CALL_API_URL?.trim()
+      const apiKey = process.env.CANVI_CALL_API_KEY?.trim()
+
+      if (apiUrl && apiKey) {
+        const callRes = await fetch(
+          `${apiUrl}/api/external/bulk-activity?from=${fromStr}&to=${today}`,
+          {
+            headers: { 'X-API-Key': apiKey },
+            cache: 'no-store',
+            signal: AbortSignal.timeout(10_000),
+          }
+        )
+
+        if (callRes.ok) {
+          const callActivity: Array<{
+            email: string
+            staffName: string
+            date: string
+            portalProjectId: string | null
+            callProjectName: string
+            callCount: number
+          }> = await callRes.json()
+
+          // Resolve email → staff_id via users table
+          const callEmails = [...new Set(callActivity.map(c => c.email))]
+          const emailToStaff = new Map<string, { id: string; name: string }>()
+          if (callEmails.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: staffByEmail } = await (admin as any)
+              .from('users')
+              .select('email, staff:staff(id, last_name, first_name)')
+              .in('email', callEmails)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const u of (staffByEmail || []) as any[]) {
+              if (u.staff) {
+                emailToStaff.set(u.email, {
+                  id: u.staff.id,
+                  name: `${u.staff.last_name} ${u.staff.first_name}`
+                })
+              }
+            }
+          }
+
+          // Group call activity by staff+date+project
+          const callDays = new Map<string, { staffId: string; staffName: string; date: string; portalProjectId: string | null; projectName: string; callCount: number }>()
+          for (const c of callActivity) {
+            const staff = emailToStaff.get(c.email)
+            if (!staff) continue
+
+            const key = `${staff.id}:${c.date}:${c.portalProjectId || 'none'}`
+            if (!callDays.has(key)) {
+              callDays.set(key, {
+                staffId: staff.id,
+                staffName: staff.name,
+                date: c.date,
+                portalProjectId: c.portalProjectId,
+                projectName: c.callProjectName || '不明',
+                callCount: c.callCount,
+              })
+            } else {
+              callDays.get(key)!.callCount += c.callCount
+            }
+          }
+
+          // Collect all dates and staff_ids for batch queries
+          const callStaffDates = [...callDays.values()]
+          const callDateSet = [...new Set(callStaffDates.map(c => c.date))]
+          const callStaffIds = [...new Set(callStaffDates.map(c => c.staffId))]
+
+          // Check shifts, attendance, reports for call staff (parallel)
+          const shiftSet = new Set<string>()
+          const callAttendanceSet = new Set<string>()
+          const callReportSet = new Set<string>()
+          if (callStaffIds.length > 0 && callDateSet.length > 0) {
+            const [{ data: callShifts }, { data: callAtt }, { data: callReports }] = await Promise.all([
+              admin
+                .from('shifts')
+                .select('staff_id, shift_date')
+                .in('staff_id', callStaffIds)
+                .in('shift_date', callDateSet)
+                .is('deleted_at', null),
+              admin
+                .from('attendance_records')
+                .select('staff_id, date')
+                .in('staff_id', callStaffIds)
+                .in('date', callDateSet)
+                .is('deleted_at', null)
+                .not('clock_in', 'is', null),
+              admin
+                .from('work_reports')
+                .select('staff_id, report_date')
+                .in('staff_id', callStaffIds)
+                .in('report_date', callDateSet)
+                .is('deleted_at', null)
+                .neq('status', 'draft'),
+            ])
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const s of (callShifts || []) as any[]) {
+              shiftSet.add(`${s.staff_id}:${s.shift_date}`)
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const a of (callAtt || []) as any[]) {
+              callAttendanceSet.add(`${a.staff_id}:${a.date}`)
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const r of (callReports || []) as any[]) {
+              callReportSet.add(`${r.staff_id}:${r.report_date}`)
+            }
+          }
+
+          // Generate call alerts
+          for (const [, entry] of callDays) {
+            const sdKey = `${entry.staffId}:${entry.date}`
+            const baseDesc = `${entry.staffName} / ${entry.projectName} (${entry.date}) - ${entry.callCount}件架電`
+
+            // Check: no shift
+            if (!shiftSet.has(sdKey)) {
+              const description = `${baseDesc}・シフトなし`
+              alerts.push({
+                id: `call-no-shift:${entry.staffId}:${entry.date}`,
+                type: 'CALL_NO_SHIFT',
+                severity: 'WARNING',
+                title: '架電あり・シフトなし',
+                message: description,
+                description,
+                relatedStaffId: entry.staffId,
+                relatedStaffName: entry.staffName,
+                relatedProjectId: entry.portalProjectId,
+                relatedProjectName: entry.projectName,
+                createdAt: `${entry.date}T18:00:00+09:00`,
+              })
+            }
+
+            // Check: no attendance (only if they DO have a shift)
+            if (shiftSet.has(sdKey) && !callAttendanceSet.has(sdKey)) {
+              const description = `${baseDesc}・打刻なし`
+              alerts.push({
+                id: `call-no-att:${entry.staffId}:${entry.date}`,
+                type: 'CALL_NO_ATTENDANCE',
+                severity: 'WARNING',
+                title: '架電あり・打刻なし',
+                message: description,
+                description,
+                relatedStaffId: entry.staffId,
+                relatedStaffName: entry.staffName,
+                relatedProjectId: entry.portalProjectId,
+                relatedProjectName: entry.projectName,
+                createdAt: `${entry.date}T18:00:00+09:00`,
+              })
+            }
+
+            // Check: no report
+            if (!callReportSet.has(sdKey)) {
+              const description = `${baseDesc}・日報なし`
+              alerts.push({
+                id: `call-no-report:${entry.staffId}:${entry.date}`,
+                type: 'CALL_NO_REPORT',
+                severity: 'WARNING',
+                title: '架電あり・日報なし',
+                message: description,
+                description,
+                relatedStaffId: entry.staffId,
+                relatedStaffName: entry.staffName,
+                relatedProjectId: entry.portalProjectId,
+                relatedProjectName: entry.projectName,
+                createdAt: `${entry.date}T18:00:00+09:00`,
+              })
+            }
+          }
+        } else {
+          console.warn(`[alert-slack-summary] canvi-call API returned ${callRes.status}`)
+        }
+      }
+    } catch (e) {
+      console.error('[alert-slack-summary] CALL_ACTIVITY check error:', e)
+    }
+
     // 無視ルールで除外
     const ignoreRules = await fetchActiveIgnoreRules()
     const filteredAlerts = ignoreRules.length > 0
@@ -292,6 +481,26 @@ export async function GET(request: NextRequest) {
           channelId: r.project.slack_channel_id,
           projectName: r.project.name,
         })
+      }
+    }
+
+    // CALL系アラートのプロジェクトSlackチャネルも追加
+    const callAlertProjectIds = [...new Set(
+      filteredAlerts
+        .filter(a => a.type === 'CALL_NO_SHIFT' || a.type === 'CALL_NO_ATTENDANCE' || a.type === 'CALL_NO_REPORT')
+        .map(a => a.relatedProjectId)
+        .filter((x): x is string => !!x && !slackChannelMap.has(x))
+    )]
+    if (callAlertProjectIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: callProjects } = await (admin as any)
+        .from('projects')
+        .select('id, name, slack_channel_id')
+        .in('id', callAlertProjectIds) as { data: Array<{ id: string; name: string; slack_channel_id: string | null }> | null }
+      for (const p of (callProjects || [])) {
+        if (p.slack_channel_id && !slackChannelMap.has(p.id)) {
+          slackChannelMap.set(p.id, { channelId: p.slack_channel_id, projectName: p.name })
+        }
       }
     }
 
