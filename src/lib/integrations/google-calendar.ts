@@ -675,7 +675,8 @@ export class GoogleCalendarClient {
         } else {
           req.timeMin = timeMin
           req.timeMax = timeMax
-          req.orderBy = 'startTime'
+          // orderBy を指定しない: Google Calendar API は orderBy 指定時に
+          // nextSyncToken を返さないため、増分同期の確立ができなくなる
         }
         const response = await this.calendar.events.list(req)
         const items = response.data.items || []

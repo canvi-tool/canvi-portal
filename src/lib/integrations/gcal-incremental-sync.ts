@@ -84,6 +84,7 @@ export async function runIncrementalSyncForStaff(params: {
     result.errors.push('gcal_list_null')
     return result
   }
+  console.log(`[gcal-sync] listEventsIncremental result: mode=${result.mode}, events=${listResult.events.length}, nextSyncToken=${listResult.nextSyncToken ? 'present(' + listResult.nextSyncToken.length + 'chars)' : 'NULL'}, tokenExpired=${listResult.tokenExpired}`)
 
   // 自分以外の Canvi ユーザー organizer の Canvi 発イベントはスキップ
   // 2つの独立クエリを並列実行

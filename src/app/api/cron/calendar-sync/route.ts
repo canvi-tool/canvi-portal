@@ -108,11 +108,15 @@ export async function GET(request: NextRequest) {
         // Phase 1（import）より前に実行することで、削除済みイベントが
         // 再度 pending_events に取り込まれるのを防ぐ。
         try {
-          await runIncrementalSyncForStaff({
+          const incResult = await runIncrementalSyncForStaff({
             userId: user.id,
             staffId: staffRecord.id as string,
             fallbackRangeDays: 60,
           })
+          console.log(`[calendar-sync] Incremental sync for ${user.id}: mode=${incResult.mode}, changed=${incResult.changed}, deleted=${incResult.deleted}, errors=${JSON.stringify(incResult.errors)}`)
+          if (incResult.errors.length > 0) {
+            userResult.errors.push(...incResult.errors.map(e => `inc: ${e}`))
+          }
         } catch (e) {
           userResult.errors.push(
             `Incremental sync error: ${e instanceof Error ? e.message : String(e)}`,
