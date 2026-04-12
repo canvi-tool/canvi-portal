@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft, Send, Loader2 } from 'lucide-react'
@@ -45,11 +45,19 @@ export default function EditDailyReportPage() {
 
   const { data: report, isLoading } = useDailyReport(id)
   const updateReport = useUpdateDailyReport(id)
-  const { data: projects = [] } = useProjects()
-  const projectItems = Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name]))
+  const { data: allProjects = [] } = useProjects()
 
   // --- Common state ---
   const [reportType, setReportType] = useState<DailyReportType>('outbound')
+
+  // report_typeが設定されたPJのみ該当タブに表示（未設定PJは非表示）
+  const projects = useMemo(() =>
+    allProjects.filter((p: { id: string; name: string; report_type?: string | null }) =>
+      p.report_type === reportType
+    ), [allProjects, reportType])
+  const projectItems = useMemo(() =>
+    Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name])),
+    [projects])
   const [reportDate, setReportDate] = useState('')
   const [projectId, setProjectId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)

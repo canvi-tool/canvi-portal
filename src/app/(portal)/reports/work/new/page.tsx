@@ -46,10 +46,10 @@ export default function NewDailyReportPage() {
   // --- Common state ---
   const [reportType, setReportType] = useState<DailyReportType>('outbound')
 
-  // report_typeが設定されたPJは該当タブのみ表示、未設定PJは全タブに表示
+  // report_typeが設定されたPJのみ該当タブに表示（未設定PJは非表示）
   const projects = useMemo(() =>
     allProjects.filter((p: { id: string; name: string; report_type?: string | null }) =>
-      !p.report_type || p.report_type === reportType
+      p.report_type === reportType
     ), [allProjects, reportType])
   const projectItems = useMemo(() =>
     Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name])),
