@@ -8,6 +8,9 @@ export type DerivedAlertType =
   | 'REPORT_REJECTED'
   | 'SHIFT_SUBMISSION_DUE'
   | 'EQUIPMENT_PLEDGE_UNSIGNED'
+  | 'CALL_NO_SHIFT'
+  | 'CALL_NO_ATTENDANCE'
+  | 'CALL_NO_REPORT'
 
 export interface DerivedAlert {
   id: string
@@ -32,6 +35,9 @@ const ALERT_TYPE_LABEL: Record<DerivedAlertType, string> = {
   REPORT_REJECTED: '日報差戻し',
   SHIFT_SUBMISSION_DUE: 'シフト未提出',
   EQUIPMENT_PLEDGE_UNSIGNED: '貸与品契約未締結',
+  CALL_NO_SHIFT: '架電あり・シフトなし',
+  CALL_NO_ATTENDANCE: '架電あり・打刻なし',
+  CALL_NO_REPORT: '架電あり・日報なし',
 }
 
 function todayJstStr(): string {
@@ -484,6 +490,198 @@ export async function getRecentDerivedAlerts(
     }
   } catch (e) {
     console.error('EQUIPMENT_PLEDGE_UNSIGNED calc error:', e)
+  }
+
+  // --- テレアポくん架電チェック ---
+  try {
+    const apiUrl = process.env.CANVI_CALL_API_URL?.trim()
+    const apiKey = process.env.CANVI_CALL_API_KEY?.trim()
+
+    if (apiUrl && apiKey) {
+      // Call the bulk activity endpoint
+      const callRes = await fetch(
+        `${apiUrl}/api/external/bulk-activity?from=${fromStr}&to=${today}`,
+        { headers: { 'X-API-Key': apiKey }, cache: 'no-store' }
+      )
+
+      if (callRes.ok) {
+        const callActivity: Array<{
+          email: string
+          staffName: string
+          date: string
+          portalProjectId: string | null
+          callProjectName: string
+          callCount: number
+        }> = await callRes.json()
+
+        // Resolve email → staff_id
+        const callEmails = [...new Set(callActivity.map(c => c.email))]
+        const emailToStaff = new Map<string, { id: string; name: string }>()
+        if (callEmails.length > 0) {
+          const { data: staffByEmail } = await supabase
+            .from('users')
+            .select('email, staff:staff(id, last_name, first_name)')
+            .in('email', callEmails)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const u of (staffByEmail || []) as any[]) {
+            if (u.staff) {
+              emailToStaff.set(u.email, {
+                id: u.staff.id,
+                name: `${u.staff.last_name} ${u.staff.first_name}`
+              })
+            }
+          }
+        }
+
+        // Group call activity by staff+date
+        const callDays = new Map<string, { staffId: string; staffName: string; date: string; portalProjectId: string | null; projectName: string; callCount: number }>()
+        for (const c of callActivity) {
+          const staff = emailToStaff.get(c.email)
+          if (!staff) continue
+          // scope check
+          if (scopedStaffIds !== null && !scopedStaffIds.includes(staff.id)) continue
+
+          const key = `${staff.id}:${c.date}:${c.portalProjectId || 'none'}`
+          if (!callDays.has(key)) {
+            callDays.set(key, {
+              staffId: staff.id,
+              staffName: staff.name,
+              date: c.date,
+              portalProjectId: c.portalProjectId,
+              projectName: c.callProjectName || (c.portalProjectId ? projectNameMap.get(c.portalProjectId) || '不明' : '不明'),
+              callCount: c.callCount,
+            })
+          } else {
+            callDays.get(key)!.callCount += c.callCount
+          }
+        }
+
+        // For each call day, check shift/attendance/report
+        // Collect all dates and staff_ids
+        const callStaffDates = [...callDays.values()]
+        const callDateSet = [...new Set(callStaffDates.map(c => c.date))]
+        const callStaffIds = [...new Set(callStaffDates.map(c => c.staffId))]
+
+        // Shifts by staff+date
+        const shiftSet = new Set<string>()
+        if (callStaffIds.length > 0 && callDateSet.length > 0) {
+          const { data: callShifts } = await supabase
+            .from('shifts')
+            .select('staff_id, shift_date')
+            .in('staff_id', callStaffIds)
+            .in('shift_date', callDateSet)
+            .is('deleted_at', null)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const s of (callShifts || []) as any[]) {
+            shiftSet.add(`${s.staff_id}:${s.shift_date}`)
+          }
+        }
+
+        // Attendance by staff+date
+        const callAttendanceSet = new Set<string>()
+        if (callStaffIds.length > 0 && callDateSet.length > 0) {
+          const { data: callAtt } = await supabase
+            .from('attendance_records')
+            .select('staff_id, date')
+            .in('staff_id', callStaffIds)
+            .in('date', callDateSet)
+            .is('deleted_at', null)
+            .not('clock_in', 'is', null)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const a of (callAtt || []) as any[]) {
+            callAttendanceSet.add(`${a.staff_id}:${a.date}`)
+          }
+        }
+
+        // Reports by staff+date
+        const callReportSet = new Set<string>()
+        if (callStaffIds.length > 0 && callDateSet.length > 0) {
+          const { data: callReports } = await supabase
+            .from('work_reports')
+            .select('staff_id, report_date')
+            .in('staff_id', callStaffIds)
+            .in('report_date', callDateSet)
+            .is('deleted_at', null)
+            .neq('status', 'draft')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const r of (callReports || []) as any[]) {
+            callReportSet.add(`${r.staff_id}:${r.report_date}`)
+          }
+        }
+
+        // Generate alerts
+        for (const [, entry] of callDays) {
+          const sdKey = `${entry.staffId}:${entry.date}`
+          const managerName = entry.portalProjectId ? projectManagerMap.get(entry.portalProjectId) : null
+          const baseDesc = `${entry.staffName} / ${entry.projectName} (${entry.date}) - ${entry.callCount}件架電`
+
+          // Check: no shift
+          if (!shiftSet.has(sdKey)) {
+            let description = `${baseDesc}・シフトなし`
+            if (ownerScope && managerName) description += `（管理者: ${managerName}）`
+            alerts.push({
+              id: `call-no-shift:${entry.staffId}:${entry.date}`,
+              type: 'CALL_NO_SHIFT',
+              severity: 'WARNING',
+              title: ALERT_TYPE_LABEL.CALL_NO_SHIFT,
+              message: description,
+              description,
+              relatedStaffId: entry.staffId,
+              relatedStaffName: entry.staffName,
+              relatedProjectId: entry.portalProjectId,
+              relatedProjectName: entry.projectName,
+              projectManagerName: managerName || null,
+              createdAt: `${entry.date}T18:00:00+09:00`,
+              href: '/shifts',
+            })
+          }
+
+          // Check: no attendance (only if they DO have a shift - otherwise CALL_NO_SHIFT covers it)
+          if (shiftSet.has(sdKey) && !callAttendanceSet.has(sdKey)) {
+            let description = `${baseDesc}・打刻なし`
+            if (ownerScope && managerName) description += `（管理者: ${managerName}）`
+            alerts.push({
+              id: `call-no-att:${entry.staffId}:${entry.date}`,
+              type: 'CALL_NO_ATTENDANCE',
+              severity: 'WARNING',
+              title: ALERT_TYPE_LABEL.CALL_NO_ATTENDANCE,
+              message: description,
+              description,
+              relatedStaffId: entry.staffId,
+              relatedStaffName: entry.staffName,
+              relatedProjectId: entry.portalProjectId,
+              relatedProjectName: entry.projectName,
+              projectManagerName: managerName || null,
+              createdAt: `${entry.date}T18:00:00+09:00`,
+              href: '/attendance',
+            })
+          }
+
+          // Check: no report
+          if (!callReportSet.has(sdKey)) {
+            let description = `${baseDesc}・日報なし`
+            if (ownerScope && managerName) description += `（管理者: ${managerName}）`
+            alerts.push({
+              id: `call-no-report:${entry.staffId}:${entry.date}`,
+              type: 'CALL_NO_REPORT',
+              severity: 'WARNING',
+              title: ALERT_TYPE_LABEL.CALL_NO_REPORT,
+              message: description,
+              description,
+              relatedStaffId: entry.staffId,
+              relatedStaffName: entry.staffName,
+              relatedProjectId: entry.portalProjectId,
+              relatedProjectName: entry.projectName,
+              projectManagerName: managerName || null,
+              createdAt: `${entry.date}T18:00:00+09:00`,
+              href: '/reports/work/new',
+            })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('CALL_ACTIVITY check error:', e)
   }
 
   // --- 翌月シフト未提出 (毎月26日以降) ---

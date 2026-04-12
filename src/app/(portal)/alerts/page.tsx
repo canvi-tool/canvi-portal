@@ -21,6 +21,7 @@ import {
   FileX,
   CalendarX,
   Package,
+  Phone,
   RefreshCw,
   Loader2,
   ExternalLink,
@@ -38,6 +39,9 @@ type AlertType =
   | 'REPORT_REJECTED'
   | 'SHIFT_SUBMISSION_DUE'
   | 'EQUIPMENT_PLEDGE_UNSIGNED'
+  | 'CALL_NO_SHIFT'
+  | 'CALL_NO_ATTENDANCE'
+  | 'CALL_NO_REPORT'
 
 type Severity = 'CRITICAL' | 'WARNING' | 'INFO'
 
@@ -68,6 +72,9 @@ const TYPE_LABELS: Record<AlertType, string> = {
   REPORT_REJECTED: '日報差戻し',
   SHIFT_SUBMISSION_DUE: 'シフト未提出',
   EQUIPMENT_PLEDGE_UNSIGNED: '貸与品契約未締結',
+  CALL_NO_SHIFT: '架電あり・シフトなし',
+  CALL_NO_ATTENDANCE: '架電あり・打刻なし',
+  CALL_NO_REPORT: '架電あり・日報なし',
 }
 
 const SEVERITY_LABELS: Record<Severity, string> = {
@@ -90,6 +97,10 @@ function typeIcon(type: AlertType) {
       return CalendarX
     case 'EQUIPMENT_PLEDGE_UNSIGNED':
       return Package
+    case 'CALL_NO_SHIFT':
+    case 'CALL_NO_ATTENDANCE':
+    case 'CALL_NO_REPORT':
+      return Phone
   }
 }
 
