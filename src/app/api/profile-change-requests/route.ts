@@ -3,7 +3,7 @@
  * POST /api/profile-change-requests            - 新規申請（bodyから staff_id, changes, attachment_urls）
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser, isOwner, hasRole } from '@/lib/auth/rbac'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   filterEditableChanges,

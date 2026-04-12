@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { isOwner } from '@/lib/auth/rbac'
+import { isOwner, isAdmin } from '@/lib/auth/rbac'
 import { isFreelanceType } from '@/lib/validations/staff'
 import { getRecentDerivedAlerts } from '@/lib/alerts/recent-alerts'
 
@@ -76,17 +76,36 @@ export async function GET() {
     }))
 
     // アラート（alertsテーブルにはproject_idがないため、related_staff_idでスコープ）
-    // オーナーは全アラート、それ以外はスタッフIDに紐づくアラートのみ
+    // オーナー: 全アラート
+    // 管理者: 自身のアサインPJメンバーのアラート
+    // メンバー: 自分のアラートのみ
+    const isAdminUser = isAdmin(user) && !isOwnerUser
+
+    // 管理者の場合、アサインPJのメンバーstaffIdリストを取得
+    let scopedStaffIds: string[] | null = null // null = 全件（owner）
+    if (!isOwnerUser) {
+      const ids = new Set<string>()
+      if (user.staffId) ids.add(user.staffId)
+      if (isAdminUser && allowedProjectIds && allowedProjectIds.length > 0) {
+        const { data: members } = await supabase
+          .from('project_assignments')
+          .select('staff_id')
+          .in('project_id', allowedProjectIds)
+          .is('deleted_at', null)
+        for (const m of (members || [])) {
+          if (m.staff_id) ids.add(m.staff_id as string)
+        }
+      }
+      scopedStaffIds = ids.size > 0 ? Array.from(ids) : ['__none__']
+    }
+
     let alertCountQuery = supabase
       .from('alerts')
       .select('id', { count: 'exact', head: true })
       .in('status', ['active'])
 
-    if (!isOwnerUser && user.staffId) {
-      alertCountQuery = alertCountQuery.eq('related_staff_id', user.staffId)
-    } else if (!isOwnerUser && !user.staffId) {
-      // スタッフIDなし → アラートなし
-      alertCountQuery = alertCountQuery.eq('related_staff_id', '__none__')
+    if (scopedStaffIds !== null) {
+      alertCountQuery = alertCountQuery.in('related_staff_id', scopedStaffIds)
     }
 
     const alertCountRes = await alertCountQuery
@@ -97,10 +116,8 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    if (!isOwnerUser && user.staffId) {
-      alertListQuery = alertListQuery.eq('related_staff_id', user.staffId)
-    } else if (!isOwnerUser && !user.staffId) {
-      alertListQuery = alertListQuery.eq('related_staff_id', '__none__')
+    if (scopedStaffIds !== null) {
+      alertListQuery = alertListQuery.in('related_staff_id', scopedStaffIds)
     }
 
     const alertListRes = await alertListQuery

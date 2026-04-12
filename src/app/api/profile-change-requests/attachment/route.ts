@@ -3,7 +3,7 @@
  * 添付ファイルの署名付きURLを返す（オーナー/管理者のみ）
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser, isOwner, hasRole } from '@/lib/auth/rbac'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const EXPIRY = 600 // 10分

@@ -290,7 +290,7 @@ function SidebarContent({
         <nav className="flex flex-col gap-3">
           {NAV_SECTIONS.map((section) => {
             const visibleItems = section.items.filter(
-              (item) => !user?.role || canAccessRoute(user.role, item.href)
+              (item) => user?.role ? canAccessRoute(user.role, item.href) : false
             )
             if (visibleItems.length === 0) return null
             return (
