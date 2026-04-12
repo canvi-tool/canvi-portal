@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { PROJECT_STATUS_LABELS, SHIFT_APPROVAL_MODE_LABELS } from '@/lib/constants'
+import { PROJECT_STATUS_LABELS } from '@/lib/constants'
 import { DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import { useProjects, useBulkUpdateProjects, type Project } from '@/hooks/use-projects'
 import { toast } from 'sonner'
