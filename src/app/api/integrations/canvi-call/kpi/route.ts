@@ -30,20 +30,26 @@ export async function GET(request: NextRequest) {
     let url = `${apiUrl}/api/external/daily-kpi?date=${encodeURIComponent(date)}&email=${encodeURIComponent(user.email)}`
     if (portalProjectId) url += `&portal_project_id=${encodeURIComponent(portalProjectId)}`
 
+    console.log('[canvi-call KPI] Request URL:', url)
+    console.log('[canvi-call KPI] email:', user.email, 'date:', date, 'portalProjectId:', portalProjectId)
+
     const res = await fetch(url, {
       headers: { 'X-API-Key': apiKey },
       next: { revalidate: 0 },
     })
 
+    const responseText = await res.text()
+    console.log('[canvi-call KPI] Response status:', res.status, 'body:', responseText)
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
+      const err = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
       return NextResponse.json(
         { error: err.error || 'テレアポくんからのデータ取得に失敗しました' },
         { status: res.status }
       )
     }
 
-    const data = await res.json()
+    const data = JSON.parse(responseText)
     return NextResponse.json(data)
   } catch (error) {
     console.error('canvi-call KPI proxy error:', error)
