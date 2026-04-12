@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
           processedEventIds.add(event.id)
 
           {
-            // 新規シフト作成
+            // 新規シフト作成（GCal由来として source と external_event_id も設定）
             const { error: insertError } = await admin.from('shifts').insert({
               staff_id: staffRecord.id,
               project_id: projectId,
@@ -316,7 +316,9 @@ export async function GET(request: NextRequest) {
               end_time: endTime,
               status: 'APPROVED',
               shift_type: 'WORK',
+              source: 'google_calendar',
               google_calendar_event_id: event.id,
+              external_event_id: event.id,
               google_calendar_synced: true,
               google_meet_url: newMeetUrl,
               notes: newDescription,
@@ -335,20 +337,13 @@ export async function GET(request: NextRequest) {
 
         // 削除検知: google_calendar_event_id があるがイベントが存在しなくなったシフト
         //
-        // 重要:
-        // - Canvi発のシフト (source != 'google_calendar', 例えば source=null) は
-        //   Canvi側が正であり、GCal上で summary を変更されてPJマッチに外れただけでも
-        //   processedEventIds に入らないため、ここで誤って削除してはいけない。
-        // - GCal発シフト (source='google_calendar') のみ対象にする。
-        // - さらに保険として getEventById で実際に 404/cancelled を確認してから soft-delete する
-        //   (リスト範囲漏れ等による誤削除防止)。
+        // GCal API で実在確認(getEventById) し、404/cancelled の場合のみ soft-delete。
+        // source問わず（Canvi発・GCal発どちらもGCal上の削除に追随する）。
         if (existingShifts) {
           for (const shift of existingShifts) {
             const eventId = shift.google_calendar_event_id
             if (!eventId) continue
             if (processedEventIds.has(eventId)) continue
-            // Canvi起点のシフトは対象外（source厳密判定）
-            if ((shift as { source?: string | null }).source !== 'google_calendar') continue
 
             // GCal API で実在確認（誤削除防止）
             let gone = false

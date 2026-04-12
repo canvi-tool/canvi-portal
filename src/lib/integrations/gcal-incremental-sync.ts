@@ -98,15 +98,16 @@ export async function runIncrementalSyncForStaff(params: {
     try {
       // キャンセル → shifts/pending の該当行を削除 or deleted_at
       if (ev.status === 'cancelled') {
-        // shifts (google_calendar 発) を soft-delete
+        // Googleカレンダーでイベントが削除された → 対応するシフトをsoft-delete
+        // source問わず（Canvi発・GCal発どちらも対象）
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: promoted } = await (admin.from('shifts') as any)
-          .select('id, source')
+          .select('id')
           .eq('staff_id', staffId)
           .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
           .is('deleted_at', null)
-          .limit(1) as { data: Array<{ id: string; source: string | null }> | null }
-        if (promoted && promoted[0] && promoted[0].source === 'google_calendar') {
+          .limit(1) as { data: Array<{ id: string }> | null }
+        if (promoted && promoted[0]) {
           const nowIso = new Date().toISOString()
           await admin
             .from('shifts')
