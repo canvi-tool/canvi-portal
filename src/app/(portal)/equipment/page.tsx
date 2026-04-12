@@ -102,9 +102,9 @@ async function fetchCategoryCodes() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = (await createServerSupabaseClient()) as any
   const { data, error } = await supabase
-    .from('category_codes')
+    .from('equipment_category_codes')
     .select('code, name')
-    .order('code', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   if (error) {
     console.error('Category codes query error:', error)
@@ -117,9 +117,9 @@ async function fetchMakerCodes() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = (await createServerSupabaseClient()) as any
   const { data, error } = await supabase
-    .from('maker_codes')
+    .from('equipment_maker_codes')
     .select('code, name')
-    .order('code', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   if (error) {
     console.error('Maker codes query error:', error)
