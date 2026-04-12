@@ -199,7 +199,9 @@ export function LendingDialog({
             <Label>誓約書</Label>
             <Select value={pledgeStatus} onValueChange={setPledgeStatus}>
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="選択してください">
+                  {PLEDGE_STATUS_LABELS[pledgeStatus] || pledgeStatus}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(PLEDGE_STATUS_LABELS).map(([v, l]) => (
