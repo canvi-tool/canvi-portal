@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,22 +20,26 @@ import {
   AlertTriangle,
   FileX,
   CalendarX,
-  UserMinus,
-  Mail,
+  Package,
+  RefreshCw,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (matches DerivedAlert from recent-alerts.ts)
 // ---------------------------------------------------------------------------
 
 type AlertType =
-  | 'unreported_work'
-  | 'shift_discrepancy'
-  | 'unsigned_contract'
-  | 'failed_notification'
-  | 'unsigned_retirement_doc'
+  | 'ATTENDANCE_ERROR'
+  | 'ATTENDANCE_CORRECTION_PENDING'
+  | 'REPORT_MISSING'
+  | 'REPORT_REJECTED'
+  | 'SHIFT_SUBMISSION_DUE'
+  | 'EQUIPMENT_PLEDGE_UNSIGNED'
 
-type Severity = 'critical' | 'warning' | 'info'
+type Severity = 'CRITICAL' | 'WARNING' | 'INFO'
 
 interface Alert {
   id: string
@@ -43,136 +47,59 @@ interface Alert {
   severity: Severity
   title: string
   message: string
-  staffName: string
+  description: string
+  relatedStaffId?: string | null
+  relatedStaffName?: string | null
+  relatedProjectId?: string | null
+  relatedProjectName?: string | null
+  projectManagerName?: string | null
   createdAt: string
-  isRead: boolean
-  isResolved: boolean
+  href?: string
 }
-
-// ---------------------------------------------------------------------------
-// Demo data
-// ---------------------------------------------------------------------------
-
-const INITIAL_ALERTS: Alert[] = [
-  {
-    id: '1',
-    type: 'unreported_work',
-    severity: 'warning',
-    title: '勤務報告未提出',
-    message: '田中太郎 - 2026年3月25日の勤務報告が未提出です',
-    staffName: '田中太郎',
-    createdAt: '2026-03-26T09:00:00',
-    isRead: false,
-    isResolved: false,
-  },
-  {
-    id: '2',
-    type: 'unsigned_contract',
-    severity: 'critical',
-    title: '契約書未締結',
-    message: '佐藤花子 - 契約書の署名が1週間以上未完了です',
-    staffName: '佐藤花子',
-    createdAt: '2026-03-25T14:00:00',
-    isRead: false,
-    isResolved: false,
-  },
-  {
-    id: '3',
-    type: 'shift_discrepancy',
-    severity: 'warning',
-    title: 'シフト差異検知',
-    message: '鈴木一郎 - 3月24日のシフトと実績に2時間の差異があります',
-    staffName: '鈴木一郎',
-    createdAt: '2026-03-25T10:00:00',
-    isRead: true,
-    isResolved: false,
-  },
-  {
-    id: '4',
-    type: 'failed_notification',
-    severity: 'critical',
-    title: '支払通知書送付失敗',
-    message: '山田次郎への2月分支払通知書メール送付が失敗しました',
-    staffName: '山田次郎',
-    createdAt: '2026-03-24T16:00:00',
-    isRead: true,
-    isResolved: false,
-  },
-  {
-    id: '5',
-    type: 'unsigned_retirement_doc',
-    severity: 'warning',
-    title: '離任書類未締結',
-    message: '高橋美咲 - 離任時誓約書の署名が未完了です',
-    staffName: '高橋美咲',
-    createdAt: '2026-03-24T11:00:00',
-    isRead: false,
-    isResolved: false,
-  },
-  {
-    id: '6',
-    type: 'unreported_work',
-    severity: 'warning',
-    title: '勤務報告未提出',
-    message: '渡辺健太 - 2026年3月24日の勤務報告が未提出です',
-    staffName: '渡辺健太',
-    createdAt: '2026-03-25T09:00:00',
-    isRead: true,
-    isResolved: true,
-  },
-  {
-    id: '7',
-    type: 'shift_discrepancy',
-    severity: 'info',
-    title: 'シフト差異（軽微）',
-    message: '伊藤さくら - 3月23日のシフトと実績に15分の差異があります',
-    staffName: '伊藤さくら',
-    createdAt: '2026-03-24T10:00:00',
-    isRead: true,
-    isResolved: true,
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const TYPE_LABELS: Record<AlertType, string> = {
-  unreported_work: '未報告通知',
-  shift_discrepancy: 'シフト差異通知',
-  unsigned_contract: '契約未締結通知',
-  failed_notification: '送付失敗通知',
-  unsigned_retirement_doc: '離任書類未締結通知',
+  ATTENDANCE_ERROR: '勤怠エラー',
+  ATTENDANCE_CORRECTION_PENDING: '勤怠修正依頼',
+  REPORT_MISSING: '日報送付漏れ',
+  REPORT_REJECTED: '日報差戻し',
+  SHIFT_SUBMISSION_DUE: 'シフト未提出',
+  EQUIPMENT_PLEDGE_UNSIGNED: '貸与品契約未締結',
 }
 
 const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: '重大',
-  warning: '警告',
-  info: '情報',
+  CRITICAL: '重大',
+  WARNING: '警告',
+  INFO: '情報',
 }
 
 function typeIcon(type: AlertType) {
   switch (type) {
-    case 'unreported_work':
+    case 'ATTENDANCE_ERROR':
       return Clock
-    case 'shift_discrepancy':
-      return CalendarX
-    case 'unsigned_contract':
+    case 'ATTENDANCE_CORRECTION_PENDING':
       return FileX
-    case 'failed_notification':
-      return Mail
-    case 'unsigned_retirement_doc':
-      return UserMinus
+    case 'REPORT_MISSING':
+      return CalendarX
+    case 'REPORT_REJECTED':
+      return FileX
+    case 'SHIFT_SUBMISSION_DUE':
+      return CalendarX
+    case 'EQUIPMENT_PLEDGE_UNSIGNED':
+      return Package
   }
 }
 
 function severityBadgeVariant(severity: Severity) {
   switch (severity) {
-    case 'critical':
+    case 'CRITICAL':
       return 'destructive' as const
-    case 'warning':
+    case 'WARNING':
       return 'secondary' as const
-    case 'info':
+    case 'INFO':
       return 'outline' as const
   }
 }
@@ -197,47 +124,70 @@ function formatTimestamp(iso: string): string {
 // Page component
 // ---------------------------------------------------------------------------
 
-type StatusFilter = 'all' | 'unread' | 'unresolved' | 'resolved'
+type StatusFilter = 'all' | 'critical' | 'warning' | 'info'
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS)
+  const router = useRouter()
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [severityFilter, setSeverityFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter] = useState<StatusFilter>('all')
+
+  // Dismissed alerts (session-only)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+
+  // Fetch alerts from API
+  const fetchAlerts = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/alerts/derived')
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'アラートの取得に失敗しました')
+      }
+      const data: Alert[] = await res.json()
+      setAlerts(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAlerts()
+  }, [fetchAlerts])
 
   // --- Derived data ---
 
+  const activeAlerts = useMemo(() => {
+    return alerts.filter((a) => !dismissedIds.has(a.id))
+  }, [alerts, dismissedIds])
+
   const filtered = useMemo(() => {
-    return alerts.filter((a) => {
+    return activeAlerts.filter((a) => {
       if (typeFilter !== 'all' && a.type !== typeFilter) return false
       if (severityFilter !== 'all' && a.severity !== severityFilter) return false
-      if (statusFilter === 'unread' && a.isRead) return false
-      if (statusFilter === 'unresolved' && a.isResolved) return false
-      if (statusFilter === 'resolved' && !a.isResolved) return false
+      if (statusFilter !== 'all' && a.severity !== statusFilter.toUpperCase()) return false
       return true
     })
-  }, [alerts, typeFilter, severityFilter, statusFilter])
+  }, [activeAlerts, typeFilter, severityFilter, statusFilter])
 
-  const unreadCount = alerts.filter((a) => !a.isRead).length
-  const unresolvedCount = alerts.filter((a) => !a.isResolved).length
-  const criticalCount = alerts.filter((a) => a.severity === 'critical' && !a.isResolved).length
+  const criticalCount = activeAlerts.filter((a) => a.severity === 'CRITICAL').length
+  const warningCount = activeAlerts.filter((a) => a.severity === 'WARNING').length
+  const infoCount = activeAlerts.filter((a) => a.severity === 'INFO').length
 
   // --- Actions ---
 
-  function markAllRead() {
-    setAlerts((prev) => prev.map((a) => ({ ...a, isRead: true })))
+  function dismissAlert(id: string) {
+    setDismissedIds((prev) => new Set(prev).add(id))
   }
 
-  function markRead(id: string) {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)),
-    )
-  }
-
-  function markResolved(id: string) {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, isRead: true, isResolved: true } : a)),
-    )
+  function dismissAll() {
+    setDismissedIds(new Set(activeAlerts.map((a) => a.id)))
   }
 
   // --- Render ---
@@ -245,13 +195,23 @@ export default function AlertsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="アラート管理"
-        description="システムアラートと通知の一覧を確認・管理します"
+        title="AIアラート"
+        description="勤怠・日報・シフトの異常を自動検知して表示します（直近14日間）"
         actions={
-          <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-            <BellOff className="size-4" />
-            全て既読にする
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchAlerts} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              更新
+            </Button>
+            <Button variant="outline" size="sm" onClick={dismissAll} disabled={activeAlerts.length === 0}>
+              <BellOff className="size-4" />
+              全て非表示
+            </Button>
+          </div>
         }
       />
 
@@ -263,11 +223,9 @@ export default function AlertsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ての種類</SelectItem>
-            <SelectItem value="unreported_work">未報告通知</SelectItem>
-            <SelectItem value="shift_discrepancy">シフト差異通知</SelectItem>
-            <SelectItem value="unsigned_contract">契約未締結通知</SelectItem>
-            <SelectItem value="failed_notification">送付失敗通知</SelectItem>
-            <SelectItem value="unsigned_retirement_doc">離任書類未締結通知</SelectItem>
+            {Object.entries(TYPE_LABELS).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -277,21 +235,9 @@ export default function AlertsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ての重要度</SelectItem>
-            <SelectItem value="critical">重大</SelectItem>
-            <SelectItem value="warning">警告</SelectItem>
-            <SelectItem value="info">情報</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-          <SelectTrigger size="sm">
-            <SelectValueWithLabel value={statusFilter} placeholder="ステータスで絞り込み" labels={{ all: '全て', unread: '未読', unresolved: '未解決', resolved: '解決済' }} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全て</SelectItem>
-            <SelectItem value="unread">未読</SelectItem>
-            <SelectItem value="unresolved">未解決</SelectItem>
-            <SelectItem value="resolved">解決済</SelectItem>
+            <SelectItem value="CRITICAL">重大</SelectItem>
+            <SelectItem value="WARNING">警告</SelectItem>
+            <SelectItem value="INFO">情報</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -301,30 +247,60 @@ export default function AlertsPage() {
         <div className="flex items-center gap-1.5">
           <Bell className="size-4 text-muted-foreground" />
           <span>
-            未読 <span className="font-semibold">{unreadCount}件</span>
+            合計 <span className="font-semibold">{activeAlerts.length}件</span>
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <AlertTriangle className="size-4 text-muted-foreground" />
-          <span>
-            未解決 <span className="font-semibold">{unresolvedCount}件</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <FileX className="size-4 text-destructive" />
+          <AlertTriangle className="size-4 text-destructive" />
           <span>
             重大 <span className="font-semibold text-destructive">{criticalCount}件</span>
           </span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <AlertTriangle className="size-4 text-amber-500" />
+          <span>
+            警告 <span className="font-semibold text-amber-600">{warningCount}件</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Bell className="size-4 text-blue-500" />
+          <span>
+            情報 <span className="font-semibold text-blue-600">{infoCount}件</span>
+          </span>
+        </div>
       </div>
+
+      {/* Error state */}
+      {error && (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-4 text-destructive">
+            <AlertTriangle className="size-5 shrink-0" />
+            <p className="text-sm">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchAlerts}>
+              再試行
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading state */}
+      {isLoading && alerts.length === 0 && (
+        <Card>
+          <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="size-6 animate-spin mr-2" />
+            <p className="text-sm">アラートを取得中...</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Alert list */}
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {!isLoading && !error && filtered.length === 0 && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Check className="mb-2 size-8" />
+              <Check className="mb-2 size-8 text-green-500" />
               <p className="text-sm">該当するアラートはありません</p>
+              <p className="text-xs mt-1">直近14日間に異常は検知されていません</p>
             </CardContent>
           </Card>
         )}
@@ -332,23 +308,14 @@ export default function AlertsPage() {
         {filtered.map((alert) => {
           const Icon = typeIcon(alert.type)
           return (
-            <Card
-              key={alert.id}
-              className={
-                alert.isResolved
-                  ? 'opacity-60'
-                  : !alert.isRead
-                    ? 'border-primary/30 bg-primary/[0.02]'
-                    : undefined
-              }
-            >
+            <Card key={alert.id}>
               <CardContent className="flex items-start gap-4 py-4">
                 {/* Icon */}
                 <div
                   className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
-                    alert.severity === 'critical'
+                    alert.severity === 'CRITICAL'
                       ? 'bg-destructive/10 text-destructive'
-                      : alert.severity === 'warning'
+                      : alert.severity === 'WARNING'
                         ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
                         : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
                   }`}
@@ -359,44 +326,34 @@ export default function AlertsPage() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Unread dot */}
-                    {!alert.isRead && (
-                      <span className="size-2 shrink-0 rounded-full bg-primary" />
-                    )}
                     <span className="text-sm font-medium">{alert.title}</span>
                     <Badge variant={severityBadgeVariant(alert.severity)}>
                       {SEVERITY_LABELS[alert.severity]}
                     </Badge>
                     <Badge variant="outline">{TYPE_LABELS[alert.type]}</Badge>
-                    {alert.isResolved && (
-                      <Badge variant="default">
-                        <Check className="size-3" />
-                        解決済
-                      </Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatTimestamp(alert.createdAt)}</span>
+                    {alert.relatedProjectName && (
+                      <span>PJ: {alert.relatedProjectName}</span>
+                    )}
+                    {alert.projectManagerName && (
+                      <span>管理者: {alert.projectManagerName}</span>
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{alert.message}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatTimestamp(alert.createdAt)}
-                  </p>
                 </div>
 
                 {/* Actions */}
                 <div className="flex shrink-0 items-center gap-1">
-                  {!alert.isRead && (
-                    <Button variant="ghost" size="sm" onClick={() => markRead(alert.id)}>
-                      <BellOff className="size-3.5" />
-                      既読にする
+                  {alert.href && (
+                    <Button variant="ghost" size="sm" onClick={() => router.push(alert.href!)}>
+                      <ExternalLink className="size-3.5 mr-1" />
+                      詳細
                     </Button>
                   )}
-                  {!alert.isResolved && (
-                    <Button variant="ghost" size="sm" onClick={() => markResolved(alert.id)}>
-                      <Check className="size-3.5" />
-                      解決済にする
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm">
-                    詳細を見る
+                  <Button variant="ghost" size="sm" onClick={() => dismissAlert(alert.id)}>
+                    <BellOff className="size-3.5" />
                   </Button>
                 </div>
               </CardContent>
