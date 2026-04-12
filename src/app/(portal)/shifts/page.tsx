@@ -225,8 +225,9 @@ export default function ShiftsPage() {
   }, [])
   // ローカルミューテーション後の保険リフェッチ（単一呼び出し）
   // Realtimeの健全性に依存せず、操作ユーザー側で確実に最新状態を反映する
+  // Promiseを返すことで、呼び出し元がawaitできる
   const fetchShiftsSafe = useCallback(() => {
-    fetchShiftsRef.current()
+    return fetchShiftsRef.current()
   }, [])
   // Request deduplication: skip if a fetch is already in flight
   const fetchInFlightRef = useRef(false)

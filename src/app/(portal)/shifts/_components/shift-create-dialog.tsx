@@ -113,11 +113,11 @@ export function ShiftCreateDialog({
 
       toast.success(isAutoApproval ? 'シフトを登録しました' : 'シフトを申請しました')
       // 即時リフェッチ（Realtimeに依存しない確実な反映）
-      // ダイアログ閉じる前に fire して、closing unmount と競合しないようにする
-      try { await Promise.resolve(onCreated() as unknown as void | Promise<void>) } catch { /* noop */ }
-      // 念のため 400ms 後にもう一度（read-after-write 的な瞬間的遅延対策）
-      setTimeout(() => { try { onCreated() } catch { /* noop */ } }, 400)
+      // fetchShiftsSafe が Promise を返すので await で完了を待つ
+      try { await onCreated() } catch { /* noop */ }
       onOpenChange(false)
+      // 念のため 500ms 後にもう一度（read-after-write 的な瞬間的遅延対策）
+      setTimeout(() => { try { onCreated() } catch { /* noop */ } }, 500)
       // Reset
       setNotes('')
       setTitle('')
