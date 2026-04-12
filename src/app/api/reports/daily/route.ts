@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `*${staffName}* が *${typeLabel}* を提出しました\n${report_date} | ${projectName}`,
+                    text: `${staffName} が ${typeLabel} を提出しました\n${report_date} | ${projectName}`,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -296,7 +296,7 @@ function buildReportDetailBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `📋 *${staffName}* の日次報告${dateStr ? `（${dateStr}）` : ''}`,
+        text: `📋 ${staffName} の日次報告${dateStr ? `（${dateStr}）` : ''}`,
       },
     })
     blocks.push({ type: 'divider' })

@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `📅 *${staffName}* のシフトが自動確定されました\n📆 ${parsed.data.shift_date} | ⏰ ${parsed.data.start_time}〜${parsed.data.end_time} | 🏢 ${project.name || ''}\n📝 種別: ${shiftTypeLabel}`,
+                  text: `📅 ${staffName} のシフトが自動確定されました\n📆 ${parsed.data.shift_date} | ⏰ ${parsed.data.start_time}〜${parsed.data.end_time} | 🏢 ${project.name || ''}\n📝 種別: ${shiftTypeLabel}`,
                 },
               },
             ],

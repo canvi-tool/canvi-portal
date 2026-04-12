@@ -104,7 +104,7 @@ export async function POST(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `🔙 ${projectName}｜*${staffName}* のシフトが *差戻し* されました\n👤 差戻し者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+              text: `🔙 ${projectName}｜${staffName} のシフトが差戻しされました\n👤 差戻し者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
             },
           },
         ]
@@ -135,7 +135,7 @@ export async function POST(
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `🔙 *${staffName}* のシフトが *差戻し* されました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
+                  text: `🔙 ${staffName} のシフトが差戻しされました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
                 },
               },
               ...(comment ? [{

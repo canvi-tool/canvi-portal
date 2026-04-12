@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
                       type: 'section',
                       text: {
                         type: 'mrkdwn',
-                        text: `:warning: *退勤未打刻* — *${staffName}* さんが出勤中のまま退勤打刻がされていません (${today} / ${project.name})`,
+                        text: `:warning: 退勤未打刻 — ${staffName} さんが出勤中のまま退勤打刻がされていません (${today} / ${project.name})`,
                       },
                     },
                   ],

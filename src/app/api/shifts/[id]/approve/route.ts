@@ -107,7 +107,7 @@ export async function POST(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `✅ ${projectName}｜*${staffName}* のシフトが *承認* されました\n👤 承認者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+              text: `✅ ${projectName}｜${staffName} のシフトが承認されました\n👤 承認者: <@${currentUser.id}>\n🕐 ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
             },
           },
         ]
@@ -138,7 +138,7 @@ export async function POST(
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `✅ *${staffName}* のシフトが *承認* されました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
+                  text: `✅ ${staffName} のシフトが承認されました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
                 },
               },
               ...(comment ? [{

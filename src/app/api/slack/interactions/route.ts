@@ -558,7 +558,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${projectName ? `${projectName}｜` : ''}*${staffName}* の *${typeLabel}* が *${actionLabel}* されました\n${report.report_date}`,
+          text: `${projectName ? `${projectName}｜` : ''}${staffName} の ${typeLabel} が ${actionLabel} されました\n${report.report_date}`,
         },
       },
     ]
@@ -624,7 +624,7 @@ async function handleReportApproval(payload: Record<string, unknown>) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*${actionLabel}* by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+            text: `${actionLabel} by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
           },
         },
       ]
@@ -744,7 +744,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${projectName ? `${projectName}｜` : ''}*${staffName}* のシフトが *${actionLabel}* されました\n${shift.shift_date} | ${shift.start_time}〜${shift.end_time}`,
+          text: `${projectName ? `${projectName}｜` : ''}${staffName} のシフトが ${actionLabel} されました\n${shift.shift_date} | ${shift.start_time}〜${shift.end_time}`,
         },
       },
     ]
@@ -804,7 +804,7 @@ async function handleShiftApproval(payload: Record<string, unknown>) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*${actionLabel}* by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+            text: `${actionLabel} by <@${slackUserId}>\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
           },
         },
       ]
@@ -1043,7 +1043,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*打刻修正* が *${actionLabel}* されました${projectName ? `（${projectName}）` : ''}`,
+          text: `打刻修正 が ${actionLabel} されました${projectName ? `（${projectName}）` : ''}`,
         },
       },
     ]
@@ -1080,7 +1080,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*${actionLabel}* by <@${slackUserId}>${comment ? `\nコメント: ${comment}` : ''}`,
+          text: `${actionLabel} by <@${slackUserId}>${comment ? `\nコメント: ${comment}` : ''}`,
         },
       },
     ]
@@ -1684,7 +1684,7 @@ async function handleDiffRound(payload: Record<string, unknown>) {
               type: 'section',
               text: {
                 type: 'mrkdwn',
-                text: `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}*${staffName}* の勤怠を定時で丸めました → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}>`,
+                text: `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}${staffName} の勤怠を定時で丸めました → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}>`,
               },
             },
           ],
@@ -1702,7 +1702,7 @@ async function handleDiffRound(payload: Record<string, unknown>) {
     messageTs,
     (message as Record<string, unknown> | undefined)?.blocks,
     `${roundProjectName ? `${roundProjectName}｜` : ''}${staffName}の勤怠を定時で丸めました`,
-    `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}*${staffName}* の勤怠を定時丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+    `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}${staffName} の勤怠を定時丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   )
 
   return new Response('', { status: 200 })
@@ -1756,7 +1756,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
   const threadTs = (rec.slack_diff_thread_ts as string) || messageTs
   const replyChannel = (rec.slack_diff_channel_id as string) || channelId
 
-  const mention = targetSlackUserId ? `<@${targetSlackUserId}>` : `*${staffName}*`
+  const mention = targetSlackUserId ? `<@${targetSlackUserId}>` : `${staffName}`
 
   if (replyChannel && threadTs) {
     try {
@@ -1800,7 +1800,7 @@ async function handleDiffRequestFix(payload: Record<string, unknown>) {
     messageTs,
     (message as Record<string, unknown> | undefined)?.blocks,
     `${fixProjectName ? `${fixProjectName}｜` : ''}${staffName}に打刻修正依頼を送信しました`,
-    `:pencil2: ${fixProjectName ? `${fixProjectName}｜` : ''}*${staffName}* に打刻修正依頼済み by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+    `:pencil2: ${fixProjectName ? `${fixProjectName}｜` : ''}${staffName} に打刻修正依頼済み by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   )
 
   return new Response('', { status: 200 })

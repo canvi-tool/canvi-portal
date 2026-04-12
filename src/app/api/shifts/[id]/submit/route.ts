@@ -121,7 +121,7 @@ export async function POST(
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: `🔄 *${staffName}* がシフトを再提出しました\n📅 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
+              text: `🔄 ${staffName} がシフトを再提出しました\n📅 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
             },
           },
         ]
@@ -183,7 +183,7 @@ export async function POST(
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `📅 *${staffName}* がシフトを申請しました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
+                  text: `📅 ${staffName} がシフトを申請しました\n📆 ${shift.shift_date} | ⏰ ${shift.start_time}〜${shift.end_time} | 🏢 ${projectName}`,
                 },
               },
               {

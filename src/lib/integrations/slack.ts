@@ -1084,7 +1084,7 @@ export function buildClockInNotification(staffName: string, projectName?: string
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🟢 ${projectName ? `${projectName}｜` : ''}*${staffName}* さんが出勤しました`,
+          text: `🟢 ${projectName ? `${projectName}｜` : ''}${staffName} さんが出勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
@@ -1109,7 +1109,7 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🔴 ${projectName ? `${projectName}｜` : ''}*${staffName}* さんが退勤しました`,
+          text: `🔴 ${projectName ? `${projectName}｜` : ''}${staffName} さんが退勤しました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
@@ -1187,7 +1187,7 @@ export function buildOvertimeWarningNotification(staffName: string, hours: numbe
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:warning: *残業警告* — *${staffName}* さんの勤務時間が *${hours}時間* を超えています (${date})`,
+          text: `:warning: 残業警告 — ${staffName} さんの勤務時間が ${hours}時間 を超えています (${date})`,
         },
       },
     ],
@@ -1208,7 +1208,7 @@ export function buildBreakStartNotification(staffName: string, time?: string, pr
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:coffee: *${staffName}* さんが休憩に入りました (${dateStr} ${timeStr})`,
+          text: `:coffee: ${staffName} さんが休憩に入りました (${dateStr} ${timeStr})`,
         },
       },
     ],
@@ -1229,7 +1229,7 @@ export function buildBreakEndNotification(staffName: string, breakMinutes: numbe
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:arrow_forward: *${staffName}* さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
+          text: `:arrow_forward: ${staffName} さんが休憩から戻りました (${dateStr} ${timeStr}, 休憩${breakMinutes}分)`,
         },
       },
     ],
@@ -1247,7 +1247,7 @@ export function buildShiftSubmittedNotification(staffName: string, shiftDate: st
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:calendar: ${projectName ? `*${projectName}*｜` : ''}*${staffName}* のシフトが提出されました`,
+          text: `:calendar: ${projectName ? `${projectName}｜` : ''}${staffName} のシフトが提出されました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日付:* ${shiftDate}` },
@@ -1274,7 +1274,7 @@ export function buildShiftOverdueNotification(staffNames: string[], deadline: st
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*${projectName}* のシフト提出期限(${deadline})を超過しているメンバー:\n${nameList}`,
+          text: `${projectName} のシフト提出期限(${deadline})を超過しているメンバー:\n${nameList}`,
         },
       },
     ],
@@ -1292,7 +1292,7 @@ export function buildReportSubmittedNotification(staffName: string, date: string
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:memo: ${projectName ? `*${projectName}*｜` : ''}*${staffName}* の日報が提出されました`,
+          text: `:memo: ${projectName ? `${projectName}｜` : ''}${staffName} の日報が提出されました`,
         },
         fields: [
           { type: 'mrkdwn', text: `*日付:* ${date}` },
@@ -1314,7 +1314,7 @@ export function buildMemberAssignedNotification(staffName: string, projectName: 
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:wave: ${projectName}｜*${staffName}* さんがアサインされました${role ? ` (${role})` : ''}`,
+          text: `:wave: ${projectName}｜${staffName} さんがアサインされました${role ? ` (${role})` : ''}`,
         },
       },
     ],
@@ -1332,7 +1332,7 @@ export function buildMemberRemovedNotification(staffName: string, projectName: s
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:door: ${projectName}｜*${staffName}* さんがアサイン解除されました`,
+          text: `:door: ${projectName}｜${staffName} さんがアサイン解除されました`,
         },
       },
     ],
@@ -1354,7 +1354,7 @@ export function buildBulkMemberAssignedNotification(staffNames: string[], projec
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `:wave: ${projectName}｜*${staffNames.length}名* がアサインされました${role ? ` (${role})` : ''}\n\n${nameList}`,
+          text: `:wave: ${projectName}｜${staffNames.length}名 がアサインされました${role ? ` (${role})` : ''}\n\n${nameList}`,
         },
       },
     ],
@@ -1497,7 +1497,7 @@ export function buildShiftAttendanceDiffNotification(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `• *${e.staffName}*: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`,
+        text: `• ${e.staffName}: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`,
       },
     })
     if (e.attendanceRecordId) {

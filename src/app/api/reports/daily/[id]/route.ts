@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `:leftwards_arrow_with_hook: ${editProjectName ? `${editProjectName}｜` : ''}*${editStaffName}* の日報が修正のため差し戻されました\n提出者が内容を修正中です。`,
+                    text: `:leftwards_arrow_with_hook: ${editProjectName ? `${editProjectName}｜` : ''}${editStaffName} の日報が修正のため差し戻されました\n提出者が内容を修正中です。`,
                   },
                 },
               ],
@@ -217,7 +217,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `*${staffName}* が *${typeLabel}* を *${actionLabel}* しました\n${report_date} | ${projectName}`,
+                  text: `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`,
                 },
               },
               ...(kpiSummary ? [{
@@ -272,7 +272,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `*${staffName}* が *${typeLabel}* を *${actionLabel}* しました\n${report_date} | ${projectName}`,
+                    text: `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -417,7 +417,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `*${staffName}* の *${typeLabel}* が *${action}* されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
+                  text: `${staffName} の ${typeLabel} が ${action} されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
                 },
               },
               ...(mentionText ? [{ type: 'context' as const, elements: [{ type: 'mrkdwn' as const, text: mentionText }] }] : []),
@@ -433,7 +433,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `*${staffName}* の *${typeLabel}* が *${action}* されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
+                    text: `${staffName} の ${typeLabel} が ${action} されました\n${data.report_date} | ${projectName}${parsed.data.comment ? `\nコメント: ${parsed.data.comment}` : ''}`,
                   },
                 },
               ],
@@ -590,7 +590,7 @@ function buildReportDetailBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `📋 *${staffName}* の日次報告${dateStr ? `（${dateStr}）` : ''}`,
+        text: `📋 ${staffName} の日次報告${dateStr ? `（${dateStr}）` : ''}`,
       },
     })
     blocks.push({ type: 'divider' })
