@@ -130,7 +130,7 @@ export default function NewDailyReportPage() {
   const [newShiftEnd, setNewShiftEnd] = useState('18:00')
 
   useEffect(() => {
-    if (reportType !== 'outbound' || !reportDate || !projectId) {
+    if (!reportDate || !projectId) {
       setShiftInfo(null)
       return
     }
@@ -290,8 +290,8 @@ export default function NewDailyReportPage() {
 
   // --- Submit ---
   const handleSubmit = async (asDraft = false) => {
-    // 架電日報でシフトがある場合、シフト確認必須
-    if (reportType === 'outbound' && shiftInfo?.hasShift && !shiftConfirmed && !asDraft) {
+    // シフトがある場合、シフト確認必須（全報告タイプ共通）
+    if (shiftInfo?.hasShift && !shiftConfirmed && !asDraft) {
       toast.error('シフト情報を確認してください。「このシフトで報告する」または「修正する」を選択してください。')
       return
     }
@@ -417,36 +417,227 @@ export default function NewDailyReportPage() {
         ))}
       </div>
 
+      {/* ===== 共通: 基本情報（日付・プロジェクト・シフト確認） ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="common-date">日付 {renderRequiredMark()}</Label>
+            <Input
+              id="common-date"
+              type="date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+              className="w-[200px]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>プロジェクト {reportType !== 'training' && renderRequiredMark()}</Label>
+            <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="プロジェクトを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p: { id: string; name: string }) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {reportType === 'training' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="study-theme">本日の自習テーマ {renderRequiredMark()}</Label>
+              <Input
+                id="study-theme"
+                value={studyTheme}
+                onChange={(e) => setStudyTheme(e.target.value)}
+                placeholder="例: CRM操作研修、商品知識の復習"
+              />
+            </div>
+          )}
+
+          {/* シフト情報表示 + 確認/修正フロー（全報告タイプ共通） */}
+          {projectId && shiftInfo && (
+            <div className={`rounded-lg border p-3 space-y-2 ${shiftInfo.hasShift && !shiftConfirmed ? 'border-amber-300 bg-amber-50/30' : shiftConfirmed ? 'border-green-300 bg-green-50/30' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4 text-blue-500" />
+                  当日のシフト
+                  {shiftConfirmed && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex items-center gap-1">
+                      <Check className="h-3 w-3" /> 確認済
+                    </span>
+                  )}
+                </div>
+                {shiftInfo.hasShift && shiftConfirmed && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRefetchShift}
+                    className="text-xs gap-1 h-7"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    シフトを再取得
+                  </Button>
+                )}
+              </div>
+              {shiftInfo.hasShift ? (
+                <div className="text-sm text-muted-foreground space-y-2">
+                  {shiftInfo.shiftDetails.map((s, i) => (
+                    <div key={s.id || i} className="flex items-center gap-2">
+                      <span className="font-mono">
+                        {s.startTime?.slice(0, 5)} 〜 {s.endTime?.slice(0, 5)}
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                        {s.status === 'APPROVED' ? '承認済' : '提出済'}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="text-xs text-muted-foreground">
+                    合計: {shiftInfo.shiftHours}時間
+                  </div>
+
+                  {/* 確認/修正ボタン（未確認時のみ表示） */}
+                  {!shiftConfirmed && !isEditingShift && (
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setShiftConfirmed(true)}
+                        className="text-xs gap-1.5 bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        このシフトで報告する
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const first = shiftInfo.shiftDetails[0]
+                          setEditShiftStart(first?.startTime?.slice(0, 5) || '09:00')
+                          setEditShiftEnd(first?.endTime?.slice(0, 5) || '18:00')
+                          setIsEditingShift(true)
+                        }}
+                        className="text-xs gap-1.5"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        修正する
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* シフト修正フォーム */}
+                  {isEditingShift && !shiftConfirmed && (
+                    <div className="mt-2 pt-2 border-t space-y-2">
+                      <div className="text-xs font-medium text-amber-700">正しい稼働時間を入力してください</div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="time"
+                          value={editShiftStart}
+                          onChange={(e) => setEditShiftStart(e.target.value)}
+                          className="w-[120px] h-8 text-sm"
+                        />
+                        <span className="text-sm text-muted-foreground">〜</span>
+                        <Input
+                          type="time"
+                          value={editShiftEnd}
+                          onChange={(e) => setEditShiftEnd(e.target.value)}
+                          className="w-[120px] h-8 text-sm"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isUpdatingShift || !editShiftStart || !editShiftEnd}
+                          onClick={handleUpdateShift}
+                          className="text-xs gap-1.5"
+                        >
+                          {isUpdatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          この時間で確定
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsEditingShift(false)}
+                          className="text-xs"
+                        >
+                          キャンセル
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 休憩時間入力（確認済みかつBPOの場合のみ） */}
+                  {shiftConfirmed && shiftInfo.isBpo && (
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                      <Label className="text-xs whitespace-nowrap">休憩時間</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="120"
+                        step="5"
+                        value={breakMinutes || ''}
+                        onChange={(e) => {
+                          const v = Math.min(120, Math.max(0, Number(e.target.value) || 0))
+                          setBreakMinutes(v)
+                        }}
+                        placeholder="0"
+                        className="w-[80px] h-7 text-sm"
+                      />
+                      <span className="text-xs text-muted-foreground">分</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    この日のシフトが登録されていません
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={newShiftStart}
+                      onChange={(e) => setNewShiftStart(e.target.value)}
+                      className="w-[120px] h-8 text-sm"
+                    />
+                    <span className="text-sm text-muted-foreground">〜</span>
+                    <Input
+                      type="time"
+                      value={newShiftEnd}
+                      onChange={(e) => setNewShiftEnd(e.target.value)}
+                      className="w-[120px] h-8 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isCreatingShift || !newShiftStart || !newShiftEnd}
+                      onClick={() => handleCreateShift(newShiftStart, newShiftEnd)}
+                      className="text-xs gap-1.5 whitespace-nowrap"
+                    >
+                      {isCreatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
+                      シフトを登録
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ===== Training Form ===== */}
       {reportType === 'training' && (
         <>
-          {/* 基本情報 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="training-date">日付 {renderRequiredMark()}</Label>
-                <Input
-                  id="training-date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-[200px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="study-theme">本日の自習テーマ {renderRequiredMark()}</Label>
-                <Input
-                  id="study-theme"
-                  value={studyTheme}
-                  onChange={(e) => setStudyTheme(e.target.value)}
-                  placeholder="例: CRM操作研修、商品知識の復習"
-                />
-              </div>
-            </CardContent>
-          </Card>
 
           {/* 理解度の自己申告 */}
           <Card>
@@ -558,213 +749,6 @@ export default function NewDailyReportPage() {
       {/* ===== Outbound Form ===== */}
       {reportType === 'outbound' && (
         <>
-          {/* 基本情報 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="outbound-date">日付 {renderRequiredMark()}</Label>
-                <Input
-                  id="outbound-date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-[200px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>プロジェクト {renderRequiredMark()}</Label>
-                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="プロジェクトを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p: { id: string; name: string }) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* シフト情報表示 + 確認/修正フロー */}
-              {reportType === 'outbound' && projectId && shiftInfo && (
-                <div className={`rounded-lg border p-3 space-y-2 ${shiftInfo.hasShift && !shiftConfirmed ? 'border-amber-300 bg-amber-50/30' : shiftConfirmed ? 'border-green-300 bg-green-50/30' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Clock className="h-4 w-4 text-blue-500" />
-                      当日のシフト
-                      {shiftConfirmed && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex items-center gap-1">
-                          <Check className="h-3 w-3" /> 確認済
-                        </span>
-                      )}
-                    </div>
-                    {shiftInfo.hasShift && shiftConfirmed && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleRefetchShift}
-                        className="text-xs gap-1 h-7"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        シフトを再取得
-                      </Button>
-                    )}
-                  </div>
-                  {shiftInfo.hasShift ? (
-                    <div className="text-sm text-muted-foreground space-y-2">
-                      {shiftInfo.shiftDetails.map((s, i) => (
-                        <div key={s.id || i} className="flex items-center gap-2">
-                          <span className="font-mono">
-                            {s.startTime?.slice(0, 5)} 〜 {s.endTime?.slice(0, 5)}
-                          </span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
-                            {s.status === 'APPROVED' ? '承認済' : '提出済'}
-                          </span>
-                        </div>
-                      ))}
-                      <div className="text-xs text-muted-foreground">
-                        合計: {shiftInfo.shiftHours}時間
-                      </div>
-
-                      {/* 確認/修正ボタン（未確認時のみ表示） */}
-                      {!shiftConfirmed && !isEditingShift && (
-                        <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => setShiftConfirmed(true)}
-                            className="text-xs gap-1.5 bg-green-600 hover:bg-green-700"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                            このシフトで報告する
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const first = shiftInfo.shiftDetails[0]
-                              setEditShiftStart(first?.startTime?.slice(0, 5) || '09:00')
-                              setEditShiftEnd(first?.endTime?.slice(0, 5) || '18:00')
-                              setIsEditingShift(true)
-                            }}
-                            className="text-xs gap-1.5"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            修正する
-                          </Button>
-                        </div>
-                      )}
-
-                      {/* シフト修正フォーム */}
-                      {isEditingShift && !shiftConfirmed && (
-                        <div className="mt-2 pt-2 border-t space-y-2">
-                          <div className="text-xs font-medium text-amber-700">正しい稼働時間を入力してください</div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="time"
-                              value={editShiftStart}
-                              onChange={(e) => setEditShiftStart(e.target.value)}
-                              className="w-[120px] h-8 text-sm"
-                            />
-                            <span className="text-sm text-muted-foreground">〜</span>
-                            <Input
-                              type="time"
-                              value={editShiftEnd}
-                              onChange={(e) => setEditShiftEnd(e.target.value)}
-                              className="w-[120px] h-8 text-sm"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={isUpdatingShift || !editShiftStart || !editShiftEnd}
-                              onClick={handleUpdateShift}
-                              className="text-xs gap-1.5"
-                            >
-                              {isUpdatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                              この時間で確定
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setIsEditingShift(false)}
-                              className="text-xs"
-                            >
-                              キャンセル
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 休憩時間入力（確認済みかつBPOの場合のみ） */}
-                      {shiftConfirmed && shiftInfo.isBpo && (
-                        <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                          <Label className="text-xs whitespace-nowrap">休憩時間</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="120"
-                            step="5"
-                            value={breakMinutes || ''}
-                            onChange={(e) => {
-                              const v = Math.min(120, Math.max(0, Number(e.target.value) || 0))
-                              setBreakMinutes(v)
-                            }}
-                            placeholder="0"
-                            className="w-[80px] h-7 text-sm"
-                          />
-                          <span className="text-xs text-muted-foreground">分</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-amber-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        この日のシフトが登録されていません
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="time"
-                          value={newShiftStart}
-                          onChange={(e) => setNewShiftStart(e.target.value)}
-                          className="w-[120px] h-8 text-sm"
-                        />
-                        <span className="text-sm text-muted-foreground">〜</span>
-                        <Input
-                          type="time"
-                          value={newShiftEnd}
-                          onChange={(e) => setNewShiftEnd(e.target.value)}
-                          className="w-[120px] h-8 text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={isCreatingShift || !newShiftStart || !newShiftEnd}
-                          onClick={() => handleCreateShift(newShiftStart, newShiftEnd)}
-                          className="text-xs gap-1.5 whitespace-nowrap"
-                        >
-                          {isCreatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
-                          シフトを登録
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* KPI実績（当日） */}
           <Card>
             <CardHeader>
@@ -1040,40 +1024,6 @@ export default function NewDailyReportPage() {
       {/* ===== Inbound Form ===== */}
       {reportType === 'inbound' && (
         <>
-          {/* 基本情報 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="inbound-date">日付 {renderRequiredMark()}</Label>
-                <Input
-                  id="inbound-date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-[200px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>プロジェクト {renderRequiredMark()}</Label>
-                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="プロジェクトを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p: { id: string; name: string }) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* KPI実績（当日） */}
           <Card>
             <CardHeader>
@@ -1285,40 +1235,6 @@ export default function NewDailyReportPage() {
       {/* ===== Leon IS Form ===== */}
       {reportType === 'leon_is' && (
         <>
-          {/* 基本情報 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">&#9733; 基本情報</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="leon-date">日付 {renderRequiredMark()}</Label>
-                <Input
-                  id="leon-date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-[200px]"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>プロジェクト {renderRequiredMark()}</Label>
-                <Select value={projectId} onValueChange={setProjectId} items={projectItems}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="プロジェクトを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p: { id: string; name: string }) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* 定量（当日） */}
           <Card>
             <CardHeader>
