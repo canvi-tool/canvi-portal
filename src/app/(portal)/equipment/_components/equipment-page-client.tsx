@@ -253,6 +253,22 @@ export function EquipmentPageClient({
     return names
   }, [initialLending])
 
+  // ===== Borrower map: equipment_item_id → staff name =====
+  const borrowerMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const r of initialLending) {
+      if (!r.return_date && r.staff) {
+        const name = `${r.staff.last_name} ${r.staff.first_name}`
+        for (const item of r.items) {
+          if (item.equipment_item_id) {
+            map[item.equipment_item_id] = name
+          }
+        }
+      }
+    }
+    return map
+  }, [initialLending])
+
   // ===== Equipment stats =====
   const stats = useMemo(() => {
     const total = initialEquipment.length
@@ -280,6 +296,26 @@ export function EquipmentPageClient({
       handleRefresh()
     } catch {
       toast.error('削除に失敗しました')
+    }
+  }
+
+  const handleDisposeEquipment = async (id: string) => {
+    if (!confirm('この備品を廃棄済にしますか？この操作は取り消せません。')) return
+    try {
+      const res = await fetch(`/api/equipment/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'disposed' }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || '廃棄処理に失敗しました')
+        return
+      }
+      toast.success('備品を廃棄済にしました')
+      handleRefresh()
+    } catch {
+      toast.error('廃棄処理に失敗しました')
     }
   }
 
@@ -391,8 +427,8 @@ export function EquipmentPageClient({
                     <TableHead>機器種別</TableHead>
                     <TableHead>品名（機種名）</TableHead>
                     <TableHead>ステータス</TableHead>
+                    <TableHead>貸与先</TableHead>
                     <TableHead>所有者</TableHead>
-                    <TableHead>備考</TableHead>
                     <TableHead className="w-[60px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -414,14 +450,16 @@ export function EquipmentPageClient({
                         <TableCell>
                           <EquipmentStatusBadge status={item.status} />
                         </TableCell>
-                        <TableCell>{item.owner || '-'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
-                          {item.remarks || '-'}
+                        <TableCell>
+                          {item.status === 'lent' && borrowerMap[item.id]
+                            ? <span className="text-sm font-medium text-blue-700 dark:text-blue-400">{borrowerMap[item.id]}</span>
+                            : <span className="text-muted-foreground">-</span>}
                         </TableCell>
+                        <TableCell>{item.owner || '-'}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger
-                              render={<Button variant="ghost" size="icon-sm" />}
+                              render={<button className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors" />}
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
@@ -432,6 +470,15 @@ export function EquipmentPageClient({
                                 <Pencil className="h-4 w-4 mr-2" />
                                 編集
                               </DropdownMenuItem>
+                              {item.status !== 'disposed' && (
+                                <DropdownMenuItem
+                                  className="text-amber-600"
+                                  onClick={() => handleDisposeEquipment(item.id)}
+                                >
+                                  <PackageX className="h-4 w-4 mr-2" />
+                                  廃棄する
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => handleDeleteEquipment(item.id)}
