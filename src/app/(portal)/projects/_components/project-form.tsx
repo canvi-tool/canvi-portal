@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { projectFormSchema, type ProjectFormValues } from '@/lib/validations/project'
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS } from '@/lib/constants'
+import { DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import { SlackChannelCombobox } from './slack-channel-combobox'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Hash, ShieldCheck, Bot, CheckCircle2, AlertTriangle } from 'lucide-react'
@@ -70,6 +71,7 @@ export function ProjectForm({
       slack_channel_name: '',
       shift_approval_mode: 'AUTO',
       calendar_display_name: '',
+      report_type: '',
       ...defaultValues,
     },
   })
@@ -416,6 +418,40 @@ export function ProjectForm({
         <p className="text-xs text-muted-foreground">
           Googleカレンダーに登録する際の表示名。未入力の場合はPJ名が使用されます。
         </p>
+      </div>
+
+      {/* 日報タイプ */}
+      <div className="space-y-2">
+        <Label>日報タイプ</Label>
+        <p className="text-xs text-muted-foreground">
+          このPJが紐づく日報の種別。日報作成時にそのタブに対応するPJのみ表示されます。
+        </p>
+        <Controller
+          name="report_type"
+          control={control}
+          render={({ field }) => (
+            <Select
+              value={field.value || '__none__'}
+              onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValueWithLabel
+                  value={field.value || null}
+                  labels={DAILY_REPORT_TYPE_LABELS}
+                  placeholder="日報タイプを選択"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">（未設定）</SelectItem>
+                {Object.entries(DAILY_REPORT_TYPE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
 
       {/* Slack チャンネル連携 */}

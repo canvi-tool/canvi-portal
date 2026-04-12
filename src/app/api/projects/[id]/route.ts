@@ -71,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const { project_code, project_type, project_number, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, ...rest } = parsed.data
+    const { project_code, project_type, project_number, client_id, slack_channel_id, slack_channel_name, shift_approval_mode, calendar_display_name: calDisplayName, report_type, ...rest } = parsed.data
 
     // 変更検知のため旧値を取得
     const { data: oldProject } = await supabase
@@ -107,6 +107,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         slack_channel_id: slack_channel_id || null,
         slack_channel_name: slack_channel_name || null,
         shift_approval_mode: shift_approval_mode || 'AUTO',
+        report_type: report_type || null,
         custom_fields: {
           calendar_display_name: calDisplayName || null,
         },

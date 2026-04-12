@@ -83,6 +83,7 @@ export default function EditProjectPage({ params }: PageProps) {
     slack_channel_name: project.slack_channel_name || '',
     shift_approval_mode: (project.shift_approval_mode || 'AUTO') as 'AUTO' | 'APPROVAL',
     calendar_display_name: customFields?.calendar_display_name || '',
+    report_type: ((project as Record<string, unknown>).report_type as string || '') as ProjectFormValues['report_type'],
   }
 
   return (

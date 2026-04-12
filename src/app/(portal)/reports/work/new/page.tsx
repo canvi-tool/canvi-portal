@@ -41,7 +41,11 @@ function getTodayString(): string {
 export default function NewDailyReportPage() {
   const router = useRouter()
   const createReport = useCreateDailyReport()
-  const { data: projects = [] } = useProjects()
+  const { data: allProjects = [] } = useProjects()
+  // report_typeが設定されたPJは該当タブのみ表示、未設定PJは全タブに表示
+  const projects = allProjects.filter((p: { id: string; name: string; report_type?: string | null }) =>
+    !p.report_type || p.report_type === reportType
+  )
   const projectItems = Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name]))
 
   // --- Common state ---
@@ -410,7 +414,7 @@ export default function NewDailyReportPage() {
           <Button
             key={type}
             variant={reportType === type ? 'default' : 'outline'}
-            onClick={() => setReportType(type)}
+            onClick={() => { setReportType(type); setProjectId('') }}
           >
             {DAILY_REPORT_TYPE_LABELS[type]}
           </Button>

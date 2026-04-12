@@ -56,6 +56,10 @@ export const projectFormSchema = z.object({
     .max(200, 'カレンダー表記名は200文字以内で入力してください')
     .optional()
     .or(z.literal('')),
+  report_type: z
+    .enum(['training', 'outbound', 'inbound', 'leon_is'])
+    .optional()
+    .or(z.literal('')),
 })
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>
