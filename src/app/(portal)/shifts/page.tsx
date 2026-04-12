@@ -32,6 +32,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import type { GCalEventItem } from './_components/gcal-event-dialog'
+import { PendingEventsPanel } from './_components/pending-events-panel'
+import type { PendingEvent } from './_components/pending-events-panel'
 
 // Lazy load heavy dialog components (only loaded when opened)
 const ShiftCreateDialog = lazy(() => import('./_components/shift-create-dialog').then(m => ({ default: m.ShiftCreateDialog })))
@@ -65,6 +67,7 @@ export default function ShiftsPage() {
   // Data
   const [shifts, setShifts] = useState<CalendarShift[]>([])
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([])
+  const [rawPendingEvents, setRawPendingEvents] = useState<PendingEvent[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [staffList, setStaffList] = useState<StaffOption[]>([])
   const staffListRef = useRef<StaffOption[]>([])
@@ -85,16 +88,6 @@ export default function ShiftsPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState('')
   // Convenience object built from primitives (identity changes only when values change)
   const dateRange = useMemo(() => ({ start: dateRangeStart, end: dateRangeEnd }), [dateRangeStart, dateRangeEnd])
-
-  // GCal pending assign dialog
-  const [pendingAssign, setPendingAssign] = useState<{ id: string; title: string; date: string; startTime: string; endTime: string; projectId: string } | null>(null)
-  const [pendingAssigning, setPendingAssigning] = useState(false)
-
-  // Bulk pending assign dialog
-  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
-  const [bulkAssignSelected, setBulkAssignSelected] = useState<Set<string>>(new Set())
-  const [bulkAssignProjectId, setBulkAssignProjectId] = useState('')
-  const [bulkAssigning, setBulkAssigning] = useState(false)
 
   // Create dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -363,46 +356,30 @@ export default function ShiftsPage() {
           })
         }
       }
-      // PJ未割当のGCal取込イベント（上の Promise.all で並列取得済）
-      // 重複防止: 既にシフトとして存在する external_event_id を除外
+      // PJ未割当のGCal取込イベントはカレンダーには表示しない
+      // pendingRes を rawPendingEvents に格納（PendingEventsPanel で使用）
       try {
         if (pendingRes && pendingRes.ok) {
-          const pending = await pendingRes.json()
-          if (Array.isArray(pending)) {
-            // Build a Set of known event IDs from existing shifts (raw list data)
-            const knownEventIds = new Set<string>()
+          const pendingData = await pendingRes.json()
+          const pendingList: PendingEvent[] = (Array.isArray(pendingData) ? pendingData : []).map(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const s of list as any[]) {
-              if (s.google_calendar_event_id) knownEventIds.add(s.google_calendar_event_id)
-              if (s.external_event_id) knownEventIds.add(s.external_event_id)
+            (p: any) => {
+              // staffList から名前を引く
+              const staffInfo = staffListRef.current.find((s) => s.id === p.staff_id)
+              return {
+                id: p.id,
+                event_date: p.event_date,
+                start_time: p.start_time,
+                end_time: p.end_time,
+                title: p.title || null,
+                external_event_id: p.external_event_id,
+                staff_name: staffInfo?.name || undefined,
+              }
             }
-            for (const p of pending) {
-              // Skip pending events that already have a corresponding shift
-              if (p.external_event_id && knownEventIds.has(p.external_event_id)) continue
-              const staffInfo = staffListRef.current.find((x) => x.id === p.staff_id)
-              expanded.push({
-                id: `gcal_pending__${p.id}`,
-                staffId: p.staff_id,
-                staffName: staffInfo?.name || 'GCal',
-                projectId: '',
-                projectName: 'PJ未割当',
-                date: p.event_date,
-                startTime: (p.start_time || '').slice(0, 5),
-                endTime: (p.end_time || '').slice(0, 5),
-                status: 'APPROVED',
-                shiftType: 'WORK',
-                notes: p.title || '',
-                source: 'google_calendar',
-                needsProjectAssignment: true,
-                attendees: [],
-                approvalMode: 'AUTO',
-              } as CalendarShift)
-            }
-          }
+          )
+          setRawPendingEvents(pendingList)
         }
-      } catch {
-        // pending取得失敗は無視
-      }
+      } catch { /* noop */ }
 
       setShifts(expanded)
     } catch {
@@ -689,14 +666,8 @@ export default function ShiftsPage() {
   useEffect(() => { shiftsRef.current = shifts }, [shifts])
 
   const handleShiftClick = useCallback((shift: CalendarShift) => {
-    // GCal pending: PJ割当ダイアログを開く
+    // GCal pending events are now handled by PendingEventsPanel (not shown on calendar)
     if (shift.id.startsWith('gcal_pending__')) {
-      if (!isManager) {
-        toast.error('PJ割り当ては管理者のみ実行できます')
-        return
-      }
-      const pid = shift.id.replace('gcal_pending__', '')
-      setPendingAssign({ id: pid, title: shift.notes || '(無題)', date: shift.date, startTime: shift.startTime, endTime: shift.endTime, projectId: '' })
       return
     }
     // 仮想招待行クリック → オーナーシフトを開く（同じデータを参照するため情報は同一）
@@ -1071,11 +1042,6 @@ export default function ShiftsPage() {
   const totalShifts = shifts.length
   const pendingCount = shifts.filter(s => s.status === 'SUBMITTED').length
   const approvedCount = shifts.filter(s => s.status === 'APPROVED').length
-  const gcalPendingShifts = useMemo(
-    () => shifts.filter(s => s.id.startsWith('gcal_pending__')),
-    [shifts]
-  )
-  const gcalPendingCount = gcalPendingShifts.length
 
   // 合計時間計算（スタッフ別: 重複区間をマージして重複カウント回避 / PJ別: 重複除去せず加算）
   const staffHours = useMemo(() => {
@@ -1253,23 +1219,37 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
                 </Badge>
               )}
             </Button>
-            {gcalPendingCount > 0 && isManager && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setBulkAssignSelected(new Set(gcalPendingShifts.map(s => s.id.replace('gcal_pending__', ''))))
-                  setBulkAssignProjectId('')
-                  setBulkAssignOpen(true)
-                }}
-              >
-                <CalendarPlus className="h-4 w-4 mr-1" />
-                PJ一括割当
-                <Badge variant="secondary" className="ml-1 h-4 min-w-4 text-[10px]">
-                  {gcalPendingCount}
-                </Badge>
-              </Button>
-            )}
+            <PendingEventsPanel
+              events={rawPendingEvents}
+              projects={projects}
+              isManager={isManager}
+              onAssign={async (eventId, projectId) => {
+                const res = await fetch(`/api/shifts/gcal-pending/${eventId}/assign`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ project_id: projectId }),
+                })
+                if (!res.ok) throw new Error('Assign failed')
+              }}
+              onExclude={async (eventId) => {
+                const res = await fetch(`/api/shifts/gcal-pending/${eventId}`, { method: 'PATCH' })
+                if (!res.ok) throw new Error('Exclude failed')
+              }}
+              onBulkAssign={async (eventIds, projectId) => {
+                const res = await fetch('/api/shifts/gcal-pending/bulk-assign', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids: eventIds, project_id: projectId }),
+                })
+                if (!res.ok) throw new Error('Bulk assign failed')
+              }}
+              onBulkExclude={async (eventIds) => {
+                await Promise.all(eventIds.map(id =>
+                  fetch(`/api/shifts/gcal-pending/${id}`, { method: 'PATCH' })
+                ))
+              }}
+              onRefresh={fetchShiftsSafe}
+            />
           </div>
         }
       />
@@ -1629,238 +1609,7 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
         </Suspense>
       )}
 
-      {/* GCal Pending Bulk Assign Dialog */}
-      <Dialog open={bulkAssignOpen} onOpenChange={(o) => { if (!o) setBulkAssignOpen(false) }}>
-        <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>PJ未割当イベントを一括でPJに割当</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 min-w-0">
-            <div>
-              <label className="text-sm font-medium">割当先プロジェクト</label>
-              <select
-                className="mt-1 w-full rounded border px-2 py-2 text-sm"
-                value={bulkAssignProjectId}
-                onChange={(e) => setBulkAssignProjectId(e.target.value)}
-              >
-                <option value="">選択してください</option>
-                <option value="__EXCLUDE__">― PJではない（除外する）―</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {bulkAssignSelected.size} / {gcalPendingCount} 件選択中
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => setBulkAssignSelected(new Set(gcalPendingShifts.map(s => s.id.replace('gcal_pending__', ''))))}
-                >
-                  全選択
-                </button>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => setBulkAssignSelected(new Set())}
-                >
-                  全解除
-                </button>
-              </div>
-            </div>
-            <div className="max-h-80 overflow-y-auto overflow-x-hidden rounded border min-w-0">
-              {gcalPendingShifts.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">未割当のイベントはありません</div>
-              ) : (
-                <ul className="divide-y min-w-0">
-                  {gcalPendingShifts.map((s) => {
-                    const pid = s.id.replace('gcal_pending__', '')
-                    const checked = bulkAssignSelected.has(pid)
-                    return (
-                      <li key={pid} className="flex items-center gap-2 px-3 py-2 text-sm min-w-0">
-                        <input
-                          type="checkbox"
-                          className="shrink-0"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = new Set(bulkAssignSelected)
-                            if (e.target.checked) next.add(pid)
-                            else next.delete(pid)
-                            setBulkAssignSelected(next)
-                          }}
-                        />
-                        <span className="font-mono text-[11px] leading-tight text-muted-foreground w-20 shrink-0 whitespace-normal break-words">
-                          {s.date}<br/>{s.startTime}-{s.endTime}
-                        </span>
-                        <div className="flex-1 min-w-0 truncate text-muted-foreground" title={`${s.staffName}${s.notes ? ' / ' + s.notes : ''}`}>
-                          {s.staffName}{s.notes ? `  ${s.notes}` : ''}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkAssignOpen(false)}>キャンセル</Button>
-            <Button
-              disabled={!bulkAssignProjectId || bulkAssignSelected.size === 0 || bulkAssigning}
-              onClick={async () => {
-                if (!bulkAssignProjectId || bulkAssignSelected.size === 0) return
-                setBulkAssigning(true)
-                try {
-                  if (bulkAssignProjectId === '__EXCLUDE__') {
-                    // 「PJではない」= 一括除外
-                    const ids = Array.from(bulkAssignSelected)
-                    const results = await Promise.all(
-                      ids.map((id) =>
-                        fetch(`/api/shifts/gcal-pending/${id}`, { method: 'PATCH' })
-                          .then((r) => r.ok)
-                          .catch(() => false)
-                      )
-                    )
-                    const okCount = results.filter(Boolean).length
-                    if (okCount === 0) {
-                      toast.error('除外に失敗しました')
-                      return
-                    }
-                    toast.success(`${okCount}件をPJ対象外として除外しました`)
-                  } else {
-                    const res = await fetch('/api/shifts/gcal-pending/bulk-assign', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        ids: Array.from(bulkAssignSelected),
-                        project_id: bulkAssignProjectId,
-                      }),
-                    })
-                    if (!res.ok) {
-                      const err = await res.json().catch(() => ({}))
-                      toast.error(err.error || '一括割当に失敗しました')
-                      return
-                    }
-                    const data = await res.json()
-                    toast.success(`${data.count || 0}件にPJを割り当てました`)
-                  }
-                  setBulkAssignOpen(false)
-                  setBulkAssignSelected(new Set())
-                  fetchShifts()
-                } catch {
-                  toast.error('一括処理に失敗しました')
-                } finally {
-                  setBulkAssigning(false)
-                }
-              }}
-            >
-              {bulkAssigning
-                ? '処理中...'
-                : bulkAssignProjectId === '__EXCLUDE__'
-                  ? `${bulkAssignSelected.size}件を除外する`
-                  : `${bulkAssignSelected.size}件に割り当てる`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* GCal Pending Assign Dialog */}
-      <Dialog open={!!pendingAssign} onOpenChange={(o) => { if (!o) setPendingAssign(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Googleカレンダー予定にPJを割り当て</DialogTitle>
-          </DialogHeader>
-          {pendingAssign && (
-            <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">
-                <div>件名: {pendingAssign.title}</div>
-                <div>日時: {pendingAssign.date} {pendingAssign.startTime}〜{pendingAssign.endTime}</div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">プロジェクト</label>
-                <select
-                  className="mt-1 w-full rounded border px-2 py-2 text-sm"
-                  value={pendingAssign.projectId}
-                  onChange={(e) => setPendingAssign({ ...pendingAssign, projectId: e.target.value })}
-                >
-                  <option value="">選択してください</option>
-                  <option value="__EXCLUDE__">― PJではない（除外する）―</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (!pendingAssign) return
-                if (!confirm('この予定は業務PJではないとしてCanviから除外しますか？（次回同期でも再取込されません）')) return
-                try {
-                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'PATCH' })
-                  if (!res.ok) throw new Error()
-                  toast.success('PJ対象外に設定しました')
-                  setPendingAssign(null)
-                  fetchShifts()
-                } catch {
-                  toast.error('更新に失敗しました')
-                }
-              }}
-            >
-              PJではない
-            </Button>
-            <Button variant="outline" onClick={() => setPendingAssign(null)}>キャンセル</Button>
-            <Button
-              disabled={!pendingAssign?.projectId || pendingAssigning}
-              onClick={async () => {
-                if (!pendingAssign?.projectId) return
-                setPendingAssigning(true)
-                try {
-                  // 「PJではない（除外する）」を選んだ場合は PATCH で除外
-                  if (pendingAssign.projectId === '__EXCLUDE__') {
-                    const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}`, { method: 'PATCH' })
-                    if (!res.ok) {
-                      toast.error('除外に失敗しました')
-                      return
-                    }
-                    toast.success('PJ対象外に設定しました')
-                    // Optimistically remove the pending event from local state
-                    setShifts(prev => prev.filter(s => s.id !== `gcal_pending__${pendingAssign.id}`))
-                    setPendingAssign(null)
-                    await fetchShifts()
-                    return
-                  }
-                  const res = await fetch(`/api/shifts/gcal-pending/${pendingAssign.id}/assign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ project_id: pendingAssign.projectId }),
-                  })
-                  if (!res.ok) {
-                    const err = await res.json().catch(() => ({}))
-                    toast.error(err.error || 'PJ割当に失敗しました')
-                    return
-                  }
-                  toast.success('PJを割り当てました')
-                  // Optimistically remove the pending event from local state
-                  setShifts(prev => prev.filter(s => s.id !== `gcal_pending__${pendingAssign.id}`))
-                  setPendingAssign(null)
-                  await fetchShifts()
-                } catch {
-                  toast.error('PJ割当に失敗しました')
-                } finally {
-                  setPendingAssigning(false)
-                }
-              }}
-            >
-              確定
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* PendingEventsPanel now handles both single and bulk assign dialogs inline */}
     </div>
   )
 }
