@@ -135,3 +135,79 @@ export async function DELETE(
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
   }
 }
+
+// ---- PATCH: 承認（オーナーのみ） ----
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    if (!isOwner(user)) {
+      return NextResponse.json({ error: 'オーナーのみ承認可能です' }, { status: 403 })
+    }
+
+    const { id } = params
+    const supabase = await createServerSupabaseClient()
+    const body = await request.json()
+
+    const newStatus = body.status
+    if (!['approved', 'rejected'].includes(newStatus)) {
+      return NextResponse.json({ error: '無効なステータスです' }, { status: 400 })
+    }
+
+    // 既存レコード確認
+    const { data: existing, error: fetchError } = await supabase
+      .from('performance_reports')
+      .select('id, status')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: '月次報告が見つかりません' }, { status: 404 })
+      }
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    }
+
+    if (!existing) {
+      return NextResponse.json({ error: '月次報告が見つかりません' }, { status: 404 })
+    }
+
+    const now = new Date().toISOString()
+    const updateData: Record<string, unknown> = {
+      status: newStatus,
+      updated_at: now,
+    }
+
+    if (newStatus === 'approved') {
+      updateData.approved_at = now
+      updateData.approved_by = user.id
+    }
+
+    if (body.comment) {
+      updateData.notes = body.comment
+    }
+
+    const { data, error } = await supabase
+      .from('performance_reports')
+      .update(updateData)
+      .eq('id', id)
+      .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('PATCH /api/reports/performance/[id] error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}

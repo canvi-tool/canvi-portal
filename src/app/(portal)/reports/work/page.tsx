@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
   FileText,
@@ -68,6 +69,7 @@ const STATUS_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'destructiv
 
 export default function WorkReportsPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   // Owner detection
   const [isOwnerUser, setIsOwnerUser] = useState(false)
@@ -108,6 +110,26 @@ export default function WorkReportsPage() {
       onError: (err) => toast.error(err instanceof Error ? err.message : '削除に失敗しました'),
     })
   }, [deleteDailyReport])
+
+  // Force approve handler (owner only)
+  const handleForceApprove = useCallback(async (id: string, staffName: string) => {
+    if (!confirm(`${staffName} の日報を強制承認しますか？`)) return
+    try {
+      const res = await fetch(`/api/reports/daily/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved', comment: '強制承認' }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '承認に失敗しました')
+      }
+      toast.success(`${staffName} の日報を承認しました`)
+      queryClient.invalidateQueries({ queryKey: ['daily-reports'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '承認に失敗しました')
+    }
+  }, [queryClient])
 
   // Stats (based on currently filtered reports)
   const stats = useMemo(() => {
@@ -235,6 +257,19 @@ export default function WorkReportsPage() {
             >
               {isApproved ? '閲覧' : '修正'}
             </button>
+            {isOwnerUser && !isApproved && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleForceApprove(row.id, getStaffName(row))
+                }}
+                className="inline-flex items-center rounded-full border border-green-200 bg-white px-2 py-1 text-xs font-medium text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
+                title="強制承認"
+              >
+                <CheckCircle className="h-3 w-3" />
+              </button>
+            )}
             {isOwnerUser && (
               <button
                 type="button"

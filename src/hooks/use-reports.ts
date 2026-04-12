@@ -43,6 +43,19 @@ async function deletePerformanceReport(id: string): Promise<void> {
   }
 }
 
+async function approvePerformanceReport(id: string, data: { status: 'approved' | 'rejected'; comment?: string }): Promise<PerformanceReport> {
+  const res = await fetch(`/api/reports/performance/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '承認処理に失敗しました')
+  }
+  return res.json()
+}
+
 async function generatePerformanceReport(
   data: PerformanceReportFormValues & { asDraft?: boolean }
 ): Promise<PerformanceReport> {
@@ -102,6 +115,17 @@ export function useDeletePerformanceReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deletePerformanceReport(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
+    },
+  })
+}
+
+export function useApprovePerformanceReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { status: 'approved' | 'rejected'; comment?: string } }) =>
+      approvePerformanceReport(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
     },

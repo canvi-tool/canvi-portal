@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import {
   useGeneratePerformanceReport,
   useDeletePerformanceReport,
 } from '@/hooks/use-reports'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useProjects, useStaffList } from '@/hooks/use-projects'
 import { REPORT_STATUS_LABELS } from '@/lib/constants'
@@ -60,6 +61,7 @@ function getAppointmentCount(report: { summary: unknown }): number {
 
 export default function PerformanceReportsPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   // Owner detection
   const [isOwnerUser, setIsOwnerUser] = useState(false)
@@ -100,6 +102,26 @@ export default function PerformanceReportsPage() {
       onError: (err) => toast.error(err instanceof Error ? err.message : '削除に失敗しました'),
     })
   }, [deleteReport])
+
+  // Force approve handler (owner only)
+  const handleForceApprove = useCallback(async (id: string, staffName: string) => {
+    if (!confirm(`${staffName} の月次報告を強制承認しますか？`)) return
+    try {
+      const res = await fetch(`/api/reports/performance/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved', comment: '強制承認' }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '承認に失敗しました')
+      }
+      toast.success(`${staffName} の月次報告を承認しました`)
+      queryClient.invalidateQueries({ queryKey: ['performance-reports'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '承認に失敗しました')
+    }
+  }, [queryClient])
 
   const staffItems = useMemo(
     () => ({ all: '全スタッフ', ...Object.fromEntries(staffList.map((s) => [s.id, `${s.last_name || ''} ${s.first_name || ''}`.trim() || s.id])) }),
@@ -306,6 +328,20 @@ export default function PerformanceReportsPage() {
                             className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
                           >
                             修正
+                          </button>
+                        )}
+                        {isOwnerUser && report.status !== 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const s = report.staff as { last_name?: string; first_name?: string } | null
+                              const name = s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '不明'
+                              handleForceApprove(report.id, name)
+                            }}
+                            className="inline-flex items-center rounded-full border border-green-200 bg-white px-2 py-1 text-xs font-medium text-green-600 hover:bg-green-50 hover:border-green-300 transition-colors"
+                            title="強制承認"
+                          >
+                            <CheckCircle className="h-3 w-3" />
                           </button>
                         )}
                         {isOwnerUser && (

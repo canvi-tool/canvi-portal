@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { CalendarPlus, ClipboardList, X, Check, Ban, Loader2 } from 'lucide-react'
+import { CalendarPlus, ClipboardList, Check, Ban, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'

@@ -28,7 +28,7 @@ import {
   SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+// Dialog imports removed - now handled by PendingEventsPanel
 import { PageHeader } from '@/components/layout/page-header'
 import { ShiftFullCalendar, type CalendarShift, type GoogleCalendarEvent } from './_components/shift-fullcalendar'
 import type { GCalEventItem } from './_components/gcal-event-dialog'
