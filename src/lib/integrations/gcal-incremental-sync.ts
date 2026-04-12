@@ -36,21 +36,24 @@ export async function runIncrementalSyncForStaff(params: {
   const fallbackRangeDays = params.fallbackRangeDays ?? 60
   const result: IncrementalSyncResult = { mode: 'incremental', changed: 0, deleted: 0, errors: [] }
 
-  const token = await getValidTokenForUser(userId)
+  const admin = createAdminClient()
+
+  // token fetch と gcal_sync_state クエリは独立 → 並列実行
+  const [token, { data: state }] = await Promise.all([
+    getValidTokenForUser(userId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (admin as any)
+      .from('gcal_sync_state')
+      .select('id, sync_token')
+      .eq('staff_id', staffId)
+      .eq('calendar_id', 'primary')
+      .maybeSingle() as Promise<{ data: { id: string; sync_token: string | null } | null }>,
+  ])
   if (!token) {
     result.errors.push('no_google_token')
     return result
   }
   const client = await GoogleCalendarClient.create(token.accessToken, token.refreshToken || undefined)
-  const admin = createAdminClient()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: state } = await (admin as any)
-    .from('gcal_sync_state')
-    .select('id, sync_token')
-    .eq('staff_id', staffId)
-    .eq('calendar_id', 'primary')
-    .maybeSingle() as { data: { id: string; sync_token: string | null } | null }
 
   const now = new Date()
   const rangeStart = new Date(now.getTime() - fallbackRangeDays * 24 * 60 * 60 * 1000)
@@ -82,14 +85,17 @@ export async function runIncrementalSyncForStaff(params: {
   }
 
   // 自分以外の Canvi ユーザー organizer の Canvi 発イベントはスキップ
-  const { data: canviUsers } = await admin.from('users').select('email')
+  // 2つの独立クエリを並列実行
+  const [{ data: canviUsers }, { data: meUser }] = await Promise.all([
+    admin.from('users').select('email'),
+    admin.from('users').select('email').eq('id', userId).maybeSingle(),
+  ])
   const canviEmailSet = new Set(
     (canviUsers || [])
       .map((u) => (u as { email?: string | null }).email)
       .filter((e): e is string => !!e)
       .map((e) => e.toLowerCase())
   )
-  const { data: meUser } = await admin.from('users').select('email').eq('id', userId).maybeSingle()
   const myEmail = ((meUser as { email?: string | null } | null)?.email || '').toLowerCase()
 
   // 並列処理: 1 webhook で複数イベント変更が届くケース (4件まとめての時刻変更など)
