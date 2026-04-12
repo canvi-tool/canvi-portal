@@ -370,6 +370,41 @@ export async function runIncrementalSyncForStaff(params: {
     }
   }))
 
+  // 4) フルシンク時: GCalレスポンスに含まれない gcal_pending_events を削除
+  // フルシンクではcancelledイベントが返されないため、レスポンスのイベントIDセットと
+  // DBのpending_eventsを突合し、不在のものを物理削除する
+  if (result.mode === 'full' && listResult.events.length > 0) {
+    const seenEventIds = new Set(listResult.events.map(ev => ev.id))
+    const rangeStartDate = toJstDateStr(rangeStart)
+    const rangeEndDate = toJstDateStr(rangeEnd)
+    try {
+      // フルシンクの対象期間内の pending_events のみを対象にする
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pendingList } = await (admin as any)
+        .from('gcal_pending_events')
+        .select('id, external_event_id')
+        .eq('staff_id', staffId)
+        .gte('event_date', rangeStartDate)
+        .lte('event_date', rangeEndDate) as { data: Array<{ id: string; external_event_id: string }> | null }
+      if (pendingList && pendingList.length > 0) {
+        const staleIds = pendingList
+          .filter(p => !seenEventIds.has(p.external_event_id))
+          .map(p => p.id)
+        if (staleIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin as any)
+            .from('gcal_pending_events')
+            .delete()
+            .in('id', staleIds)
+          console.log(`[gcal-sync] Reconciled: deleted ${staleIds.length} stale pending events for staff=${staffId}`)
+          result.deleted += staleIds.length
+        }
+      }
+    } catch (e) {
+      console.error('[gcal-sync] Pending events reconciliation error:', e)
+    }
+  }
+
   // nextSyncToken を保存（中間保存済みならスキップ）
   if (listResult.nextSyncToken && !syncStateSaved) {
     const nowIso = new Date().toISOString()

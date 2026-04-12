@@ -102,6 +102,23 @@ export async function GET(request: NextRequest) {
 
         userResult.staffId = staffRecord.id
 
+        // Phase 0: syncToken 確立/増分同期（最優先）
+        // webhook の増分同期に必要な syncToken を確立し、
+        // 削除済みイベントの pending_events クリーンアップも行う。
+        // Phase 1（import）より前に実行することで、削除済みイベントが
+        // 再度 pending_events に取り込まれるのを防ぐ。
+        try {
+          await runIncrementalSyncForStaff({
+            userId: user.id,
+            staffId: staffRecord.id as string,
+            fallbackRangeDays: 60,
+          })
+        } catch (e) {
+          userResult.errors.push(
+            `Incremental sync error: ${e instanceof Error ? e.message : String(e)}`,
+          )
+        }
+
         // Phase 1: GCal → gcal_pending_events (PJ未割当取込)。
         // シフトページを開いていないユーザーでも pending_events に入るようにする。
         try {
@@ -376,20 +393,6 @@ export async function GET(request: NextRequest) {
               userResult.deleted++
             }
           }
-        }
-        // syncToken を確立/更新: webhook の増分同期に必要
-        // cron の既存ロジック完了後に runIncrementalSyncForStaff を呼んで
-        // gcal_sync_state に nextSyncToken を保存する
-        try {
-          await runIncrementalSyncForStaff({
-            userId: user.id,
-            staffId: staffRecord.id as string,
-            fallbackRangeDays: 60,
-          })
-        } catch (e) {
-          userResult.errors.push(
-            `syncToken establish error: ${e instanceof Error ? e.message : String(e)}`,
-          )
         }
       } catch (userError) {
         const message =
