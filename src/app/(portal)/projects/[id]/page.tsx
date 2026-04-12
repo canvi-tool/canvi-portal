@@ -36,7 +36,8 @@ import {
 import { useAuth } from '@/components/providers/auth-provider'
 import { AssignmentTable } from '../_components/assignment-table'
 import { SlackChannelCombobox } from '../_components/slack-channel-combobox'
-import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS } from '@/lib/constants'
+import { PROJECT_STATUS_LABELS, COMPENSATION_RULE_TYPE_LABELS, SHIFT_APPROVAL_MODE_LABELS } from '@/lib/constants'
+import { DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import { ASSIGNMENT_STATUS_LABELS } from '@/lib/validations/assignment'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -372,24 +373,24 @@ export default function ProjectDetailPage({ params }: PageProps) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="overview">
+        <TabsList className="bg-muted/60 p-1 rounded-lg">
+          <TabsTrigger value="overview" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold dark:data-active:bg-zinc-800 px-4 py-1.5 rounded-md transition-all">
             <FileText className="h-3.5 w-3.5 mr-1" />
             概要
           </TabsTrigger>
-          <TabsTrigger value="members">
+          <TabsTrigger value="members" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold dark:data-active:bg-zinc-800 px-4 py-1.5 rounded-md transition-all">
             <Users className="h-3.5 w-3.5 mr-1" />
             メンバー
           </TabsTrigger>
-          <TabsTrigger value="rules">
+          <TabsTrigger value="rules" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold dark:data-active:bg-zinc-800 px-4 py-1.5 rounded-md transition-all">
             <ClipboardList className="h-3.5 w-3.5 mr-1" />
             報酬ルール
           </TabsTrigger>
-          <TabsTrigger value="shifts">
+          <TabsTrigger value="shifts" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold dark:data-active:bg-zinc-800 px-4 py-1.5 rounded-md transition-all">
             <CalendarDays className="h-3.5 w-3.5 mr-1" />
             シフト
           </TabsTrigger>
-          <TabsTrigger value="notifications">
+          <TabsTrigger value="notifications" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold dark:data-active:bg-zinc-800 px-4 py-1.5 rounded-md transition-all">
             <Bell className="h-3.5 w-3.5 mr-1" />
             Slack通知
           </TabsTrigger>
@@ -397,51 +398,134 @@ export default function ProjectDetailPage({ params }: PageProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview">
-          <Card>
-            <CardHeader>
-              <CardTitle>プロジェクト概要</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">PJコード</p>
-                  <p className="text-sm font-mono">{project.project_code || '-'}</p>
+          <div className="space-y-4">
+            {/* Basic Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>プロジェクト概要</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">PJコード</p>
+                    <p className="text-sm font-mono">{project.project_code || '-'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">PJ名</p>
+                    <p className="text-sm font-medium">{project.name}</p>
+                  </div>
+                  {!isCAN && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">ステータス</p>
+                      <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
+                    </div>
+                  )}
+                  {!isCAN && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">クライアント</p>
+                      <p className="text-sm">{project.client_name || '-'}</p>
+                    </div>
+                  )}
+                  {!isCAN && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">開始日</p>
+                      <p className="text-sm">{project.start_date || '-'}</p>
+                    </div>
+                  )}
+                  {!isCAN && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">終了日</p>
+                      <p className="text-sm">{project.end_date || '-'}</p>
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">作成日</p>
+                    <p className="text-sm">{new Date(project.created_at).toLocaleString('ja-JP')}</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">PJ名</p>
-                  <p className="text-sm">{project.name}</p>
+                {project.description && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs text-muted-foreground mb-1">説明</p>
+                    <p className="text-sm whitespace-pre-wrap">{project.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Operational Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>運用設定</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3" />
+                      シフト承認モード
+                    </p>
+                    <div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          project.shift_approval_mode === 'AUTO'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        }
+                      >
+                        {SHIFT_APPROVAL_MODE_LABELS[project.shift_approval_mode || 'AUTO'] || project.shift_approval_mode}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {project.shift_approval_mode === 'APPROVAL'
+                          ? 'スタッフが申請 → 管理者が承認'
+                          : 'スタッフが登録すると即確定'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      カレンダー表記名
+                    </p>
+                    <p className="text-sm">
+                      {(project.custom_fields as Record<string, string> | null)?.calendar_display_name || project.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Googleカレンダーに登録する際の表示名
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      日報タイプ
+                    </p>
+                    <p className="text-sm">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      {DAILY_REPORT_TYPE_LABELS[(project as any).report_type as keyof typeof DAILY_REPORT_TYPE_LABELS] || (project as any).report_type || '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      {project.slack_channel_id ? (
+                        <Link2 className="h-3 w-3 text-green-600" />
+                      ) : (
+                        <Link2Off className="h-3 w-3" />
+                      )}
+                      Slack通知チャンネル
+                    </p>
+                    {project.slack_channel_id ? (
+                      <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                        <Hash className="h-3 w-3" />
+                        {project.slack_channel_name?.replace(/^#/, '') || 'connected'}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">未設定</p>
+                    )}
+                  </div>
                 </div>
-                {!isCAN && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">ステータス</p>
-                    <StatusBadge status={project.status} labels={PROJECT_STATUS_LABELS} />
-                  </div>
-                )}
-                {!isCAN && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">クライアント</p>
-                    <p className="text-sm">{project.client_name || '-'}</p>
-                  </div>
-                )}
-                {!isCAN && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">開始日</p>
-                    <p className="text-sm">{project.start_date || '-'}</p>
-                  </div>
-                )}
-                {!isCAN && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">終了日</p>
-                    <p className="text-sm">{project.end_date || '-'}</p>
-                  </div>
-                )}
-                <div className="space-y-1 sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">作成日</p>
-                  <p className="text-sm">{new Date(project.created_at).toLocaleString('ja-JP')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Members Tab */}
