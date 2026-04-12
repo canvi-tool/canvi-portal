@@ -82,7 +82,8 @@ export async function POST(request: NextRequest) {
             staffId: syncStaffId,
           })
           console.log(
-            `[gcal-webhook] Incremental sync ${Date.now() - t0}ms (${incResult.mode}): ${incResult.changed} changed, ${incResult.deleted} deleted, errors=${incResult.errors.length}`
+            `[gcal-webhook] Incremental sync ${Date.now() - t0}ms (${incResult.mode}): ${incResult.changed} changed, ${incResult.deleted} deleted, errors=${incResult.errors.length}`,
+            incResult.errors.length > 0 ? `errors: ${JSON.stringify(incResult.errors)}` : ''
           )
         } catch (e) {
           console.error('[gcal-webhook] Incremental sync failed:', e)

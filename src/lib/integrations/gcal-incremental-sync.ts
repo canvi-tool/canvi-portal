@@ -98,28 +98,40 @@ export async function runIncrementalSyncForStaff(params: {
   )
   const myEmail = ((meUser as { email?: string | null } | null)?.email || '').toLowerCase()
 
-  // 並列処理: 1 webhook で複数イベント変更が届くケース (4件まとめての時刻変更など)
-  // 直列だと N*RTT でトータル数秒〜20秒かかる。Promise.all で ~1 RTT に圧縮。
-  await Promise.all(listResult.events.map(async (ev) => {
-    try {
-      // キャンセル → shifts/pending の該当行を削除 or deleted_at
-      if (ev.status === 'cancelled') {
-        // Googleカレンダーでイベントが削除された → 対応するシフトをsoft-delete
-        // source問わず（Canvi発・GCal発どちらも対象）
+  // キャンセル（削除）イベントを先に処理する
+  // waitUntil タイムアウト対策: 削除は最優先で処理し、更新は後で行う
+  const cancelledEvents = listResult.events.filter(ev => ev.status === 'cancelled')
+  const otherEvents = listResult.events.filter(ev => ev.status !== 'cancelled')
+
+  // 1) キャンセルイベントを並列処理（最優先）
+  if (cancelledEvents.length > 0) {
+    console.log(`[gcal-sync] Processing ${cancelledEvents.length} cancelled events for staff=${staffId}`)
+    await Promise.all(cancelledEvents.map(async (ev) => {
+      try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: promoted } = await (admin.from('shifts') as any)
+        const { data: promoted, error: findErr } = await (admin.from('shifts') as any)
           .select('id')
           .eq('staff_id', staffId)
           .or(`external_event_id.eq.${ev.id},google_calendar_event_id.eq.${ev.id}`)
           .is('deleted_at', null)
-          .limit(1) as { data: Array<{ id: string }> | null }
+          .limit(1) as { data: Array<{ id: string }> | null; error: unknown }
+        if (findErr) {
+          console.error(`[gcal-sync] Cancel find error for event=${ev.id}:`, findErr)
+        }
         if (promoted && promoted[0]) {
           const nowIso = new Date().toISOString()
-          await admin
+          const { error: delErr } = await admin
             .from('shifts')
             .update({ deleted_at: nowIso, updated_at: nowIso })
             .eq('id', promoted[0].id)
-          result.deleted += 1
+          if (delErr) {
+            console.error(`[gcal-sync] Cancel soft-delete error shift=${promoted[0].id}:`, delErr)
+          } else {
+            console.log(`[gcal-sync] Soft-deleted shift=${promoted[0].id} for cancelled event=${ev.id}`)
+            result.deleted += 1
+          }
+        } else {
+          console.log(`[gcal-sync] No matching shift for cancelled event=${ev.id} (staff=${staffId})`)
         }
         // pending_events を物理削除
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,8 +140,16 @@ export async function runIncrementalSyncForStaff(params: {
           .delete()
           .eq('staff_id', staffId)
           .eq('external_event_id', ev.id)
-        return
+      } catch (e) {
+        result.errors.push(`cancel_${ev.id}: ${(e as Error).message}`)
+        console.error(`[gcal-sync] Cancel handler error event=${ev.id}:`, e)
       }
+    }))
+  }
+
+  // 2) 更新・新規イベントを並列処理
+  await Promise.all(otherEvents.map(async (ev) => {
+    try {
 
       // Canvi 発（extendedProperties に canviShiftId）→ shifts.id 直接検索し、
       // GCal 側で加えられた title/notes/start/end/meet_url の変更だけ UPDATE する
@@ -320,31 +340,48 @@ export async function runIncrementalSyncForStaff(params: {
     }
   }))
 
-  // nextSyncToken を保存
+  // nextSyncToken を保存（エラーハンドリング付き）
   if (listResult.nextSyncToken) {
     const nowIso = new Date().toISOString()
-    if (state?.id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (admin as any)
-        .from('gcal_sync_state')
-        .update({
+    try {
+      if (state?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updateErr } = await (admin as any)
+          .from('gcal_sync_state')
+          .update({
+            sync_token: listResult.nextSyncToken,
+            last_incremental_sync_at: nowIso,
+            last_full_sync_at: result.mode === 'full' ? nowIso : undefined,
+            updated_at: nowIso,
+          })
+          .eq('id', state.id)
+        if (updateErr) {
+          console.error('[gcal-sync] Failed to update sync_state:', updateErr)
+          result.errors.push(`sync_state_update: ${updateErr.message}`)
+        }
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: insertErr } = await (admin as any).from('gcal_sync_state').insert({
+          staff_id: staffId,
+          user_id: userId,
+          calendar_id: 'primary',
           sync_token: listResult.nextSyncToken,
           last_incremental_sync_at: nowIso,
-          last_full_sync_at: result.mode === 'full' ? nowIso : undefined,
-          updated_at: nowIso,
+          last_full_sync_at: result.mode === 'full' ? nowIso : null,
         })
-        .eq('id', state.id)
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (admin as any).from('gcal_sync_state').insert({
-        staff_id: staffId,
-        user_id: userId,
-        calendar_id: 'primary',
-        sync_token: listResult.nextSyncToken,
-        last_incremental_sync_at: nowIso,
-        last_full_sync_at: result.mode === 'full' ? nowIso : null,
-      })
+        if (insertErr) {
+          console.error('[gcal-sync] Failed to insert sync_state:', insertErr)
+          result.errors.push(`sync_state_insert: ${insertErr.message}`)
+        } else {
+          console.log(`[gcal-sync] Saved syncToken for staff=${staffId}`)
+        }
+      }
+    } catch (e) {
+      console.error('[gcal-sync] sync_state save exception:', e)
+      result.errors.push(`sync_state_exception: ${(e as Error).message}`)
     }
+  } else {
+    console.warn(`[gcal-sync] No nextSyncToken returned (mode=${result.mode}, events=${listResult.events.length})`)
   }
 
   return result
