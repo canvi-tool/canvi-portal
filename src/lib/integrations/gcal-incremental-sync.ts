@@ -39,6 +39,7 @@ export async function runIncrementalSyncForStaff(params: {
   const admin = createAdminClient()
 
   // token fetch と gcal_sync_state クエリは独立 → 並列実行
+  let syncStateSaved = false
   const [token, { data: state }] = await Promise.all([
     getValidTokenForUser(userId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,7 +148,36 @@ export async function runIncrementalSyncForStaff(params: {
     }))
   }
 
-  // 2) 更新・新規イベントを並列処理
+  // 2.5) キャンセル処理完了後、syncToken を中間保存
+  // waitUntil タイムアウトで通常イベント処理が中断されても、
+  // 次回は増分同期になるため削除検出が確実になる
+  if (listResult.nextSyncToken) {
+    const nowIso = new Date().toISOString()
+    try {
+      if (state?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: upErr } = await (admin as any)
+          .from('gcal_sync_state')
+          .update({ sync_token: listResult.nextSyncToken, last_incremental_sync_at: nowIso, last_full_sync_at: result.mode === 'full' ? nowIso : undefined, updated_at: nowIso })
+          .eq('id', state.id)
+        if (upErr) console.error('[gcal-sync] Early sync_state update failed:', upErr)
+        else { syncStateSaved = true; console.log(`[gcal-sync] Early syncToken updated for staff=${staffId}`) }
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: insErr } = await (admin as any).from('gcal_sync_state').insert({
+          staff_id: staffId, user_id: userId, calendar_id: 'primary',
+          sync_token: listResult.nextSyncToken, last_incremental_sync_at: nowIso,
+          last_full_sync_at: result.mode === 'full' ? nowIso : null,
+        })
+        if (insErr) console.error('[gcal-sync] Early sync_state insert failed:', insErr)
+        else { syncStateSaved = true; console.log(`[gcal-sync] Early syncToken saved for staff=${staffId}`) }
+      }
+    } catch (e) {
+      console.error('[gcal-sync] Early sync_state save exception:', e)
+    }
+  }
+
+  // 3) 更新・新規イベントを並列処理
   await Promise.all(otherEvents.map(async (ev) => {
     try {
 
@@ -340,8 +370,8 @@ export async function runIncrementalSyncForStaff(params: {
     }
   }))
 
-  // nextSyncToken を保存（エラーハンドリング付き）
-  if (listResult.nextSyncToken) {
+  // nextSyncToken を保存（中間保存済みならスキップ）
+  if (listResult.nextSyncToken && !syncStateSaved) {
     const nowIso = new Date().toISOString()
     try {
       if (state?.id) {
