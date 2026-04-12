@@ -409,7 +409,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (parsed.data.comment) {
-      updateData.approval_comment = parsed.data.comment
+      updateData.review_comment = parsed.data.comment
+      updateData.reviewed_by = user.id
+      updateData.reviewed_at = new Date().toISOString()
     }
 
     const { data, error } = await supabase
