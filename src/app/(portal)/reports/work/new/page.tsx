@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, RefreshCw } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -75,6 +75,31 @@ export default function NewDailyReportPage() {
   const [tomorrowImprovement, setTomorrowImprovement] = useState('')
   const [escalationNote, setEscalationNote] = useState('')
   const [outboundCondition, setOutboundCondition] = useState('')
+  const [isFetchingKpi, setIsFetchingKpi] = useState(false)
+
+  const fetchCanviCallKpi = useCallback(async () => {
+    if (!reportDate) {
+      toast.error('日付を選択してください')
+      return
+    }
+    setIsFetchingKpi(true)
+    try {
+      const res = await fetch(`/api/integrations/canvi-call/kpi?date=${reportDate}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'データ取得に失敗しました')
+      }
+      const data = await res.json()
+      setCallActual(String(data.totalCalls || 0))
+      setContactCount(String(data.connected || 0))
+      setAppointmentCount(String(data.apo || 0))
+      toast.success(`canvi-callから取得: 架電${data.totalCalls}件 / 通電${data.connected}件 / アポ${data.apo}件`)
+    } catch (e: any) {
+      toast.error(e.message || 'canvi-callとの連携に失敗しました')
+    } finally {
+      setIsFetchingKpi(false)
+    }
+  }, [reportDate])
 
   // --- Inbound state ---
   const [incomingCount, setIncomingCount] = useState('')
@@ -413,7 +438,20 @@ export default function NewDailyReportPage() {
           {/* KPI実績（当日） */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">&#9733; KPI実績（当日）</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">&#9733; KPI実績（当日）</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchCanviCallKpi}
+                  disabled={isFetchingKpi}
+                  className="text-xs gap-1.5"
+                >
+                  {isFetchingKpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  canvi-callから取得
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
