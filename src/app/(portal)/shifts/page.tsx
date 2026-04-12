@@ -521,6 +521,14 @@ export default function ShiftsPage() {
           scheduleRefetch()
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gcal_pending_events' },
+        (payload) => {
+          console.log('[shifts-realtime] gcal_pending_events changed', payload.eventType)
+          scheduleRefetch()
+        }
+      )
       .on('broadcast', { event: 'shifts-changed' }, () => {
         console.log('[shifts-realtime] broadcast received')
         scheduleRefetch()
