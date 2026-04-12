@@ -14,6 +14,22 @@ function todayStr() {
   return fmt.format(new Date())
 }
 
+/** JST の現在時刻を HH:mm 形式で返す */
+function nowJstHHmm(): string {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false,
+  })
+  return fmt.format(new Date())
+}
+
+/** HH:mm 文字列を分換算で返す */
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
 export async function GET() {
   try {
     const { user, allowedProjectIds } = await getProjectAccess()
@@ -267,6 +283,103 @@ export async function GET() {
       }
     }
 
+    // --- 稼働状況アラート ---
+    // 承認済 WORK シフトのうち、開始30分超過でも打刻 or 日報がないものを検出
+    type WorkStatusAlert = {
+      type: 'shift_no_attendance_no_report' | 'report_no_attendance'
+      staffId: string
+      staffName: string
+      projectName: string
+      shiftTime: string
+      message: string
+    }
+    const workStatusAlerts: WorkStatusAlert[] = []
+
+    try {
+      const nowMinutes = timeToMinutes(nowJstHHmm())
+
+      // 承認済 WORK シフトを取得（スコープ適用済み shiftQuery と同等）
+      let approvedShiftQuery = supabase
+        .from('shifts')
+        .select('id, staff_id, start_time, end_time, shift_type, status, staff:staff_id(last_name, first_name), project:project_id(name)')
+        .eq('shift_date', today)
+        .eq('status', 'APPROVED')
+        .eq('shift_type', 'WORK')
+        .is('deleted_at', null)
+        .limit(200)
+
+      if (allowedProjectIds !== null && allowedProjectIds.length > 0) {
+        approvedShiftQuery = approvedShiftQuery.in('project_id', allowedProjectIds)
+      } else if (allowedProjectIds !== null && allowedProjectIds.length === 0) {
+        approvedShiftQuery = approvedShiftQuery.in('project_id', ['__none__'])
+      }
+
+      const { data: approvedShifts } = await approvedShiftQuery
+
+      // 開始30分以上経過したシフトのみ対象
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const overdueShifts = (approvedShifts || []).filter((s: any) => {
+        const startMin = timeToMinutes(s.start_time?.slice(0, 5) || '00:00')
+        return nowMinutes >= startMin + 30
+      })
+
+      if (overdueShifts.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const staffIds = [...new Set(overdueShifts.map((s: any) => s.staff_id as string))]
+
+        // 今日の打刻を取得
+        const { data: todayAttendance } = await supabase
+          .from('attendance_records')
+          .select('staff_id')
+          .eq('date', today)
+          .in('staff_id', staffIds)
+
+        const attendedStaffIds = new Set((todayAttendance || []).map((a) => a.staff_id as string))
+
+        // 今日の日報（非下書き）を取得
+        const { data: todayReports } = await supabase
+          .from('work_reports')
+          .select('staff_id')
+          .eq('report_date', today)
+          .neq('status', 'draft')
+          .in('staff_id', staffIds)
+
+        const reportedStaffIds = new Set((todayReports || []).map((r) => r.staff_id as string))
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const s of overdueShifts as any[]) {
+          const sid = s.staff_id as string
+          const hasAttendance = attendedStaffIds.has(sid)
+          const hasReport = reportedStaffIds.has(sid)
+          const staffName = s.staff ? `${s.staff.last_name} ${s.staff.first_name}` : '不明'
+          const projectName = s.project?.name || '不明'
+          const shiftTime = `${s.start_time?.slice(0, 5) || '00:00'} - ${s.end_time?.slice(0, 5) || '00:00'}`
+
+          if (!hasAttendance && !hasReport) {
+            workStatusAlerts.push({
+              type: 'shift_no_attendance_no_report',
+              staffId: sid,
+              staffName,
+              projectName,
+              shiftTime,
+              message: `${staffName}さん（${projectName}）のシフト ${shiftTime} に対し、打刻・日報がありません`,
+            })
+          } else if (!hasAttendance && hasReport) {
+            workStatusAlerts.push({
+              type: 'report_no_attendance',
+              staffId: sid,
+              staffName,
+              projectName,
+              shiftTime,
+              message: `${staffName}さん（${projectName}）は日報提出済みですが、打刻がありません`,
+            })
+          }
+        }
+      }
+    } catch (e) {
+      console.error('workStatusAlerts error:', e)
+    }
+
     return NextResponse.json({
       staffCount,
       activeProjects: activeProjectCount,
@@ -277,6 +390,7 @@ export async function GET() {
       recentAlerts,
       recentStaff,
       isOwner: isOwnerUser,
+      workStatusAlerts,
     })
   } catch (error) {
     console.error('GET /api/dashboard error:', error)

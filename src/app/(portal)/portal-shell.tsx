@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/header'
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/lib/auth/roles'
 import { GoogleReauthBanner } from './_components/google-reauth-banner'
+import { WorkStatusAlertBanner } from './_components/work-status-alert-banner'
 
 interface PortalShellProps {
   user: {
@@ -42,6 +43,7 @@ export function PortalShell({ user, children }: PortalShellProps) {
 
         <main className="p-3 sm:p-4 lg:p-6 min-w-0 overflow-x-hidden">
           <GoogleReauthBanner />
+          <WorkStatusAlertBanner />
           {children}
         </main>
       </div>

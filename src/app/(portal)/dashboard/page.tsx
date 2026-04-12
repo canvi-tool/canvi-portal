@@ -98,6 +98,14 @@ interface DashboardData {
     name: string
     createdAt: string
   }>
+  workStatusAlerts: Array<{
+    type: 'shift_no_attendance_no_report' | 'report_no_attendance'
+    staffId: string
+    staffName: string
+    projectName: string
+    shiftTime: string
+    message: string
+  }>
 }
 
 // --- Data Fetching ---
@@ -328,6 +336,7 @@ export default function DashboardPage() {
     todaysShifts: [],
     recentAlerts: [],
     recentStaff: [],
+    workStatusAlerts: [],
   }
 
   return (
@@ -368,6 +377,80 @@ export default function DashboardPage() {
           />
         )}
       </div>
+
+      {/* Work Status Alerts */}
+      {d.workStatusAlerts.length > 0 && (() => {
+        const typeA = d.workStatusAlerts.filter(a => a.type === 'shift_no_attendance_no_report')
+        const typeB = d.workStatusAlerts.filter(a => a.type === 'report_no_attendance')
+        return (
+          <Card className="border-amber-200 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/10">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4" />
+                  稼働状況アラート
+                  <Badge variant="secondary" className="ml-1 font-normal">
+                    {d.workStatusAlerts.length}件
+                  </Badge>
+                </CardTitle>
+                <Link href="/attendance" className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                  勤怠一覧 <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              {typeA.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
+                    シフト予定あり・打刻なし・日報なし
+                  </p>
+                  <div className="space-y-1.5">
+                    {typeA.map((alert) => (
+                      <Link key={`${alert.staffId}-${alert.shiftTime}-a`} href={`/staff/${alert.staffId}`}>
+                        <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium truncate">{alert.staffName}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {alert.projectName}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground font-mono shrink-0 ml-2">
+                            {alert.shiftTime}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {typeB.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
+                    日報提出済み・打刻なし
+                  </p>
+                  <div className="space-y-1.5">
+                    {typeB.map((alert) => (
+                      <Link key={`${alert.staffId}-${alert.shiftTime}-b`} href={`/staff/${alert.staffId}`}>
+                        <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium truncate">{alert.staffName}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {alert.projectName}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground font-mono shrink-0 ml-2">
+                            {alert.shiftTime}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Main grid */}
       <div className="grid gap-4 lg:grid-cols-5">
