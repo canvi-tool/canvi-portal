@@ -115,16 +115,15 @@ function EventRow({
   const [selectedProjectId, setSelectedProjectId] = useState('')
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 transition-colors min-w-0">
-      {showCheckbox && (
-        <Checkbox
-          checked={checked}
-          onChange={(e) => onCheckChange?.(e.target.checked)}
-          className="shrink-0"
-        />
-      )}
-      <div className="flex-1 min-w-0">
+    <div className="px-3 py-2 hover:bg-muted/50 transition-colors min-w-0">
+      {showCheckbox ? (
+        /* Bulk mode: single line with checkbox */
         <div className="flex items-center gap-2 min-w-0">
+          <Checkbox
+            checked={checked}
+            onChange={(e) => onCheckChange?.(e.target.checked)}
+            className="shrink-0"
+          />
           <span className="font-mono text-xs text-muted-foreground shrink-0">
             {fmtTime(event.start_time)}-{fmtTime(event.end_time)}
           </span>
@@ -132,49 +131,61 @@ function EventRow({
             {event.title || '(無題)'}
           </span>
         </div>
-        {event.staff_name && (
-          <span className="text-xs text-muted-foreground ml-[4.5rem]">
-            {event.staff_name}
-          </span>
-        )}
-      </div>
-      {!showCheckbox && (
-        <div className="flex items-center gap-1.5 shrink-0">
-          <select
-            className="h-7 rounded border px-1.5 text-xs max-w-[140px]"
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            disabled={isAssigning}
-          >
-            <option value="">PJ選択</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="default"
-            size="icon-sm"
-            disabled={!selectedProjectId || isAssigning}
-            onClick={() => onAssign(event.id, selectedProjectId)}
-            title="割当"
-          >
-            {isAssigning ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Check className="h-3 w-3" />
+      ) : (
+        /* Single-assign mode: vertical layout for full title visibility */
+        <div className="space-y-1">
+          {/* Row 1: time + full title */}
+          <div className="min-w-0">
+            <span className="font-mono text-xs text-muted-foreground">
+              {fmtTime(event.start_time)}-{fmtTime(event.end_time)}
+            </span>
+            <span className="text-sm ml-2 break-words" title={event.title || '(無題)'}>
+              {event.title || '(無題)'}
+            </span>
+          </div>
+          {/* Row 2: staff name + project selector + actions */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            {event.staff_name && (
+              <span className="text-xs text-muted-foreground shrink-0 mr-1">
+                {event.staff_name}
+              </span>
             )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={isAssigning}
-            onClick={() => onExclude(event.id)}
-            title="PJではない（除外）"
-          >
-            <Ban className="h-3 w-3 text-muted-foreground" />
-          </Button>
+            <select
+              className="h-7 rounded border px-1.5 text-xs flex-1 min-w-0"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              disabled={isAssigning}
+            >
+              <option value="">PJ選択</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="default"
+              size="icon-sm"
+              disabled={!selectedProjectId || isAssigning}
+              onClick={() => onAssign(event.id, selectedProjectId)}
+              title="割当"
+            >
+              {isAssigning ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={isAssigning}
+              onClick={() => onExclude(event.id)}
+              title="PJではない（除外）"
+            >
+              <Ban className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -434,21 +445,20 @@ export function PendingEventsPanel({
                         return (
                           <div
                             key={ev.id}
-                            className="flex items-center gap-2 px-3 py-2 text-sm min-w-0 hover:bg-muted/30"
+                            className="flex items-start gap-2 px-3 py-2 text-sm min-w-0 hover:bg-muted/30"
                           >
                             <Checkbox
                               checked={checked}
                               onChange={(e) => toggleBulkItem(ev.id, e.target.checked)}
-                              className="shrink-0"
+                              className="shrink-0 mt-0.5"
                             />
-                            <span className="font-mono text-[11px] leading-tight text-muted-foreground w-20 shrink-0 whitespace-normal break-words">
+                            <span className="font-mono text-[11px] leading-tight text-muted-foreground shrink-0 mt-0.5">
                               {fmtTime(ev.start_time)}-{fmtTime(ev.end_time)}
                             </span>
-                            <div
-                              className="flex-1 min-w-0 truncate text-muted-foreground"
-                              title={`${ev.staff_name || ''}${ev.title ? ' / ' + ev.title : ''}`}
-                            >
-                              {ev.staff_name || ''}{ev.title ? `  ${ev.title}` : '  (無題)'}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm break-words">
+                                {ev.staff_name || ''}{ev.title ? ` ${ev.title}` : ' (無題)'}
+                              </span>
                             </div>
                           </div>
                         )
