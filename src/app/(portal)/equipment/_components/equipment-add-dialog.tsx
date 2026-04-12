@@ -319,7 +319,9 @@ export function EquipmentAddDialog({
               <Label>ステータス</Label>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {EQUIPMENT_STATUS_LABELS[status] || status}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(EQUIPMENT_STATUS_LABELS).map(([v, l]) => (
