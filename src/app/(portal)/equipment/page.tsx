@@ -129,11 +129,13 @@ async function fetchMakerCodes() {
 }
 
 async function fetchStaffList() {
-  const supabase = await createServerSupabaseClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServerSupabaseClient()) as any
   const { data, error } = await supabase
     .from('staff')
-    .select('id, last_name, first_name')
-    .in('status', ['active', 'on_leave', 'pre_contract', 'contract_sent', 'pending_signature'])
+    .select('id, last_name, first_name, status')
+    .is('deleted_at', null)
+    .order('status', { ascending: true })
     .order('last_name', { ascending: true })
 
   if (error) {

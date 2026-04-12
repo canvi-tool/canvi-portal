@@ -83,6 +83,7 @@ export interface StaffOption {
   id: string
   last_name: string
   first_name: string
+  status: string
 }
 
 export interface LendingItem {

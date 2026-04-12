@@ -184,12 +184,30 @@ export function EquipmentAddDialog({
     }
   }, [editItem, open])
 
-  // Management number preview
-  const managementNumberPreview = useMemo(() => {
-    if (isEdit) return editItem.management_number
-    if (!categoryCode || !makerCode) return '-'
-    return `${categoryCode}${makerCode}XX`
-  }, [categoryCode, makerCode, isEdit, editItem])
+  // Management number preview — fetch next serial from API
+  const [nextSerialPreview, setNextSerialPreview] = useState<string | null>(null)
+  useEffect(() => {
+    if (isEdit || !categoryCode || !makerCode) {
+      setNextSerialPreview(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/equipment/codes/next-serial?category=${categoryCode}&maker=${makerCode}`)
+        if (!res.ok) { setNextSerialPreview(null); return }
+        const json = await res.json()
+        if (!cancelled) setNextSerialPreview(json.data?.management_number ?? null)
+      } catch {
+        if (!cancelled) setNextSerialPreview(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [categoryCode, makerCode, isEdit])
+
+  const managementNumberPreview = isEdit
+    ? editItem.management_number
+    : nextSerialPreview ?? (categoryCode && makerCode ? `${categoryCode}${makerCode}--` : '-')
 
   const handleSubmit = async () => {
     if (!isEdit && (!categoryCode || !makerCode)) {

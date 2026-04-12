@@ -18,7 +18,9 @@ import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -175,11 +177,34 @@ export function LendingDialog({
                 <SelectValue placeholder="スタッフを選択" />
               </SelectTrigger>
               <SelectContent>
-                {staffList.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.last_name} {s.first_name}
-                  </SelectItem>
-                ))}
+                {(() => {
+                  const active = staffList.filter((s) => s.status !== 'retired')
+                  const retired = staffList.filter((s) => s.status === 'retired')
+                  return (
+                    <>
+                      {active.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>在籍中</SelectLabel>
+                          {active.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.last_name} {s.first_name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {retired.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>退職済</SelectLabel>
+                          {retired.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.last_name} {s.first_name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                    </>
+                  )
+                })()}
               </SelectContent>
             </Select>
           </div>
