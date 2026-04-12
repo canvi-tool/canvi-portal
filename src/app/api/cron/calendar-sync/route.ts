@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarClient } from '@/lib/integrations/google-calendar'
 import { getValidTokenForUser } from '@/lib/integrations/google-token'
 import { syncFromGoogleCalendarForStaff } from '@/lib/integrations/google-calendar-import'
+import { runIncrementalSyncForStaff } from '@/lib/integrations/gcal-incremental-sync'
 
 // Vercel Serverless Function 最大実行時間（全ユーザー同期用に長め確保）
 export const maxDuration = 300
@@ -375,6 +376,20 @@ export async function GET(request: NextRequest) {
               userResult.deleted++
             }
           }
+        }
+        // syncToken を確立/更新: webhook の増分同期に必要
+        // cron の既存ロジック完了後に runIncrementalSyncForStaff を呼んで
+        // gcal_sync_state に nextSyncToken を保存する
+        try {
+          await runIncrementalSyncForStaff({
+            userId: user.id,
+            staffId: staffRecord.id as string,
+            fallbackRangeDays: 60,
+          })
+        } catch (e) {
+          userResult.errors.push(
+            `syncToken establish error: ${e instanceof Error ? e.message : String(e)}`,
+          )
         }
       } catch (userError) {
         const message =
