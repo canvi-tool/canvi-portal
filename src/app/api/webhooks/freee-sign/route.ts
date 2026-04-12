@@ -61,51 +61,104 @@ export async function POST(request: NextRequest) {
         .eq('external_sign_id', freeeDocId)
         .single()
 
-      if (findError || !contract) {
-        console.warn(`[Webhook] Contract not found for freee doc: ${freeeDocId}`)
-        return NextResponse.json({ status: 'ok', message: 'Contract not found' })
+      // 契約テーブルで見つかった場合
+      if (!findError && contract) {
+        // 同じステータスなら更新不要
+        if (contract.status === contractStatus) {
+          return NextResponse.json({ status: 'ok', message: 'Status unchanged' })
+        }
+
+        // ステータス更新
+        const updateData: Record<string, unknown> = {
+          status: contractStatus,
+          updated_at: new Date().toISOString(),
+        }
+        if (contractStatus === 'signed') {
+          updateData.signed_at = new Date().toISOString()
+        }
+
+        const { error: updateError } = await supabase
+          .from('contracts')
+          .update(updateData)
+          .eq('id', contract.id)
+
+        if (updateError) {
+          console.error('[Webhook] Failed to update contract:', updateError)
+          return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+        }
+
+        // 監査ログ
+        await supabase.from('audit_logs').insert({
+          user_id: null,
+          action: 'webhook_status_update',
+          resource: 'contracts',
+          resource_id: contract.id,
+          new_data: {
+            freee_sign_doc_id: freeeDocId,
+            freee_sign_status: newFreeeStatus,
+            contract_status: contractStatus,
+            webhook_request_id: requestId,
+          },
+        })
+
+        console.log(`[Webhook] Contract ${contract.id} updated: ${contract.status} → ${contractStatus}`)
+        return NextResponse.json({ status: 'ok', contractId: contract.id, newStatus: contractStatus })
       }
 
-      // 同じステータスなら更新不要
-      if (contract.status === contractStatus) {
-        return NextResponse.json({ status: 'ok', message: 'Status unchanged' })
+      // 貸与品管理契約書（equipment_lending_records）を検索
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAny = supabase as any
+      const { data: lendingRecord, error: lendingFindError } = await supabaseAny
+        .from('equipment_lending_records')
+        .select('id, pledge_status')
+        .eq('external_sign_id', freeeDocId)
+        .single()
+
+      if (!lendingFindError && lendingRecord) {
+        // freee Sign ステータスを pledge_status にマッピング
+        const newPledgeStatus = newFreeeStatus === 'signed' || newFreeeStatus === 'completed'
+          ? 'signed'
+          : newFreeeStatus === 'sent' || newFreeeStatus === 'viewed' || newFreeeStatus === 'creating' || newFreeeStatus === 'created'
+            ? 'sent'
+            : 'not_submitted'
+
+        if (lendingRecord.pledge_status === newPledgeStatus) {
+          return NextResponse.json({ status: 'ok', message: 'Status unchanged' })
+        }
+
+        const { error: lendingUpdateError } = await supabaseAny
+          .from('equipment_lending_records')
+          .update({
+            pledge_status: newPledgeStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', lendingRecord.id)
+
+        if (lendingUpdateError) {
+          console.error('[Webhook] Failed to update lending record:', lendingUpdateError)
+          return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+        }
+
+        // 監査ログ
+        await supabase.from('audit_logs').insert({
+          user_id: null,
+          action: 'webhook_status_update',
+          resource: 'equipment_lending_records',
+          resource_id: lendingRecord.id,
+          new_data: {
+            freee_sign_doc_id: freeeDocId,
+            freee_sign_status: newFreeeStatus,
+            pledge_status: newPledgeStatus,
+            webhook_request_id: requestId,
+          },
+        })
+
+        console.log(`[Webhook] Lending record ${lendingRecord.id} updated: ${lendingRecord.pledge_status} → ${newPledgeStatus}`)
+        return NextResponse.json({ status: 'ok', lendingRecordId: lendingRecord.id, newStatus: newPledgeStatus })
       }
 
-      // ステータス更新
-      const updateData: Record<string, unknown> = {
-        status: contractStatus,
-        updated_at: new Date().toISOString(),
-      }
-      if (contractStatus === 'signed') {
-        updateData.signed_at = new Date().toISOString()
-      }
-
-      const { error: updateError } = await supabase
-        .from('contracts')
-        .update(updateData)
-        .eq('id', contract.id)
-
-      if (updateError) {
-        console.error('[Webhook] Failed to update contract:', updateError)
-        return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-      }
-
-      // 監査ログ
-      await supabase.from('audit_logs').insert({
-        user_id: null,
-        action: 'webhook_status_update',
-        resource: 'contracts',
-        resource_id: contract.id,
-        new_data: {
-          freee_sign_doc_id: freeeDocId,
-          freee_sign_status: newFreeeStatus,
-          contract_status: contractStatus,
-          webhook_request_id: requestId,
-        },
-      })
-
-      console.log(`[Webhook] Contract ${contract.id} updated: ${contract.status} → ${contractStatus}`)
-      return NextResponse.json({ status: 'ok', contractId: contract.id, newStatus: contractStatus })
+      console.warn(`[Webhook] No contract or lending record found for freee doc: ${freeeDocId}`)
+      return NextResponse.json({ status: 'ok', message: 'Record not found' })
     }
 
     return NextResponse.json({ status: 'ok', message: 'Event processed' })
