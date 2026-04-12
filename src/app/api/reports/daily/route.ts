@@ -137,6 +137,9 @@ export async function POST(request: NextRequest) {
     // 検索用テキストサマリーを自動生成
     const content = generateContentSummary(report_type, customFields)
 
+    // 管理者（owner含む）の提出は自動承認
+    const autoApprove = !isDraft && isAdmin(user)
+
     const { data, error } = await supabase
       .from('work_reports')
       .insert({
@@ -144,8 +147,12 @@ export async function POST(request: NextRequest) {
         project_id: project_id || null,
         report_date,
         report_type,
-        status: isDraft ? 'draft' : 'submitted',
+        status: isDraft ? 'draft' : autoApprove ? 'approved' : 'submitted',
         submitted_at: isDraft ? null : new Date().toISOString(),
+        ...(autoApprove ? {
+          approved_at: new Date().toISOString(),
+          approved_by: user.id,
+        } : {}),
         custom_fields: customFields,
         content,
       })
@@ -178,15 +185,22 @@ export async function POST(request: NextRequest) {
           const kpiSummary = buildKpiSummary(report_type, customFields)
           const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
           console.log(`[report-notify] Sending notification: channel=${proj.slack_channel_id}, staffId=${staffId}, report_type=${report_type}`)
+          const slackText = autoApprove
+            ? `${staffName} が ${typeLabel} を提出しました（自動承認）（${projectName}）`
+            : `${staffName} が ${typeLabel} を提出しました（${projectName}）`
+          const slackMrkdwn = autoApprove
+            ? `${staffName} が ${typeLabel} を提出しました（自動承認）\n${report_date} | ${projectName}`
+            : `${staffName} が ${typeLabel} を提出しました\n${report_date} | ${projectName}`
+
           const result = await sendProjectNotificationIfEnabled(
             {
-              text: `${staffName} が ${typeLabel} を提出しました（${projectName}）`,
+              text: slackText,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `${staffName} が ${typeLabel} を提出しました\n${report_date} | ${projectName}`,
+                    text: slackMrkdwn,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -195,28 +209,37 @@ export async function POST(request: NextRequest) {
                 }] : []),
                 {
                   type: 'actions',
-                  elements: [
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '承認' },
-                      style: 'primary',
-                      action_id: 'report_approve',
-                      value: data.id,
-                    },
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '差戻し' },
-                      style: 'danger',
-                      action_id: 'report_reject',
-                      value: data.id,
-                    },
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '詳細を見る' },
-                      url: `${portalUrl}/reports/work/${data.id}`,
-                      action_id: 'report_view',
-                    },
-                  ],
+                  elements: autoApprove
+                    ? [
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '詳細を見る' },
+                          url: `${portalUrl}/reports/work/${data.id}`,
+                          action_id: 'report_view',
+                        },
+                      ]
+                    : [
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '承認' },
+                          style: 'primary',
+                          action_id: 'report_approve',
+                          value: data.id,
+                        },
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '差戻し' },
+                          style: 'danger',
+                          action_id: 'report_reject',
+                          value: data.id,
+                        },
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '詳細を見る' },
+                          url: `${portalUrl}/reports/work/${data.id}`,
+                          action_id: 'report_view',
+                        },
+                      ],
                 },
               ],
             },

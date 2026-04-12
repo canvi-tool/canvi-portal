@@ -28,10 +28,12 @@ function calculateTotalHoursFromAttendance(context: CalculationContext): number 
       continue
     }
 
-    // clock_in/clock_out から計算
-    if (record.clock_in && record.clock_out) {
-      const clockIn = new Date(record.clock_in)
-      const clockOut = new Date(record.clock_out)
+    // clock_in/clock_out から計算（丸め済み時刻を優先）
+    const effectiveClockIn = record.clock_in_rounded || record.clock_in
+    const effectiveClockOut = record.clock_out_rounded || record.clock_out
+    if (effectiveClockIn && effectiveClockOut) {
+      const clockIn = new Date(effectiveClockIn)
+      const clockOut = new Date(effectiveClockOut)
       const diffMinutes = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60)
       const breakMinutes = record.break_minutes ?? 0
       const workMinutes = Math.max(0, diffMinutes - breakMinutes)

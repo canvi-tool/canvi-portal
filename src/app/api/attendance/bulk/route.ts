@@ -9,6 +9,7 @@ import {
 } from '@/lib/integrations/slack'
 import { embedSlackThreadTs, extractSlackThreadTs } from '@/lib/utils/slack-thread'
 import { notifyIfDailyReportMissing } from '@/lib/notifications/daily-report-check'
+import { applyShiftRounding } from '@/lib/attendance/rounding'
 
 /**
  * 一括出勤 / 一括退勤
@@ -87,6 +88,27 @@ export async function POST(request: NextRequest) {
 
       // 各PJに対して出勤レコードを作成
       for (const projectId of targetProjects) {
+        // シフト取得して打刻丸め
+        let clockInRounded: string | null = null
+        let roundingApplied = false
+        if (staffRecord?.id) {
+          const shiftQuery = supabase
+            .from('shifts')
+            .select('start_time')
+            .eq('staff_id', staffRecord.id)
+            .eq('shift_date', today)
+            .is('deleted_at', null)
+            .in('status', ['APPROVED', 'SUBMITTED'])
+            .eq('project_id', projectId)
+            .limit(1)
+          const { data: shiftRow } = await shiftQuery.maybeSingle()
+          if (shiftRow?.start_time) {
+            const res = applyShiftRounding(now, today, shiftRow.start_time)
+            clockInRounded = res.rounded
+            roundingApplied = res.applied
+          }
+        }
+
         const { data, error } = await supabase
           .from('attendance_records')
           .insert({
@@ -95,6 +117,8 @@ export async function POST(request: NextRequest) {
             project_id: projectId,
             date: today,
             clock_in: now,
+            clock_in_rounded: clockInRounded,
+            rounding_applied: roundingApplied,
             status: 'clocked_in',
             location_type: 'remote',
           })
@@ -154,14 +178,38 @@ export async function POST(request: NextRequest) {
           totalBreak += additional
         }
 
-        const clockInTime = new Date(record.clock_in!).getTime()
-        const clockOutTime = new Date(now).getTime()
-        const totalMinutes = Math.round((clockOutTime - clockInTime) / 60000)
+        // シフト取得して退勤丸め
+        let clockOutRounded: string | null = null
+        let roundingAppliedOut = false
+        if (record.staff_id && record.project_id) {
+          const { data: shiftRow } = await supabase
+            .from('shifts')
+            .select('end_time')
+            .eq('staff_id', record.staff_id)
+            .eq('shift_date', record.date)
+            .is('deleted_at', null)
+            .in('status', ['APPROVED', 'SUBMITTED'])
+            .eq('project_id', record.project_id)
+            .limit(1)
+            .maybeSingle()
+          if (shiftRow?.end_time) {
+            const res = applyShiftRounding(now, record.date, shiftRow.end_time)
+            clockOutRounded = res.rounded
+            if (res.applied) roundingAppliedOut = true
+          }
+        }
+
+        // 勤務時間計算: 丸め後の値を正として使用
+        const clockInForCalc = new Date(record.clock_in_rounded || record.clock_in!)
+        const clockOutForCalc = new Date(clockOutRounded || now)
+        const totalMinutes = Math.round((clockOutForCalc.getTime() - clockInForCalc.getTime()) / 60000)
         const workMinutes = Math.max(0, totalMinutes - totalBreak)
         const overtimeMinutes = Math.max(0, workMinutes - 480)
 
         const updates: Record<string, unknown> = {
           clock_out: now,
+          clock_out_rounded: clockOutRounded,
+          rounding_applied: record.rounding_applied || roundingAppliedOut,
           status: 'clocked_out',
           break_minutes: totalBreak,
           work_minutes: workMinutes,

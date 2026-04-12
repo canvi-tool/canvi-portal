@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -40,6 +40,7 @@ import {
   PackageCheck,
   PackageX,
   Undo2,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   EQUIPMENT_STATUS_LABELS,
@@ -165,11 +166,28 @@ interface EquipmentPageClientProps {
 export function EquipmentPageClient({
   initialEquipment,
   initialLending,
-  categoryCodes,
-  makerCodes,
+  categoryCodes: initialCategoryCodes,
+  makerCodes: initialMakerCodes,
   staffList,
 }: EquipmentPageClientProps) {
   const router = useRouter()
+
+  // ===== Codes state (refreshable) =====
+  const [categoryCodes, setCategoryCodes] = useState<CategoryCode[]>(initialCategoryCodes)
+  const [makerCodes, setMakerCodes] = useState<MakerCode[]>(initialMakerCodes)
+
+  const refreshCodes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/equipment/codes')
+      if (res.ok) {
+        const json = await res.json()
+        setCategoryCodes(json.data.category_codes)
+        setMakerCodes(json.data.maker_codes)
+      }
+    } catch {
+      // silent fail — codes will refresh on next page load
+    }
+  }, [])
 
   // ===== Equipment tab state =====
   const [eqSearch, setEqSearch] = useState('')
@@ -221,6 +239,18 @@ export function EquipmentPageClient({
     }
     return result
   }, [initialLending, lendSearch, activeOnly])
+
+  // ===== Unsigned pledge staff =====
+  const unsignedPledgeStaff = useMemo(() => {
+    const names: string[] = []
+    for (const r of initialLending) {
+      if (!r.return_date && r.pledge_status === 'not_submitted' && r.staff) {
+        const name = `${r.staff.last_name} ${r.staff.first_name}`
+        if (!names.includes(name)) names.push(name)
+      }
+    }
+    return names
+  }, [initialLending])
 
   // ===== Equipment stats =====
   const stats = useMemo(() => {
@@ -423,6 +453,17 @@ export function EquipmentPageClient({
         {/* ==================== 貸与管理タブ ==================== */}
         <TabsContent value="lending">
           <div className="space-y-4">
+            {/* Unsigned pledge warning banner */}
+            {unsignedPledgeStaff.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-4 py-3 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800 dark:text-amber-200">
+                  <p className="font-medium">貸与品契約が未締結のスタッフがいます</p>
+                  <p className="mt-1">{unsignedPledgeStaff.join('、')}</p>
+                </div>
+              </div>
+            )}
+
             {/* Filters + add button */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-1">
@@ -560,6 +601,7 @@ export function EquipmentPageClient({
         makerCodes={makerCodes}
         editItem={editItem}
         onSuccess={handleRefresh}
+        onCodesUpdated={refreshCodes}
       />
 
       <LendingDialog

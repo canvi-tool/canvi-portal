@@ -7,6 +7,7 @@ export type DerivedAlertType =
   | 'REPORT_MISSING'
   | 'REPORT_REJECTED'
   | 'SHIFT_SUBMISSION_DUE'
+  | 'EQUIPMENT_PLEDGE_UNSIGNED'
 
 export interface DerivedAlert {
   id: string
@@ -30,6 +31,7 @@ const ALERT_TYPE_LABEL: Record<DerivedAlertType, string> = {
   REPORT_MISSING: '日報送付漏れ',
   REPORT_REJECTED: '日報差戻し',
   SHIFT_SUBMISSION_DUE: 'シフト未提出',
+  EQUIPMENT_PLEDGE_UNSIGNED: '貸与品契約未締結',
 }
 
 function todayJstStr(): string {
@@ -413,6 +415,55 @@ export async function getRecentDerivedAlerts(
       createdAt: r.updated_at,
       href: `/reports/work/${r.id}`,
     })
+  }
+
+  // --- 貸与品契約未締結 ---
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pledgeQueryBase = (supabase as any)
+      .from('equipment_lending_records')
+      .select('id, staff_id, lending_date, pledge_status, staff:staff_id(last_name, first_name)')
+      .eq('pledge_status', 'not_submitted')
+      .is('return_date', null)
+      .is('deleted_at', null)
+      .limit(100)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pledgeQuery = applyStaffScope(pledgeQueryBase as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pledgeRes = await (pledgeQuery as any)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unsignedRecords = ((pledgeRes as any).data || []) as Array<{
+      id: string
+      staff_id: string | null
+      lending_date: string
+      pledge_status: string | null
+      staff: { last_name: string; first_name: string } | null
+    }>
+
+    for (const r of unsignedRecords) {
+      const staffName = r.staff ? `${r.staff.last_name} ${r.staff.first_name}` : '不明'
+      const description = `${staffName} の貸与品契約が未締結です`
+
+      alerts.push({
+        id: `equip-pledge:${r.id}`,
+        type: 'EQUIPMENT_PLEDGE_UNSIGNED',
+        severity: 'WARNING',
+        title: ALERT_TYPE_LABEL.EQUIPMENT_PLEDGE_UNSIGNED,
+        message: description,
+        description,
+        relatedStaffId: r.staff_id,
+        relatedStaffName: staffName,
+        relatedProjectId: null,
+        relatedProjectName: null,
+        projectManagerName: null,
+        createdAt: `${r.lending_date}T09:00:00+09:00`,
+        href: '/equipment',
+      })
+    }
+  } catch (e) {
+    console.error('EQUIPMENT_PLEDGE_UNSIGNED calc error:', e)
   }
 
   // --- 翌月シフト未提出 (毎月26日以降) ---

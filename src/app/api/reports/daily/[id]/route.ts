@@ -113,14 +113,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // 検索用テキストサマリーを再生成
     const content = generateContentSummary(report_type, customFields)
 
+    // 管理者（owner含む）の提出は自動承認
+    const autoApprove = !isDraft && isAdmin(user)
+
     const { data, error } = await supabase
       .from('work_reports')
       .update({
         project_id: project_id || null,
         report_date,
         report_type,
-        status: isDraft ? 'draft' : 'submitted',
+        status: isDraft ? 'draft' : autoApprove ? 'approved' : 'submitted',
         submitted_at: isDraft ? null : new Date().toISOString(),
+        ...(autoApprove ? {
+          approved_at: new Date().toISOString(),
+          approved_by: user.id,
+        } : {}),
         custom_fields: customFields,
         content,
         updated_at: new Date().toISOString(),
@@ -210,14 +217,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           const kpiSummary = buildKpiSummary(report_type, customFields)
           const mentionText = await getProjectMentionText(data.project_id, data.staff_id)
 
+          const slackText = autoApprove
+            ? `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました（自動承認）`
+            : `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`
+          const slackMrkdwn = autoApprove
+            ? `${staffName} が ${typeLabel} を ${actionLabel} しました（自動承認）\n${report_date} | ${projectName}`
+            : `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`
+
           await sendSlackBotMessage(proj.slack_channel_id, {
-            text: `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`,
+            text: slackText,
             blocks: [
               {
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`,
+                  text: slackMrkdwn,
                 },
               },
               ...(kpiSummary ? [{
@@ -226,28 +240,37 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               }] : []),
               {
                 type: 'actions',
-                elements: [
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '承認' },
-                    style: 'primary',
-                    action_id: 'report_approve',
-                    value: data.id,
-                  },
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '差戻し' },
-                    style: 'danger',
-                    action_id: 'report_reject',
-                    value: data.id,
-                  },
-                  {
-                    type: 'button',
-                    text: { type: 'plain_text', text: '詳細を見る' },
-                    url: `${portalUrl}/reports/work/${data.id}`,
-                    action_id: 'report_view',
-                  },
-                ],
+                elements: autoApprove
+                  ? [
+                      {
+                        type: 'button',
+                        text: { type: 'plain_text', text: '詳細を見る' },
+                        url: `${portalUrl}/reports/work/${data.id}`,
+                        action_id: 'report_view',
+                      },
+                    ]
+                  : [
+                      {
+                        type: 'button',
+                        text: { type: 'plain_text', text: '承認' },
+                        style: 'primary',
+                        action_id: 'report_approve',
+                        value: data.id,
+                      },
+                      {
+                        type: 'button',
+                        text: { type: 'plain_text', text: '差戻し' },
+                        style: 'danger',
+                        action_id: 'report_reject',
+                        value: data.id,
+                      },
+                      {
+                        type: 'button',
+                        text: { type: 'plain_text', text: '詳細を見る' },
+                        url: `${portalUrl}/reports/work/${data.id}`,
+                        action_id: 'report_view',
+                      },
+                    ],
               },
               ...(mentionText ? [{ type: 'context' as const, elements: [{ type: 'mrkdwn' as const, text: mentionText }] }] : []),
             ],
@@ -264,15 +287,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://canvi-portal.vercel.app'
           const kpiSummary = buildKpiSummary(report_type, customFields)
 
+          const newSlackText = autoApprove
+            ? `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました（自動承認）`
+            : `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`
+          const newSlackMrkdwn = autoApprove
+            ? `${staffName} が ${typeLabel} を ${actionLabel} しました（自動承認）\n${report_date} | ${projectName}`
+            : `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`
+
           const result = await sendProjectNotificationIfEnabled(
             {
-              text: `${projectName}｜${staffName}の${typeLabel}が${actionLabel}されました`,
+              text: newSlackText,
               blocks: [
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `${staffName} が ${typeLabel} を ${actionLabel} しました\n${report_date} | ${projectName}`,
+                    text: newSlackMrkdwn,
                   },
                 },
                 ...(kpiSummary ? [{
@@ -281,28 +311,37 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 }] : []),
                 {
                   type: 'actions',
-                  elements: [
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '承認' },
-                      style: 'primary',
-                      action_id: 'report_approve',
-                      value: data.id,
-                    },
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '差戻し' },
-                      style: 'danger',
-                      action_id: 'report_reject',
-                      value: data.id,
-                    },
-                    {
-                      type: 'button',
-                      text: { type: 'plain_text', text: '詳細を見る' },
-                      url: `${portalUrl}/reports/work/${data.id}`,
-                      action_id: 'report_view',
-                    },
-                  ],
+                  elements: autoApprove
+                    ? [
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '詳細を見る' },
+                          url: `${portalUrl}/reports/work/${data.id}`,
+                          action_id: 'report_view',
+                        },
+                      ]
+                    : [
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '承認' },
+                          style: 'primary',
+                          action_id: 'report_approve',
+                          value: data.id,
+                        },
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '差戻し' },
+                          style: 'danger',
+                          action_id: 'report_reject',
+                          value: data.id,
+                        },
+                        {
+                          type: 'button',
+                          text: { type: 'plain_text', text: '詳細を見る' },
+                          url: `${portalUrl}/reports/work/${data.id}`,
+                          action_id: 'report_view',
+                        },
+                      ],
                 },
               ],
             },
