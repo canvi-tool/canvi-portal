@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getCurrentUser, isOwner } from '@/lib/auth/rbac'
 
 export async function GET(
   _request: NextRequest,
@@ -75,6 +76,62 @@ export async function GET(
     })
   } catch (error) {
     console.error('GET /api/reports/performance/[id] error:', error)
+    return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
+  }
+}
+
+// ---- DELETE: 論理削除（オーナーのみ） ----
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
+    if (!isOwner(user)) {
+      return NextResponse.json({ error: 'オーナーのみ削除可能です' }, { status: 403 })
+    }
+
+    const { id } = params
+    const supabase = await createServerSupabaseClient()
+
+    // 既存レコード確認
+    const { data: existing, error: fetchError } = await supabase
+      .from('performance_reports')
+      .select('id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: '月次報告が見つかりません' }, { status: 404 })
+      }
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    }
+
+    if (!existing) {
+      return NextResponse.json({ error: '月次報告が見つかりません' }, { status: 404 })
+    }
+
+    const { error } = await supabase
+      .from('performance_reports')
+      .update({
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('DELETE /api/reports/performance/[id] error:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })
   }
 }

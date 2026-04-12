@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('performance_reports')
       .select('*, staff:staff_id(id, last_name, first_name), project:project_id(id, name)')
+      .is('deleted_at', null)
       .order('period_start', { ascending: false })
       .order('created_at', { ascending: false })
 

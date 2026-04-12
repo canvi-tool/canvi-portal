@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { dailyReportSchema, workReportApprovalSchema, DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
 import type { DailyReportType } from '@/lib/validations/daily-report'
 import { getProjectAccess } from '@/lib/auth/project-access'
-import { isAdmin } from '@/lib/auth/rbac'
+import { isAdmin, isOwner } from '@/lib/auth/rbac'
 import { sendProjectNotificationIfEnabled, sendSlackBotMessage, updateSlackBotMessage, getProjectMentionText, type SlackBlock } from '@/lib/integrations/slack'
 
 interface RouteParams {
@@ -524,8 +524,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: '他のスタッフの日報は削除できません' }, { status: 403 })
     }
 
-    // 承認済みは削除不可
-    if (existing.status === 'approved') {
+    // 承認済みはオーナーのみ削除可能
+    if (existing.status === 'approved' && !isOwner(user)) {
       return NextResponse.json(
         { error: '承認済みの日報は削除できません' },
         { status: 400 }

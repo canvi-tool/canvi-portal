@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Plus } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import {
   usePerformanceReports,
   useGeneratePerformanceReport,
+  useDeletePerformanceReport,
 } from '@/hooks/use-reports'
 import { useRouter } from 'next/navigation'
 import { useProjects, useStaffList } from '@/hooks/use-projects'
@@ -60,6 +61,17 @@ function getAppointmentCount(report: { summary: unknown }): number {
 export default function PerformanceReportsPage() {
   const router = useRouter()
 
+  // Owner detection
+  const [isOwnerUser, setIsOwnerUser] = useState(false)
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwnerUser(true)
+      })
+      .catch(() => {})
+  }, [])
+
   const [yearMonth, setYearMonth] = useState(
     new Date().toISOString().slice(0, 7)
   )
@@ -78,6 +90,16 @@ export default function PerformanceReportsPage() {
   const { data: projects = [] } = useProjects()
   const { data: staffList = [] } = useStaffList()
   const generateReport = useGeneratePerformanceReport()
+  const deleteReport = useDeletePerformanceReport()
+
+  // Delete handler
+  const handleDeleteReport = useCallback((id: string, staffName: string) => {
+    if (!confirm(`${staffName} の月次報告を削除しますか？`)) return
+    deleteReport.mutate(id, {
+      onSuccess: () => toast.success('月次報告を削除しました'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : '削除に失敗しました'),
+    })
+  }, [deleteReport])
 
   const staffItems = useMemo(
     () => ({ all: '全スタッフ', ...Object.fromEntries(staffList.map((s) => [s.id, `${s.last_name || ''} ${s.first_name || ''}`.trim() || s.id])) }),
@@ -268,7 +290,7 @@ export default function PerformanceReportsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         {report.status === 'approved' ? (
                           <button
                             type="button"
@@ -284,6 +306,20 @@ export default function PerformanceReportsPage() {
                             className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors"
                           >
                             修正
+                          </button>
+                        )}
+                        {isOwnerUser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const s = report.staff as { last_name?: string; first_name?: string } | null
+                              const name = s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : '不明'
+                              handleDeleteReport(report.id, name)
+                            }}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors"
+                            title="削除"
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </button>
                         )}
                       </div>

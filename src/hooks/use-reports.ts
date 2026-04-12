@@ -35,6 +35,14 @@ async function fetchPerformanceReport(id: string): Promise<PerformanceReport> {
   return res.json()
 }
 
+async function deletePerformanceReport(id: string): Promise<void> {
+  const res = await fetch(`/api/reports/performance/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || '月次報告の削除に失敗しました')
+  }
+}
+
 async function generatePerformanceReport(
   data: PerformanceReportFormValues & { asDraft?: boolean }
 ): Promise<PerformanceReport> {
@@ -84,6 +92,16 @@ export function useGeneratePerformanceReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: generatePerformanceReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
+    },
+  })
+}
+
+export function useDeletePerformanceReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deletePerformanceReport(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: performanceReportKeys.lists() })
     },

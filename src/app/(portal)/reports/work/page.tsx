@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus,
@@ -14,7 +14,9 @@ import {
   Target,
   CheckSquare,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +32,7 @@ import {
 import { PageHeader } from '@/components/layout/page-header'
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
-import { useDailyReports, type DailyReport } from '@/hooks/use-daily-reports'
+import { useDailyReports, useDeleteDailyReport, type DailyReport } from '@/hooks/use-daily-reports'
 import {
   DAILY_REPORT_TYPE_LABELS,
   DAILY_REPORT_STATUS_LABELS,
@@ -67,6 +69,17 @@ const STATUS_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'destructiv
 export default function WorkReportsPage() {
   const router = useRouter()
 
+  // Owner detection
+  const [isOwnerUser, setIsOwnerUser] = useState(false)
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwnerUser(true)
+      })
+      .catch(() => {})
+  }, [])
+
   // Filter state
   const [startDate, setStartDate] = useState(getMonthFirstDay)
   const [endDate, setEndDate] = useState(getToday)
@@ -85,6 +98,16 @@ export default function WorkReportsPage() {
 
   // Data fetching
   const { data: reports = [], isLoading } = useDailyReports(queryParams)
+  const deleteDailyReport = useDeleteDailyReport()
+
+  // Delete handler
+  const handleDeleteReport = useCallback((id: string, staffName: string) => {
+    if (!confirm(`${staffName} の日報を削除しますか？`)) return
+    deleteDailyReport.mutate(id, {
+      onSuccess: () => toast.success('日報を削除しました'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : '削除に失敗しました'),
+    })
+  }, [deleteDailyReport])
 
   // Stats (based on currently filtered reports)
   const stats = useMemo(() => {
@@ -200,20 +223,35 @@ export default function WorkReportsPage() {
           ? `/reports/work/${row.id}`
           : `/reports/work/${row.id}/edit`
         return (
-          <button
-            type="button"
-            onClick={() => router.push(href)}
-            className={
-              isApproved
-                ? 'inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors'
-                : 'inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors'
-            }
-          >
-            {isApproved ? '閲覧' : '修正'}
-          </button>
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => router.push(href)}
+              className={
+                isApproved
+                  ? 'inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors'
+                  : 'inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 transition-colors'
+              }
+            >
+              {isApproved ? '閲覧' : '修正'}
+            </button>
+            {isOwnerUser && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteReport(row.id, getStaffName(row))
+                }}
+                className="inline-flex items-center rounded-full border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors"
+                title="削除"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         )
       },
-      className: 'w-[80px]',
+      className: 'w-[120px]',
     },
   ]
 
