@@ -118,7 +118,7 @@ export async function getRecentDerivedAlerts(
   //    シンプル化: 過去日で clock_in または clock_out NULL のシフト。今日は end_time <= 現在のもののみ。
   const shiftsQueryBase = supabase
     .from('shifts')
-    .select('id, staff_id, project_id, shift_date, start_time, end_time, staff:staff_id(last_name, first_name), project:project_id(id, name)')
+    .select('id, staff_id, project_id, shift_date, start_time, end_time, staff:staff_id(last_name, first_name), project:project_id(id, name, project_type)')
     .gte('shift_date', fromStr)
     .lte('shift_date', today)
     .is('deleted_at', null)
@@ -175,7 +175,7 @@ export async function getRecentDerivedAlerts(
     start_time: string | null
     end_time: string | null
     staff: { last_name: string; first_name: string } | null
-    project: { id: string; name: string } | null
+    project: { id: string; name: string; project_type: string | null } | null
   }>
 
   // staff_idでフィルタ (owner以外)
@@ -196,21 +196,30 @@ export async function getRecentDerivedAlerts(
       .in('date', dateSet)
       .is('deleted_at', null)
     for (const a of (arData || []) as Array<{ staff_id: string; date: string; clock_in: string | null; clock_out: string | null }>) {
-      attendanceMap.set(`${a.staff_id}:${a.date}`, { clock_in: a.clock_in, clock_out: a.clock_out })
+      const key = `${a.staff_id}:${a.date}`
+      const existing = attendanceMap.get(key)
+      if (existing) {
+        attendanceMap.set(key, {
+          clock_in: existing.clock_in || a.clock_in,
+          clock_out: existing.clock_out || a.clock_out,
+        })
+      } else {
+        attendanceMap.set(key, { clock_in: a.clock_in, clock_out: a.clock_out })
+      }
     }
   }
 
-  // work_reportsの存在をまとめて取得 (shift_id 基準)
-  const shiftIds = shifts.map((s) => s.id)
-  const workReportShiftIds = new Set<string>()
-  if (shiftIds.length > 0) {
+  // work_reportsの存在をまとめて取得 (staff_id + report_date 基準)
+  const workReportStaffDates = new Set<string>()
+  if (staffIdsInShifts.length > 0 && dateSet.length > 0) {
     const { data: wrData } = await supabase
       .from('work_reports')
-      .select('shift_id')
-      .in('shift_id', shiftIds)
+      .select('staff_id, report_date')
+      .in('staff_id', staffIdsInShifts)
+      .in('report_date', dateSet)
       .is('deleted_at', null)
-    for (const w of (wrData || []) as unknown as Array<{ shift_id: string | null }>) {
-      if (w.shift_id) workReportShiftIds.add(w.shift_id)
+    for (const w of (wrData || []) as Array<{ staff_id: string | null; report_date: string | null }>) {
+      if (w.staff_id && w.report_date) workReportStaffDates.add(`${w.staff_id}:${w.report_date}`)
     }
   }
 
@@ -292,10 +301,19 @@ export async function getRecentDerivedAlerts(
   const alerts: DerivedAlert[] = []
 
   // --- 勤怠エラー & 日報送付漏れ（シフトを一巡） ---
+  // Internal project types that should NOT trigger alerts
+  const internalProjectTypes = new Set(['CAN', 'ETC'])
+  // Track already-emitted report-missing alerts per staff+date to deduplicate
+  const reportMissingEmitted = new Set<string>()
+
   for (const s of shifts) {
     const staffName = s.staff ? `${s.staff.last_name} ${s.staff.first_name}` : '不明'
     const projectName = s.project?.name || (s.project_id ? projectNameMap.get(s.project_id) || '不明' : '個人')
     const managerName = s.project_id ? projectManagerMap.get(s.project_id) : null
+
+    // Skip internal projects (CAN / ETC) for attendance and report alerts
+    const projectType = s.project?.project_type || null
+    if (projectType && internalProjectTypes.has(projectType)) continue
 
     const key = `${s.staff_id}:${s.shift_date}`
     const ar = attendanceMap.get(key)
@@ -335,12 +353,14 @@ export async function getRecentDerivedAlerts(
       })
     }
 
-    // 日報送付漏れ: 終了済みシフトで work_reports に存在しない
-    if (endPassed && !workReportShiftIds.has(s.id)) {
+    // 日報送付漏れ: 終了済みシフトで work_reports に存在しない (staff_id + date 基準, 1日1件に重複排除)
+    const reportKey = `${s.staff_id}:${s.shift_date}`
+    if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey)) {
+      reportMissingEmitted.add(reportKey)
       let description = `${staffName} / ${projectName} (${s.shift_date}) の日報未提出`
       if (ownerScope && managerName) description += `（管理者: ${managerName}）`
       alerts.push({
-        id: `report-missing:${s.id}`,
+        id: `report-missing:${s.staff_id}:${s.shift_date}`,
         type: 'REPORT_MISSING',
         severity: 'WARNING',
         title: ALERT_TYPE_LABEL.REPORT_MISSING,
