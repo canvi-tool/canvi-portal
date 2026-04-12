@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendProjectNotification } from '@/lib/integrations/slack'
+import { fetchActiveIgnoreRules, isAlertIgnored } from '@/lib/alerts/ignore-rules'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -234,7 +235,14 @@ export async function GET(request: NextRequest) {
     // ========================================
     // 5. アラートDB保存 + Slack通知
     // ========================================
+    const ignoreRules = await fetchActiveIgnoreRules()
+
     for (const [projectId, group] of alertsByProject) {
+      // 無視ルールで除外
+      const pid = projectId !== '__no_project__' ? projectId : null
+      group.typeA = group.typeA.filter((e) => !isAlertIgnored(ignoreRules, 'ATTENDANCE_ERROR', e.staffId, pid))
+      group.typeB = group.typeB.filter((e) => !isAlertIgnored(ignoreRules, 'REPORT_MISSING', e.staffId, pid))
+
       const hasAlerts = group.typeA.length > 0 || group.typeB.length > 0
       if (!hasAlerts) continue
 

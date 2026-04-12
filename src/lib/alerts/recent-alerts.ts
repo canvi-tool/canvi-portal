@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { isOwner, isAdmin, type UserWithRole } from '@/lib/auth/rbac'
+import { fetchActiveIgnoreRules, isAlertIgnored } from '@/lib/alerts/ignore-rules'
 
 export type DerivedAlertType =
   | 'ATTENDANCE_ERROR'
@@ -71,7 +72,7 @@ function nowJstHHmm(): string {
 export async function getRecentDerivedAlerts(
   user: UserWithRole,
   allowedProjectIds: string[] | null,
-  options: { limit?: number; lookbackDays?: number } = {}
+  options: { limit?: number; lookbackDays?: number; skipIgnoreFilter?: boolean } = {}
 ): Promise<DerivedAlert[]> {
   const limit = options.limit ?? 20
   const lookbackDays = options.lookbackDays ?? 14
@@ -840,7 +841,16 @@ export async function getRecentDerivedAlerts(
     console.error('SHIFT_SUBMISSION_DUE calc error:', e)
   }
 
+  // 無視ルールで除外（skipIgnoreFilter指定時はスキップ）
+  let filteredAlerts = alerts
+  if (!options.skipIgnoreFilter) {
+    const ignoreRules = await fetchActiveIgnoreRules()
+    if (ignoreRules.length > 0) {
+      filteredAlerts = alerts.filter((a) => !isAlertIgnored(ignoreRules, a.type, a.relatedStaffId, a.relatedProjectId))
+    }
+  }
+
   // 新しい順ソート
-  alerts.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-  return alerts.slice(0, limit)
+  filteredAlerts.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return filteredAlerts.slice(0, limit)
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendProjectNotification } from '@/lib/integrations/slack'
 import type { DerivedAlert, DerivedAlertType } from '@/lib/alerts/recent-alerts'
+import { fetchActiveIgnoreRules, isAlertIgnored } from '@/lib/alerts/ignore-rules'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -258,10 +259,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    results.alertCount = alerts.length
+    // 無視ルールで除外
+    const ignoreRules = await fetchActiveIgnoreRules()
+    const filteredAlerts = ignoreRules.length > 0
+      ? alerts.filter((a) => !isAlertIgnored(ignoreRules, a.type, a.relatedStaffId, a.relatedProjectId))
+      : alerts
 
-    if (alerts.length === 0) {
-      return NextResponse.json({ success: true, message: 'No alerts to notify', ...results })
+    results.alertCount = filteredAlerts.length
+
+    if (filteredAlerts.length === 0) {
+      return NextResponse.json({ success: true, message: 'No alerts to notify (all ignored or none)', ...results })
     }
 
     // ========================================
@@ -290,7 +297,7 @@ export async function GET(request: NextRequest) {
 
     // プロジェクト別にアラートをグループ化
     const alertsByProject = new Map<string, DerivedAlert[]>()
-    for (const alert of alerts) {
+    for (const alert of filteredAlerts) {
       const pid = alert.relatedProjectId || '__no_project__'
       if (!alertsByProject.has(pid)) alertsByProject.set(pid, [])
       alertsByProject.get(pid)!.push(alert)

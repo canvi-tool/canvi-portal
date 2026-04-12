@@ -1280,6 +1280,50 @@ export interface Database {
           },
         ]
       }
+      alert_ignores: {
+        Row: {
+          id: string
+          created_by: string
+          alert_type: string
+          staff_id: string | null
+          project_id: string | null
+          reason: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          alert_type: string
+          staff_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          alert_type?: string
+          staff_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'alert_ignores_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       alerts: {
         Row: {
           id: string

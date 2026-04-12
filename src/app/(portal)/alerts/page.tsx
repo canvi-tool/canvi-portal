@@ -27,8 +27,11 @@ import {
   Loader2,
   ExternalLink,
   Eye,
+  VolumeOff,
+  Volume2,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 // ---------------------------------------------------------------------------
 // Types (matches DerivedAlert from recent-alerts.ts)
@@ -61,6 +64,15 @@ interface Alert {
   projectManagerName?: string | null
   createdAt: string
   href?: string
+}
+
+interface IgnoreRule {
+  id: string
+  alert_type: string
+  staff_id: string | null
+  project_id: string | null
+  reason: string | null
+  created_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -154,10 +166,27 @@ function saveHiddenIds(ids: Set<string>) {
 }
 
 // ---------------------------------------------------------------------------
+// Ignore rule matching (client-side mirror of server logic)
+// ---------------------------------------------------------------------------
+function isAlertMatchedByIgnore(
+  rules: IgnoreRule[],
+  alertType: string,
+  staffId?: string | null,
+  projectId?: string | null,
+): IgnoreRule | undefined {
+  return rules.find((rule) => {
+    if (rule.alert_type !== alertType) return false
+    if (rule.staff_id && rule.staff_id !== staffId) return false
+    if (rule.project_id && rule.project_id !== projectId) return false
+    return true
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
-type ViewTab = 'active' | 'hidden'
+type ViewTab = 'active' | 'hidden' | 'ignored'
 
 export default function AlertsPage() {
   const router = useRouter()
@@ -170,12 +199,39 @@ export default function AlertsPage() {
   const [staffFilter, setStaffFilter] = useState<string>('all')
   const [viewTab, setViewTab] = useState<ViewTab>('active')
 
+  // Owner detection
+  const [isOwner, setIsOwner] = useState(false)
+  useEffect(() => {
+    fetch('/api/user/current')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.roles?.includes('owner')) setIsOwner(true)
+      })
+      .catch(() => {})
+  }, [])
+
   // Hidden alerts (persisted in localStorage)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+
+  // Ignore rules (persisted in DB, owner-only)
+  const [ignoreRules, setIgnoreRules] = useState<IgnoreRule[]>([])
+  // "All alerts" before ignore filtering (for showing in ignore tab)
+  const [allAlertsBeforeIgnore, setAllAlertsBeforeIgnore] = useState<Alert[]>([])
 
   // Load hidden IDs from localStorage on mount
   useEffect(() => {
     setHiddenIds(loadHiddenIds())
+  }, [])
+
+  // Fetch ignore rules
+  const fetchIgnoreRules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/alerts/ignores')
+      if (res.ok) {
+        const data: IgnoreRule[] = await res.json()
+        setIgnoreRules(data)
+      }
+    } catch { /* ignore */ }
   }, [])
 
   // Fetch alerts from API
@@ -207,34 +263,65 @@ export default function AlertsPage() {
     }
   }, [])
 
+  // Also fetch "all alerts" without ignore filtering for the ignore tab display
+  // The derived API already filters out ignored ones, so we need a separate fetch
+  // We'll use the alerts + reconstruct ignored ones from rules
+  const fetchAllAlerts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/alerts/derived?include_ignored=1')
+      if (res.ok) {
+        const data: Alert[] = await res.json()
+        setAllAlertsBeforeIgnore(data)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     fetchAlerts()
-  }, [fetchAlerts])
+    fetchIgnoreRules()
+    fetchAllAlerts()
+  }, [fetchAlerts, fetchIgnoreRules, fetchAllAlerts])
 
-  // --- Unique filter options extracted from alerts ---
+  const refresh = useCallback(() => {
+    fetchAlerts()
+    fetchIgnoreRules()
+    fetchAllAlerts()
+  }, [fetchAlerts, fetchIgnoreRules, fetchAllAlerts])
+
+  // --- Unique filter options extracted from all alerts ---
+  const allDisplayAlerts = viewTab === 'ignored' ? allAlertsBeforeIgnore : alerts
+
   const projectOptions = useMemo(() => {
     const map = new Map<string, string>()
-    for (const a of alerts) {
+    for (const a of allDisplayAlerts) {
       if (a.relatedProjectId && a.relatedProjectName) {
         map.set(a.relatedProjectId, a.relatedProjectName)
       }
     }
     return Array.from(map.entries())
       .sort((a, b) => a[1].localeCompare(b[1], 'ja'))
-  }, [alerts])
+  }, [allDisplayAlerts])
 
   const staffOptions = useMemo(() => {
     const map = new Map<string, string>()
-    for (const a of alerts) {
+    for (const a of allDisplayAlerts) {
       if (a.relatedStaffId && a.relatedStaffName) {
         map.set(a.relatedStaffId, a.relatedStaffName)
       }
     }
     return Array.from(map.entries())
       .sort((a, b) => a[1].localeCompare(b[1], 'ja'))
-  }, [alerts])
+  }, [allDisplayAlerts])
 
   // --- Derived data ---
+
+  // Ignored alerts: alerts from allAlertsBeforeIgnore that match any ignore rule
+  const ignoredAlerts = useMemo(() => {
+    if (ignoreRules.length === 0) return []
+    return allAlertsBeforeIgnore.filter((a) =>
+      isAlertMatchedByIgnore(ignoreRules, a.type, a.relatedStaffId, a.relatedProjectId)
+    )
+  }, [allAlertsBeforeIgnore, ignoreRules])
 
   const activeAlerts = useMemo(() => {
     return alerts.filter((a) => !hiddenIds.has(a.id))
@@ -244,7 +331,7 @@ export default function AlertsPage() {
     return alerts.filter((a) => hiddenIds.has(a.id))
   }, [alerts, hiddenIds])
 
-  const currentList = viewTab === 'active' ? activeAlerts : hiddenAlerts
+  const currentList = viewTab === 'active' ? activeAlerts : viewTab === 'hidden' ? hiddenAlerts : ignoredAlerts
 
   const filtered = useMemo(() => {
     return currentList.filter((a) => {
@@ -288,6 +375,49 @@ export default function AlertsPage() {
     })
   }
 
+  async function ignoreAlert(alert: Alert) {
+    try {
+      const res = await fetch('/api/alerts/ignores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alert_type: alert.type,
+          staff_id: alert.relatedStaffId || null,
+          project_id: alert.relatedProjectId || null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '無視設定に失敗しました')
+      }
+      toast.success('このアラートパターンを無視に設定しました（通知対象外）')
+      refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '無視設定に失敗しました')
+    }
+  }
+
+  async function unignoreAlert(alert: Alert) {
+    const rule = isAlertMatchedByIgnore(ignoreRules, alert.type, alert.relatedStaffId, alert.relatedProjectId)
+    if (!rule) return
+
+    try {
+      const res = await fetch('/api/alerts/ignores', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: rule.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '無視解除に失敗しました')
+      }
+      toast.success('無視設定を解除しました（通知対象に復帰）')
+      refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '無視解除に失敗しました')
+    }
+  }
+
   // --- Render ---
 
   return (
@@ -297,7 +427,7 @@ export default function AlertsPage() {
         description="勤怠・日報・シフトの異常を自動検知して表示します（直近14日間）。解消されたアラートは自動で消えます。"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchAlerts} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
@@ -315,7 +445,7 @@ export default function AlertsPage() {
         }
       />
 
-      {/* Active / Hidden tabs */}
+      {/* Active / Hidden / Ignored tabs */}
       <Tabs value={viewTab} onValueChange={(v) => setViewTab(v as ViewTab)}>
         <TabsList>
           <TabsTrigger value="active" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold">
@@ -330,6 +460,14 @@ export default function AlertsPage() {
               {hiddenAlerts.length}
             </span>
           </TabsTrigger>
+          {isOwner && (
+            <TabsTrigger value="ignored" className="data-active:bg-white data-active:shadow-sm data-active:font-semibold">
+              無視
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                {ignoredAlerts.length}
+              </span>
+            </TabsTrigger>
+          )}
         </TabsList>
       </Tabs>
 
@@ -428,13 +566,21 @@ export default function AlertsPage() {
         </div>
       )}
 
+      {/* Ignored tab description */}
+      {viewTab === 'ignored' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <VolumeOff className="inline size-4 mr-1.5 -mt-0.5" />
+          無視されたアラートはSlack通知の対象から除外されます。解消されたアラートは自動で消えます。
+        </div>
+      )}
+
       {/* Error state */}
       {error && (
         <Card>
           <CardContent className="flex items-center gap-3 py-4 text-destructive">
             <AlertTriangle className="size-5 shrink-0" />
             <p className="text-sm">{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchAlerts}>
+            <Button variant="outline" size="sm" onClick={refresh}>
               再試行
             </Button>
           </CardContent>
@@ -460,12 +606,16 @@ export default function AlertsPage() {
               <p className="text-sm">
                 {viewTab === 'active'
                   ? '該当するアラートはありません'
-                  : '非表示のアラートはありません'}
+                  : viewTab === 'hidden'
+                    ? '非表示のアラートはありません'
+                    : '無視されたアラートはありません'}
               </p>
               <p className="text-xs mt-1">
                 {viewTab === 'active'
                   ? '直近14日間に異常は検知されていません'
-                  : '非表示にしたアラートが解消されると自動で消えます'}
+                  : viewTab === 'hidden'
+                    ? '非表示にしたアラートが解消されると自動で消えます'
+                    : '無視設定されたパターンに該当するアラートはありません'}
               </p>
             </CardContent>
           </Card>
@@ -474,8 +624,9 @@ export default function AlertsPage() {
         {filtered.map((alert) => {
           const Icon = typeIcon(alert.type)
           const isHidden = hiddenIds.has(alert.id)
+          const isIgnored = viewTab === 'ignored'
           return (
-            <Card key={alert.id} className={isHidden ? 'opacity-60' : ''}>
+            <Card key={alert.id} className={isHidden || isIgnored ? 'opacity-60' : ''}>
               <CardContent className="flex items-start gap-4 py-4">
                 {/* Icon */}
                 <div
@@ -498,6 +649,12 @@ export default function AlertsPage() {
                       {SEVERITY_LABELS[alert.severity]}
                     </Badge>
                     <Badge variant="outline">{TYPE_LABELS[alert.type]}</Badge>
+                    {isIgnored && (
+                      <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+                        <VolumeOff className="size-3 mr-1" />
+                        通知OFF
+                      </Badge>
+                    )}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -526,14 +683,35 @@ export default function AlertsPage() {
                       詳細
                     </Button>
                   )}
-                  {isHidden ? (
+                  {viewTab === 'ignored' ? (
+                    /* 無視タブ: 無視解除ボタン */
+                    <Button variant="ghost" size="sm" onClick={() => unignoreAlert(alert)} title="無視を解除（通知対象に復帰）">
+                      <Volume2 className="size-3.5 mr-1" />
+                      <span className="text-xs">解除</span>
+                    </Button>
+                  ) : isHidden ? (
+                    /* 非表示タブ: 再表示ボタン */
                     <Button variant="ghost" size="sm" onClick={() => unhideAlert(alert.id)} title="再表示">
                       <Eye className="size-3.5" />
                     </Button>
                   ) : (
-                    <Button variant="ghost" size="sm" onClick={() => hideAlert(alert.id)} title="非表示にする">
-                      <BellOff className="size-3.5" />
-                    </Button>
+                    /* アクティブタブ: 非表示 + 無視ボタン */
+                    <>
+                      <Button variant="ghost" size="sm" onClick={() => hideAlert(alert.id)} title="非表示にする">
+                        <BellOff className="size-3.5" />
+                      </Button>
+                      {isOwner && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => ignoreAlert(alert)}
+                          title="無視する（通知対象から除外）"
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                        >
+                          <VolumeOff className="size-3.5" />
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
