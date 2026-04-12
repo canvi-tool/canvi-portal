@@ -53,6 +53,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     .limit(12)
 
   // Fetch equipment lending records with items
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lendingRecords } = await (supabase as any)
     .from('equipment_lending_records')
     .select('*, items:equipment_lending_items(*, equipment:equipment_items(*))')

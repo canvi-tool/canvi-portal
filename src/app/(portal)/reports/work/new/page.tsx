@@ -93,9 +93,9 @@ export default function NewDailyReportPage() {
       setCallActual(String(data.totalCalls || 0))
       setContactCount(String(data.connected || 0))
       setAppointmentCount(String(data.apo || 0))
-      toast.success(`canvi-callから取得: 架電${data.totalCalls}件 / 通電${data.connected}件 / アポ${data.apo}件`)
-    } catch (e: any) {
-      toast.error(e.message || 'canvi-callとの連携に失敗しました')
+      toast.success(`テレアポくんから取得: 架電${data.totalCalls}件 / 通電${data.connected}件 / アポ${data.apo}件`)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'テレアポくんとの連携に失敗しました')
     } finally {
       setIsFetchingKpi(false)
     }
@@ -449,7 +449,7 @@ export default function NewDailyReportPage() {
                   className="text-xs gap-1.5"
                 >
                   {isFetchingKpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  canvi-callから取得
+                  テレアポくんから取得
                 </Button>
               </div>
             </CardHeader>

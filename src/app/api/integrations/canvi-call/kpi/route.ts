@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     if (!apiUrl || !apiKey) {
       return NextResponse.json(
-        { error: 'canvi-call API連携が設定されていません' },
+        { error: 'テレアポくんAPI連携が設定されていません' },
         { status: 503 }
       )
     }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       return NextResponse.json(
-        { error: err.error || 'canvi-callからのデータ取得に失敗しました' },
+        { error: err.error || 'テレアポくんからのデータ取得に失敗しました' },
         { status: res.status }
       )
     }
