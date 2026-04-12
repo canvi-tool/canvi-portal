@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus, Check, Pencil, RotateCcw } from 'lucide-react'
@@ -42,14 +42,18 @@ export default function NewDailyReportPage() {
   const router = useRouter()
   const createReport = useCreateDailyReport()
   const { data: allProjects = [] } = useProjects()
-  // report_typeが設定されたPJは該当タブのみ表示、未設定PJは全タブに表示
-  const projects = allProjects.filter((p: { id: string; name: string; report_type?: string | null }) =>
-    !p.report_type || p.report_type === reportType
-  )
-  const projectItems = Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name]))
 
   // --- Common state ---
   const [reportType, setReportType] = useState<DailyReportType>('outbound')
+
+  // report_typeが設定されたPJは該当タブのみ表示、未設定PJは全タブに表示
+  const projects = useMemo(() =>
+    allProjects.filter((p: { id: string; name: string; report_type?: string | null }) =>
+      !p.report_type || p.report_type === reportType
+    ), [allProjects, reportType])
+  const projectItems = useMemo(() =>
+    Object.fromEntries(projects.map((p: { id: string; name: string }) => [p.id, p.name])),
+    [projects])
   const [reportDate, setReportDate] = useState(getTodayString())
   const [projectId, setProjectId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
