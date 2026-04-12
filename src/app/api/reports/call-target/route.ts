@@ -10,10 +10,7 @@ const BREAK_DURATION_HOURS = 1
 /**
  * GET /api/reports/call-target?date=2026-04-12&project_id=xxx
  *
- * シフトの合計稼働時間から架電数目標を自動計算:
- * - 1時間あたり25件
- * - 5時間超のシフトは1時間休憩を減算
- * - 端数は切り上げ
+ * シフト時間から架電数目標を自動計算 + シフト情報を返却
  */
 export async function GET(request: NextRequest) {
   try {
@@ -35,10 +32,19 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
 
-    // そのユーザーの、その日・そのPJのシフトを取得（WORK系のみ、承認済み or 提出済み）
+    // プロジェクト情報を取得（BPO判定用）
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, name, project_type')
+      .eq('id', projectId)
+      .maybeSingle()
+
+    const isBpo = project?.project_type === 'BPO'
+
+    // そのユーザーの、その日・そのPJのシフトを取得
     const { data: shifts, error } = await supabase
       .from('shifts')
-      .select('start_time, end_time, shift_type')
+      .select('id, start_time, end_time, shift_type, status')
       .eq('staff_id', user.staffId)
       .eq('project_id', projectId)
       .eq('shift_date', date)
@@ -55,13 +61,27 @@ export async function GET(request: NextRequest) {
       (s) => !s.shift_type || s.shift_type === 'WORK'
     )
 
+    // シフト詳細（UI表示用）
+    const shiftDetails = workShifts.map((s) => ({
+      id: s.id,
+      startTime: s.start_time,
+      endTime: s.end_time,
+      status: s.status,
+    }))
+
     if (workShifts.length === 0) {
       return NextResponse.json({
         callTarget: 0,
         shiftHours: 0,
         effectiveHours: 0,
         shifts: 0,
-        message: 'この日のシフトが登録されていません',
+        shiftDetails: [],
+        isBpo,
+        projectName: project?.name ?? '',
+        projectType: project?.project_type ?? '',
+        hasShift: false,
+        formula: '',
+        staffId: user.staffId,
       })
     }
 
@@ -79,21 +99,35 @@ export async function GET(request: NextRequest) {
     }
 
     const totalHours = totalMinutes / 60
-
-    // 5時間超は1時間休憩を減算
     const effectiveHours =
       totalHours > BREAK_THRESHOLD_HOURS
         ? totalHours - BREAK_DURATION_HOURS
         : totalHours
+    const callTarget = isBpo ? Math.ceil(effectiveHours * CALLS_PER_HOUR) : 0
 
-    // 架電数目標 = 有効時間 × 25件/h（切り上げ）
-    const callTarget = Math.ceil(effectiveHours * CALLS_PER_HOUR)
+    // 算出方法の説明文
+    const roundedTotal = Math.round(totalHours * 10) / 10
+    const roundedEff = Math.round(effectiveHours * 10) / 10
+    let formula = ''
+    if (isBpo) {
+      formula = `${roundedEff}h × ${CALLS_PER_HOUR}件/h = ${callTarget}件`
+      if (totalHours > BREAK_THRESHOLD_HOURS) {
+        formula = `${roundedTotal}h - 休憩1h = ${roundedEff}h → ${roundedEff}h × ${CALLS_PER_HOUR}件/h = ${callTarget}件`
+      }
+    }
 
     return NextResponse.json({
       callTarget,
-      shiftHours: Math.round(totalHours * 10) / 10,
-      effectiveHours: Math.round(effectiveHours * 10) / 10,
+      shiftHours: roundedTotal,
+      effectiveHours: roundedEff,
       shifts: workShifts.length,
+      shiftDetails,
+      isBpo,
+      projectName: project?.name ?? '',
+      projectType: project?.project_type ?? '',
+      hasShift: true,
+      formula,
+      staffId: user.staffId,
     })
   } catch (error) {
     console.error('Call target calculation error:', error)

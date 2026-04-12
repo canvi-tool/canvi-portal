@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, RefreshCw, Clock, AlertTriangle, CalendarPlus, Pencil } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -105,9 +105,28 @@ export default function NewDailyReportPage() {
     }
   }, [reportDate, projectId])
 
-  // --- 架電数目標の自動計算（シフト時間ベース） ---
+  // --- シフト情報 & 架電数目標の自動計算 ---
+  type ShiftInfo = {
+    callTarget: number
+    shiftHours: number
+    effectiveHours: number
+    shifts: number
+    shiftDetails: { id: string; startTime: string; endTime: string; status: string }[]
+    isBpo: boolean
+    projectName: string
+    projectType: string
+    hasShift: boolean
+    formula: string
+    staffId: string
+  }
+  const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null)
+  const [isCreatingShift, setIsCreatingShift] = useState(false)
+
   useEffect(() => {
-    if (reportType !== 'outbound' || !reportDate || !projectId) return
+    if (reportType !== 'outbound' || !reportDate || !projectId) {
+      setShiftInfo(null)
+      return
+    }
     let cancelled = false
     ;(async () => {
       try {
@@ -115,17 +134,51 @@ export default function NewDailyReportPage() {
           `/api/reports/call-target?date=${reportDate}&project_id=${projectId}`
         )
         if (!res.ok || cancelled) return
-        const data = await res.json()
+        const data: ShiftInfo = await res.json()
         if (cancelled) return
-        if (data.callTarget > 0) {
-          setCallTarget(String(data.callTarget))
-        }
+        setShiftInfo(data)
+        setCallTarget(String(data.callTarget))
       } catch {
-        // silently ignore - user can still input manually
+        // silently ignore
       }
     })()
     return () => { cancelled = true }
   }, [reportType, reportDate, projectId])
+
+  const handleCreateShift = useCallback(async (startTime: string, endTime: string) => {
+    if (!shiftInfo?.staffId || !projectId || !reportDate) return
+    setIsCreatingShift(true)
+    try {
+      const res = await fetch('/api/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_id: shiftInfo.staffId,
+          project_id: projectId,
+          shift_date: reportDate,
+          start_time: startTime,
+          end_time: endTime,
+          shift_type: 'WORK',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'シフト登録に失敗しました')
+      }
+      toast.success('シフトを登録しました')
+      // リフェッチ
+      const r2 = await fetch(`/api/reports/call-target?date=${reportDate}&project_id=${projectId}`)
+      if (r2.ok) {
+        const data: ShiftInfo = await r2.json()
+        setShiftInfo(data)
+        setCallTarget(String(data.callTarget))
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'シフト登録に失敗しました')
+    } finally {
+      setIsCreatingShift(false)
+    }
+  }, [shiftInfo?.staffId, projectId, reportDate])
 
   // --- Inbound state ---
   const [incomingCount, setIncomingCount] = useState('')
@@ -458,6 +511,52 @@ export default function NewDailyReportPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* シフト情報表示 */}
+              {reportType === 'outbound' && projectId && shiftInfo && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    当日のシフト
+                  </div>
+                  {shiftInfo.hasShift ? (
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      {shiftInfo.shiftDetails.map((s, i) => (
+                        <div key={s.id || i} className="flex items-center gap-2">
+                          <span className="font-mono">
+                            {s.startTime?.slice(0, 5)} 〜 {s.endTime?.slice(0, 5)}
+                          </span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                            {s.status === 'APPROVED' ? '承認済' : '提出済'}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="text-xs text-muted-foreground">
+                        合計: {shiftInfo.shiftHours}時間
+                        {shiftInfo.shiftHours > 5 && ` (休憩1h差引後: ${shiftInfo.effectiveHours}h)`}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-amber-600">
+                        <AlertTriangle className="h-4 w-4" />
+                        この日のシフトが登録されていません
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isCreatingShift}
+                        onClick={() => handleCreateShift('09:00', '18:00')}
+                        className="text-xs gap-1.5"
+                      >
+                        {isCreatingShift ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
+                        シフトを登録する（9:00〜18:00）
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -466,17 +565,19 @@ export default function NewDailyReportPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">&#9733; KPI実績（当日）</CardTitle>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchCanviCallKpi}
-                  disabled={isFetchingKpi}
-                  className="text-xs gap-1.5"
-                >
-                  {isFetchingKpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  テレアポくんから取得
-                </Button>
+                {shiftInfo?.isBpo && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchCanviCallKpi}
+                    disabled={isFetchingKpi}
+                    className="text-xs gap-1.5"
+                  >
+                    {isFetchingKpi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    テレアポくんから取得
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -490,6 +591,16 @@ export default function NewDailyReportPage() {
                     onChange={(e) => setCallTarget(e.target.value)}
                     placeholder="0"
                   />
+                  {shiftInfo && shiftInfo.isBpo && shiftInfo.formula && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {shiftInfo.projectName}: {shiftInfo.formula}
+                    </div>
+                  )}
+                  {shiftInfo && !shiftInfo.isBpo && projectId && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      BPO以外のプロジェクトのため自動計算対象外
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>架電数 実績 {renderRequiredMark()}</Label>
