@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
+    const portalProjectId = searchParams.get('project_id')
 
     if (!date) {
       return NextResponse.json({ error: 'date パラメータが必要です' }, { status: 400 })
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const url = `${apiUrl}/api/external/daily-kpi?date=${encodeURIComponent(date)}&email=${encodeURIComponent(user.email)}`
+    let url = `${apiUrl}/api/external/daily-kpi?date=${encodeURIComponent(date)}&email=${encodeURIComponent(user.email)}`
+    if (portalProjectId) url += `&portal_project_id=${encodeURIComponent(portalProjectId)}`
 
     const res = await fetch(url, {
       headers: { 'X-API-Key': apiKey },

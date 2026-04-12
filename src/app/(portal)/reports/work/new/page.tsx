@@ -82,9 +82,13 @@ export default function NewDailyReportPage() {
       toast.error('日付を選択してください')
       return
     }
+    if (!projectId) {
+      toast.error('プロジェクトを選択してください')
+      return
+    }
     setIsFetchingKpi(true)
     try {
-      const res = await fetch(`/api/integrations/canvi-call/kpi?date=${reportDate}`)
+      const res = await fetch(`/api/integrations/canvi-call/kpi?date=${reportDate}&project_id=${projectId}`)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'データ取得に失敗しました')
@@ -99,7 +103,7 @@ export default function NewDailyReportPage() {
     } finally {
       setIsFetchingKpi(false)
     }
-  }, [reportDate])
+  }, [reportDate, projectId])
 
   // --- Inbound state ---
   const [incomingCount, setIncomingCount] = useState('')
