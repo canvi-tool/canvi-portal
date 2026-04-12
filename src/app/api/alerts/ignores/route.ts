@@ -43,18 +43,6 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    // 既存の同じパターンがあるかチェック（is_active=falseのものを再有効化）
-    const { data: existing } = await admin
-      .from('alert_ignores')
-      .select('id')
-      .eq('alert_type', alert_type)
-      .eq('is_active', false)
-      .then((res) => {
-        // staff_id/project_id がnullの場合のフィルタリング
-        return res
-      })
-
-    // upsert的に処理
     const insertData = {
       created_by: user.id,
       alert_type,
