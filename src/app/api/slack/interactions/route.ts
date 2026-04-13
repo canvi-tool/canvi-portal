@@ -944,7 +944,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
   // 申請取得
   const { data: req } = await supabase
     .from('attendance_correction_requests')
-    .select('*, project:project_id(id, name, slack_channel_id), requester:requested_by_user_id(display_name)')
+    .select('*, project:project_id(id, name, slack_channel_id), requester:requested_by_user_id(display_name), attendance_record:attendance_record_id(date)')
     .eq('id', correctionId)
     .single()
 
@@ -1034,6 +1034,9 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
   const actionLabel = isApprove ? '承認' : '差戻し'
   const projectName = (r.project as { name?: string } | null)?.name || ''
   const requesterName = (r.requester as { display_name?: string } | null)?.display_name || 'メンバー'
+  const attendanceDate = (r.attendance_record as { date?: string } | null)?.date || ''
+  const dateLabel = attendanceDate ? `${attendanceDate.replace(/-/g, '/')}` : ''
+  const subjectLabel = `${requesterName}さん${dateLabel ? `（${dateLabel}）` : ''}の打刻修正`
 
   // 元メッセージ更新（ボタン除去）
   const botToken = await resolveSlackBotToken()
@@ -1043,7 +1046,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `打刻修正 が ${actionLabel} されました${projectName ? `（${projectName}）` : ''}`,
+          text: `${projectName ? `【${projectName}】` : ''}${subjectLabel}が${actionLabel}されました`,
         },
       },
     ]
@@ -1068,7 +1071,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
       body: JSON.stringify({
         channel: channelId,
         ts: messageTs,
-        text: `${projectName ? `${projectName}｜` : ''}${requesterName}の打刻修正が${actionLabel}されました`,
+        text: `${projectName ? `${projectName}｜` : ''}${subjectLabel}が${actionLabel}されました`,
         blocks: messageBlocks,
       }),
     })
@@ -1102,7 +1105,7 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
     }
     await sendSlackBotMessage(
       channelId,
-      { text: `${projectName ? `${projectName}｜` : ''}${requesterName}の打刻修正が${actionLabel}されました`, blocks: threadBlocks },
+      { text: `${projectName ? `${projectName}｜` : ''}${subjectLabel}が${actionLabel}されました`, blocks: threadBlocks },
       { thread_ts: threadTs }
     )
   }
@@ -1118,10 +1121,9 @@ async function handleCorrectionApproval(payload: Record<string, unknown>) {
     const requesterSlackId = ((requesterStaff as { custom_fields?: Record<string, string> } | null)
       ?.custom_fields as Record<string, string> | undefined)?.slack_user_id
     if (requesterSlackId) {
-      const requesterName = (r.requester as { display_name?: string } | null)?.display_name || 'メンバー'
       const dmText = isApprove
-        ? `:white_check_mark: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正申請が承認されました`
-        : `:no_entry: ${projectName ? `${projectName}｜` : ''}*${requesterName}* の打刻修正申請が差戻されました\n理由: ${comment}`
+        ? `:white_check_mark: ${projectName ? `${projectName}｜` : ''}*${subjectLabel}* が承認されました`
+        : `:no_entry: ${projectName ? `${projectName}｜` : ''}*${subjectLabel}* が差戻されました\n理由: ${comment}`
       const dmBlocks: unknown[] = [
         { type: 'section', text: { type: 'mrkdwn', text: dmText } },
       ]
