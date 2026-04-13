@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PROJECT_STATUS_LABELS } from '@/lib/constants'
 import { DAILY_REPORT_TYPE_LABELS } from '@/lib/validations/daily-report'
+import { buttonVariants } from '@/components/ui/button'
 import { useProjects, useBulkUpdateProjects, type Project } from '@/hooks/use-projects'
 import { toast } from 'sonner'
 import { Plus, Search, Briefcase, Users, ChevronDown } from 'lucide-react'
@@ -343,7 +344,7 @@ export default function ProjectsPage() {
       >
         {/* ステータス一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
             ステータス変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
@@ -363,7 +364,7 @@ export default function ProjectsPage() {
 
         {/* 日報タイプ一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
             日報タイプ変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
@@ -390,7 +391,7 @@ export default function ProjectsPage() {
 
         {/* シフト承認モード一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="secondary" size="sm" disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
             シフト承認変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>

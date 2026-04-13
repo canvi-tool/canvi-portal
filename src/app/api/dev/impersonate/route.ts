@@ -35,6 +35,19 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // staffテーブルから名前を取得（display_nameがないユーザー用）
+  const userIds = (data || []).map(u => u.id)
+  const { data: staffRows } = await admin
+    .from('staff')
+    .select('user_id, last_name, first_name')
+    .in('user_id', userIds)
+    .is('deleted_at', null)
+  const staffNameMap = new Map<string, string>()
+  for (const s of (staffRows || []) as Array<{ user_id: string; last_name: string | null; first_name: string | null }>) {
+    const name = `${s.last_name || ''} ${s.first_name || ''}`.trim()
+    if (name && s.user_id) staffNameMap.set(s.user_id, name)
+  }
+
   const users = (data || []).map((u) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const roles = ((u.user_roles as any[]) || [])
@@ -45,7 +58,7 @@ export async function GET() {
     return {
       id: u.id,
       email: u.email,
-      displayName: u.display_name || u.email,
+      displayName: staffNameMap.get(u.id) || u.display_name || u.email,
       role: topRole,
     }
   })
