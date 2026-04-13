@@ -123,7 +123,18 @@ export async function POST(request: NextRequest) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const proj = rec.project as any
-      const staffName = user.displayName || user.email || 'メンバー'
+      // スタッフ名を取得（email fallbackを回避）
+      let staffName = user.displayName || 'メンバー'
+      const { data: staffNameRow } = await supabase
+        .from('staff')
+        .select('last_name, first_name')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .single()
+      if (staffNameRow) {
+        const fullName = `${staffNameRow.last_name || ''} ${staffNameRow.first_name || ''}`.trim()
+        if (fullName) staffName = fullName
+      }
       const fmt = (s: string | null) =>
         s
           ? new Date(s).toLocaleString('ja-JP', {

@@ -110,8 +110,32 @@ export async function PATCH(
       const proj = req.project as any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const requester = req.requester as any
-      const reviewerName = user.displayName || user.email || '管理者'
-      const requesterName = requester?.display_name || requester?.email || 'メンバー'
+      // レビュアー名をスタッフテーブルから取得（email fallback回避）
+      let reviewerName = user.displayName || '管理者'
+      const { data: reviewerStaff } = await supabase
+        .from('staff')
+        .select('last_name, first_name')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .single()
+      if (reviewerStaff) {
+        const fullName = `${reviewerStaff.last_name || ''} ${reviewerStaff.first_name || ''}`.trim()
+        if (fullName) reviewerName = fullName
+      }
+      // 申請者名をスタッフテーブルから取得
+      let requesterName = requester?.display_name || 'メンバー'
+      if (req.requested_by_user_id) {
+        const { data: reqStaffRow } = await supabase
+          .from('staff')
+          .select('last_name, first_name')
+          .eq('user_id', req.requested_by_user_id)
+          .is('deleted_at', null)
+          .single()
+        if (reqStaffRow) {
+          const fn = `${reqStaffRow.last_name || ''} ${reqStaffRow.first_name || ''}`.trim()
+          if (fn) requesterName = fn
+        }
+      }
       const projectName = proj?.name || ''
       const text =
         parsed.data.action === 'approve'

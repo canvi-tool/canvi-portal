@@ -185,10 +185,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // staff_idを取得
+    // staff_idと名前を取得
     const { data: staffRecord } = await supabase
       .from('staff')
-      .select('id')
+      .select('id, last_name, first_name')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .single()
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
         console.warn(`[attendance-notify] WARNING: project ${projectId} (${projectName}) has no slack_channel_id set. Configure Slack channel in project settings.`)
       }
     }
-    const staffName = user.displayName || user.email || 'メンバー'
+    const staffName = (staffRecord?.last_name || staffRecord?.first_name ? `${staffRecord.last_name || ''} ${staffRecord.first_name || ''}`.trim() : null) || user.displayName || 'メンバー'
     console.log(`[attendance-notify] Sending notification: staffName=${staffName}, channel=${projectSlackChannelId}, projectId=${projectId}, staffId=${staffRecord?.id}`)
     // 出勤通知を送信し、thread_tsをnoteフィールドに埋め込む（後続打刻をスレッドにまとめるため）
     try {

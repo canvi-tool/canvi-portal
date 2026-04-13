@@ -51,6 +51,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const slackThreadTs = extractSlackThreadTs(record.note)
     console.log(`[thread] PUT action=${action}, recordId=${id}, thread_ts=${slackThreadTs || 'NULL'}`)
 
+    // スタッフ名を取得（email fallbackを回避）
+    let resolvedStaffName = user.displayName || 'メンバー'
+    if (record.staff_id) {
+      const { data: staffNameRow } = await supabase
+        .from('staff')
+        .select('last_name, first_name')
+        .eq('id', record.staff_id)
+        .single()
+      if (staffNameRow) {
+        const fullName = `${staffNameRow.last_name || ''} ${staffNameRow.first_name || ''}`.trim()
+        if (fullName) resolvedStaffName = fullName
+      }
+    }
+
     switch (action) {
       case 'clock_out': {
         if (record.status === 'clocked_out') {
@@ -119,7 +133,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           projectSlackChannelId = proj?.slack_channel_id || null
           projectName = proj?.name || undefined
         }
-        const staffName = user.displayName || user.email || 'メンバー'
+        const staffName = resolvedStaffName
         const hours = Math.floor(workMinutes / 60)
         const mins = workMinutes % 60
         // 通知設定に関わらず送信（スレッド内に統合するため）
@@ -180,7 +194,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .single()
             breakChannelId = proj?.slack_channel_id || null
           }
-          const breakStaffName = user.displayName || user.email || 'メンバー'
+          const breakStaffName = resolvedStaffName
           if (await isNotificationEnabled(record.project_id, 'attendance_break_start')) {
             await sendProjectNotification(
               buildBreakStartNotification(breakStaffName),
@@ -236,7 +250,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               .single()
             breakEndChannelId = proj?.slack_channel_id || null
           }
-          const breakEndStaffName = user.displayName || user.email || 'メンバー'
+          const breakEndStaffName = resolvedStaffName
           if (await isNotificationEnabled(record.project_id, 'attendance_break_end')) {
             await sendProjectNotification(
               buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),

@@ -34,15 +34,15 @@ export async function POST(request: NextRequest) {
     const today = now_jst.toISOString().split('T')[0]
     const now = new Date().toISOString()
 
-    // staff_id取得
+    // staff_idと名前を取得
     const { data: staffRecord } = await supabase
       .from('staff')
-      .select('id')
+      .select('id, last_name, first_name')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .single()
 
-    const staffName = user.displayName || user.email || 'メンバー'
+    const staffName = (staffRecord?.last_name || staffRecord?.first_name ? `${staffRecord.last_name || ''} ${staffRecord.first_name || ''}`.trim() : null) || user.displayName || 'メンバー'
     const created: unknown[] = []
     const updated: unknown[] = []
 
