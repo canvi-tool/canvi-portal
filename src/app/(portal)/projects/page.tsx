@@ -344,7 +344,7 @@ export default function ProjectsPage() {
       >
         {/* ステータス一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending}>
             ステータス変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
@@ -364,7 +364,7 @@ export default function ProjectsPage() {
 
         {/* 日報タイプ一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending}>
             日報タイプ変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
@@ -391,7 +391,7 @@ export default function ProjectsPage() {
 
         {/* シフト承認モード一括変更 */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<button className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending} />}>
+          <DropdownMenuTrigger className={buttonVariants({ variant: 'secondary', size: 'sm' })} disabled={bulkUpdate.isPending}>
             シフト承認変更
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>

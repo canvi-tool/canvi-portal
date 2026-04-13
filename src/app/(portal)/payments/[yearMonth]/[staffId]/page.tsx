@@ -311,7 +311,7 @@ export default function StaffPaymentDetailPage({ params }: PageProps) {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
+            <DialogClose className={buttonVariants({ variant: 'outline' })}>
               キャンセル
             </DialogClose>
             <Button

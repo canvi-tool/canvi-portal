@@ -446,7 +446,7 @@ export default function AssignmentsPage({ params }: PageProps) {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
+            <DialogClose className={buttonVariants({ variant: 'outline' })}>
               キャンセル
             </DialogClose>
             <Button onClick={handleAddAssignment} disabled={createAssignment.isPending}>
@@ -601,7 +601,7 @@ function BulkRuleDialog({
         </div>
 
         <DialogFooter>
-          <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
+          <DialogClose className={buttonVariants({ variant: 'outline' })}>
             キャンセル
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isLoading || !ruleName.trim()}>

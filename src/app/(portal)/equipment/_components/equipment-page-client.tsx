@@ -521,7 +521,7 @@ export function EquipmentPageClient({
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger
-                              render={<button className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors" />}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>

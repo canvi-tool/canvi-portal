@@ -222,7 +222,7 @@ export function StaffDetailClient({
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<button className="inline-flex items-center justify-center size-8 rounded-lg border border-input bg-background hover:bg-muted transition-colors" />}
+                className="inline-flex items-center justify-center size-8 rounded-lg border border-input bg-background hover:bg-muted transition-colors"
               >
                 <MoreVertical className="h-4 w-4" />
               </DropdownMenuTrigger>

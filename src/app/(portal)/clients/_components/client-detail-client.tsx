@@ -84,7 +84,7 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
             {isOwner && (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<button className={buttonVariants({ variant: 'outline', size: 'icon' })} />}
+                  className={buttonVariants({ variant: 'outline', size: 'icon' })}
                 >
                   <MoreVertical className="h-4 w-4" />
                 </DropdownMenuTrigger>

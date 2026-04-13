@@ -960,7 +960,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
+            <DialogClose className={buttonVariants({ variant: 'outline' })}>
               キャンセル
             </DialogClose>
             <Button onClick={handleAddMember} disabled={bulkAssigning}>

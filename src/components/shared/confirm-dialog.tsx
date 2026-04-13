@@ -50,7 +50,7 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
+          <DialogClose className={buttonVariants({ variant: 'outline' })}>
             {cancelLabel}
           </DialogClose>
           <Button
