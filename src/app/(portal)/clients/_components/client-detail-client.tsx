@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -84,7 +84,7 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
             {isOwner && (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<Button variant="outline" size="icon" />}
+                  render={<button className={buttonVariants({ variant: 'outline', size: 'icon' })} />}
                 >
                   <MoreVertical className="h-4 w-4" />
                 </DropdownMenuTrigger>

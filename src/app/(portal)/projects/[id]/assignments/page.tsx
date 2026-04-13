@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { LoadingSkeleton } from '@/components/shared/loading-skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -446,7 +446,7 @@ export default function AssignmentsPage({ params }: PageProps) {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
               キャンセル
             </DialogClose>
             <Button onClick={handleAddAssignment} disabled={createAssignment.isPending}>
@@ -601,7 +601,7 @@ function BulkRuleDialog({
         </div>
 
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>
+          <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
             キャンセル
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isLoading || !ruleName.trim()}>

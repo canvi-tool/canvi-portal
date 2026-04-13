@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -700,7 +700,7 @@ export function CompensationRuleEditor({
             </div>
 
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>
+              <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
                 キャンセル
               </DialogClose>
               <Button type="submit" disabled={isSaving}>

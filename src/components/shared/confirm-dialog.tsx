@@ -9,7 +9,7 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -50,7 +50,7 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>
+          <DialogClose render={<button className={buttonVariants({ variant: 'outline' })} />}>
             {cancelLabel}
           </DialogClose>
           <Button
