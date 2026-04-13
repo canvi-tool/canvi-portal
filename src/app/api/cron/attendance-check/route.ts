@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
 
     const results = {
       missing_clock: { checked: 0, alerted: 0, names: [] as string[] },
+      report_overdue: { checked: 0, alerted: 0, names: [] as string[] },
       overtime: { checked: 0, alerted: 0, names: [] as string[] },
     }
 
@@ -224,7 +225,195 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================
-    // 2. 残業警告: Slack通知は無効化（ユーザー要望により停止）
+    // 2. 日報未提出リマインド（PJ設定ベース・繰り返し通知）
+    // ========================================
+    // report_overdue=true のPJで、退勤済み＋日報未提出のメンバーにSlack通知
+    // report_reminder_log テーブルで繰り返し制御
+
+    const { data: reportSettings } = await admin
+      .from('project_notification_settings')
+      .select('project_id, report_overdue_delay_minutes, report_overdue_repeat_interval_hours, report_overdue_max_repeats')
+      .eq('report_overdue', true)
+
+    if (reportSettings && reportSettings.length > 0) {
+      const reportSettingsMap = new Map(
+        reportSettings.map(s => [s.project_id, {
+          delayMinutes: s.report_overdue_delay_minutes ?? 5,
+          repeatIntervalHours: s.report_overdue_repeat_interval_hours ?? 4,
+          maxRepeats: s.report_overdue_max_repeats ?? 2,
+        }])
+      )
+      const reportProjectIds = reportSettings.map(s => s.project_id)
+
+      // 今日のシフトで退勤済みのスタッフを取得
+      const { data: todayShiftsForReport } = await admin
+        .from('shifts')
+        .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
+        .eq('shift_date', today)
+        .is('deleted_at', null)
+        .in('status', ['APPROVED', 'SUBMITTED'])
+        .in('project_id', reportProjectIds)
+        .is('google_calendar_event_id', null)
+
+      if (todayShiftsForReport && todayShiftsForReport.length > 0) {
+        // 退勤済みのレコードを取得（clock_outが設定されている）
+        const staffIdsForReport = [...new Set(todayShiftsForReport.map(s => s.staff_id).filter(Boolean))] as string[]
+        const { data: clockedOutRecords } = await admin
+          .from('attendance_records')
+          .select('user_id, staff_id, clock_out')
+          .eq('date', today)
+          .is('deleted_at', null)
+          .not('clock_out', 'is', null)
+
+        const clockedOutMap = new Map<string, string>() // staff_id → clock_out timestamp
+        for (const a of (clockedOutRecords || []) as Array<{ user_id: string; staff_id: string | null; clock_out: string | null }>) {
+          if (a.staff_id && a.clock_out) {
+            clockedOutMap.set(a.staff_id, a.clock_out)
+          }
+        }
+
+        // 日報提出済みのスタッフを取得
+        const { data: todayReportsForCheck } = await admin
+          .from('work_reports')
+          .select('staff_id')
+          .eq('report_date', today)
+          .is('deleted_at', null)
+          .in('staff_id', staffIdsForReport)
+
+        const reportedStaffIds = new Set((todayReportsForCheck || []).map(r => r.staff_id).filter(Boolean))
+
+        // 既存リマインドログを取得
+        const { data: existingReminders } = await admin
+          .from('report_reminder_log')
+          .select('staff_id, project_id, alert_count, last_alerted_at')
+          .eq('shift_date', today)
+          .in('staff_id', staffIdsForReport)
+
+        const reminderLogMap = new Map<string, { alertCount: number; lastAlertedAt: Date }>()
+        for (const r of (existingReminders || []) as Array<{ staff_id: string; project_id: string; alert_count: number; last_alerted_at: string }>) {
+          reminderLogMap.set(`${r.staff_id}:${r.project_id}`, {
+            alertCount: r.alert_count,
+            lastAlertedAt: new Date(r.last_alerted_at),
+          })
+        }
+
+        // PJ別にリマインド対象をグループ化
+        const reportAlertsByProject = new Map<string, {
+          projectName: string
+          slackChannelId: string | null
+          entries: Array<{ name: string; staffId: string }>
+          toInsert: Array<{ staffId: string; projectId: string }>
+          toUpdate: Array<{ staffId: string; projectId: string; newCount: number }>
+        }>()
+
+        for (const shift of todayShiftsForReport) {
+          results.report_overdue.checked++
+          const staff = shift.staff as unknown as { last_name: string; first_name: string; user_id: string } | null
+          const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
+
+          if (!staff || !shift.staff_id || !shift.project_id) continue
+
+          // 日報提出済みならスキップ
+          if (reportedStaffIds.has(shift.staff_id)) continue
+
+          // 退勤していなければスキップ（まだ勤務中）
+          const clockOutTime = clockedOutMap.get(shift.staff_id)
+          if (!clockOutTime) continue
+
+          const settings = reportSettingsMap.get(shift.project_id)
+          if (!settings) continue
+
+          // 退勤時刻 + delay_minutes が経過しているかチェック
+          const clockOutDate = new Date(clockOutTime)
+          const minutesSinceClockOut = Math.floor((now.getTime() - clockOutDate.getTime()) / 60000)
+          if (minutesSinceClockOut < settings.delayMinutes) continue
+
+          // リマインドログを確認
+          const logKey = `${shift.staff_id}:${shift.project_id}`
+          const existingLog = reminderLogMap.get(logKey)
+
+          if (existingLog) {
+            // 最大回数送信済みならスキップ
+            if (existingLog.alertCount >= settings.maxRepeats) continue
+
+            // 前回アラートからの経過時間（時間）でチェック
+            const hoursSinceLastAlert = (now.getTime() - existingLog.lastAlertedAt.getTime()) / (60 * 60 * 1000)
+            if (hoursSinceLastAlert < settings.repeatIntervalHours) continue
+          }
+
+          // アラート対象として追加
+          const projectId = project?.id || '__no_project__'
+          const existing = reportAlertsByProject.get(projectId) || {
+            projectName: project?.name || '未割当',
+            slackChannelId: project?.slack_channel_id || null,
+            entries: [],
+            toInsert: [],
+            toUpdate: [],
+          }
+
+          const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
+          existing.entries.push({ name: staffName, staffId: shift.staff_id })
+
+          if (existingLog) {
+            existing.toUpdate.push({ staffId: shift.staff_id, projectId: shift.project_id, newCount: existingLog.alertCount + 1 })
+          } else {
+            existing.toInsert.push({ staffId: shift.staff_id, projectId: shift.project_id })
+          }
+
+          reportAlertsByProject.set(projectId, existing)
+        }
+
+        // PJ別にリマインド通知送信 + ログ更新
+        for (const [projectId, info] of reportAlertsByProject) {
+          if (info.entries.length === 0) continue
+
+          results.report_overdue.alerted += info.entries.length
+          results.report_overdue.names.push(...info.entries.map(e => e.name))
+
+          const nameList = info.entries.map(e => `• ${e.name}`).join('\n')
+          const notification = {
+            text: `:memo: *日報未提出リマインド*\n${today} の日報が未提出です:\n${nameList}\n\n退勤済みですが日報が提出されていません。提出をお願いします。`,
+          }
+
+          if (info.slackChannelId) {
+            await sendProjectNotification(notification, info.slackChannelId, {
+              projectId: projectId !== '__no_project__' ? projectId : null,
+              staffId: info.entries.map(e => e.staffId),
+            })
+          } else {
+            await sendSlackAlert(notification)
+          }
+
+          // 新規ログ挿入
+          if (info.toInsert.length > 0) {
+            const rows = info.toInsert.map(item => ({
+              staff_id: item.staffId,
+              project_id: item.projectId,
+              shift_date: today,
+              alert_count: 1,
+              last_alerted_at: now.toISOString(),
+            }))
+            await admin.from('report_reminder_log').upsert(rows, { onConflict: 'staff_id,project_id,shift_date' })
+          }
+
+          // 既存ログ更新
+          for (const item of info.toUpdate) {
+            await admin
+              .from('report_reminder_log')
+              .update({
+                alert_count: item.newCount,
+                last_alerted_at: now.toISOString(),
+              })
+              .eq('staff_id', item.staffId)
+              .eq('project_id', item.projectId)
+              .eq('shift_date', today)
+          }
+        }
+      }
+    }
+
+    // ========================================
+    // 3. 残業警告: Slack通知は無効化（ユーザー要望により停止）
     // ========================================
     // 過去に「あほみたいに通知が来る」との指摘があり、残業警告のSlack通知は完全停止。
     // 必要であれば管理画面で個別に勤務時間を確認すること。

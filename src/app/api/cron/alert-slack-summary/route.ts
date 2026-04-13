@@ -205,7 +205,8 @@ export async function GET(request: NextRequest) {
       const missingClockOut = endPassed && (!ar || !ar.clock_out)
 
       // 勤怠エラー
-      if (missingClockIn || missingClockOut) {
+      // 当日分は attendance-check / attendance-alerts cronがリアルタイム通知するためスキップ
+      if ((missingClockIn || missingClockOut) && isPastDate) {
         const parts: string[] = []
         if (missingClockIn) parts.push('出勤打刻なし')
         if (missingClockOut) parts.push('退勤打刻なし')
@@ -226,8 +227,9 @@ export async function GET(request: NextRequest) {
       }
 
       // 日報送付漏れ
+      // 当日分は attendance-check cron（日報リマインド）+ 退勤時DMがリアルタイム通知するためスキップ
       const reportKey = `${s.staff_id}:${s.shift_date}`
-      if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && !(s.project_id && REPORT_EXCLUDED_PROJECT_IDS.has(s.project_id))) {
+      if (endPassed && isPastDate && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && !(s.project_id && REPORT_EXCLUDED_PROJECT_IDS.has(s.project_id))) {
         reportMissingEmitted.add(reportKey)
         const description = `${staffName} / ${projectName} (${s.shift_date}) の日報未提出`
         alerts.push({

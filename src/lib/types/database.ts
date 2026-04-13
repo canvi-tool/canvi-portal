@@ -1998,6 +1998,7 @@ export interface Database {
           shift_submission_deadline_day: number
           shift_submission_alert_start_days_before: number
           shift_submission_alert_repeat_interval_days: number
+          report_overdue_delay_minutes: number
           report_overdue_delay_hours: number
           report_overdue_repeat_interval_hours: number
           report_overdue_max_repeats: number
@@ -2026,6 +2027,7 @@ export interface Database {
           shift_submission_deadline_day?: number
           shift_submission_alert_start_days_before?: number
           shift_submission_alert_repeat_interval_days?: number
+          report_overdue_delay_minutes?: number
           report_overdue_delay_hours?: number
           report_overdue_repeat_interval_hours?: number
           report_overdue_max_repeats?: number
@@ -2054,6 +2056,7 @@ export interface Database {
           shift_submission_deadline_day?: number
           shift_submission_alert_start_days_before?: number
           shift_submission_alert_repeat_interval_days?: number
+          report_overdue_delay_minutes?: number
           report_overdue_delay_hours?: number
           report_overdue_repeat_interval_hours?: number
           report_overdue_max_repeats?: number
@@ -2212,6 +2215,36 @@ export interface Database {
             referencedColumns: ['id']
           },
         ]
+      }
+      report_reminder_log: {
+        Row: {
+          id: string
+          staff_id: string
+          project_id: string
+          shift_date: string
+          alert_count: number
+          last_alerted_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          project_id: string
+          shift_date: string
+          alert_count?: number
+          last_alerted_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          project_id?: string
+          shift_date?: string
+          alert_count?: number
+          last_alerted_at?: string
+          created_at?: string
+        }
+        Relationships: []
       }
       leave_grants: {
         Row: {
