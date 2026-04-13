@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
     }
 
     // --- Type A: シフト予定あり・打刻なし・日報なし ---
+    // 注意: 日報アラートはシフト終了後にのみ発火する（勤務中に「日報なし」は不適切）
     if (todayShifts && todayShifts.length > 0) {
       for (const shift of todayShifts) {
         const staff = shift.staff
@@ -144,10 +145,17 @@ export async function GET(request: NextRequest) {
 
         if (!staff || !shift.start_time) continue
 
-        // シフト開始 + 30分 を過ぎているかチェック
-        const [h, m] = shift.start_time.split(':').map(Number)
-        const shiftStartMinutes = h * 60 + m
-        if (nowMinutesSinceMidnight < shiftStartMinutes + 30) continue
+        // シフト終了時刻を過ぎているかチェック（終了時刻がない場合は開始+9時間をデフォルト）
+        if (shift.end_time) {
+          const [eh, em] = shift.end_time.split(':').map(Number)
+          const shiftEndMinutes = eh * 60 + em
+          if (nowMinutesSinceMidnight < shiftEndMinutes) continue
+        } else {
+          // end_timeがない場合: 開始 + 9時間をデフォルトの終了とみなす
+          const [h, m] = shift.start_time.split(':').map(Number)
+          const defaultEndMinutes = h * 60 + m + 540
+          if (nowMinutesSinceMidnight < defaultEndMinutes) continue
+        }
 
         // 打刻済みならスキップ
         if (clockedUserIds.has(staff.user_id) || clockedStaffIds.has(staff.id)) continue
@@ -336,34 +344,41 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // --- Slack通知（プロジェクトごとに1通にまとめる） ---
+      // --- Slack通知は翌日以降のみ（当日はDB保存のみ、Slack定時サマリーに委譲） ---
+      // 当日のアラートは alert-slack-summary cron（9:00/15:00/21:00）が
+      // PJごとの通知設定に基づいてシフト終了後に通知するため、ここでは送信しない
+      // 注: 将来的に過去日付のアラートもこのcronで処理する場合はここを変更
       try {
-        const lines: string[] = []
-        lines.push(`*:warning: 稼働状況アラート（${dateLabel}）*`)
-        lines.push('')
+        // 当日のSlack通知はスキップ
+        // （alert-slack-summary cronが業務終了後に適切なタイミングで通知する）
+        const skipSlack = true // 当日分は常にスキップ
 
-        if (group.typeA.length > 0) {
-          lines.push(':clipboard: *シフト予定あり・打刻なし・日報なし:*')
-          for (const entry of group.typeA) {
-            const timeRange = `${formatTime(entry.startTime)}〜${entry.endTime ? formatTime(entry.endTime) : '?'}`
-            lines.push(`  • ${entry.staffName} (${timeRange})`)
-          }
+        if (!skipSlack && group.slackChannelId) {
+          const lines: string[] = []
+          lines.push(`*:warning: 稼働状況アラート（${dateLabel}）*`)
           lines.push('')
-        }
 
-        if (group.typeB.length > 0) {
-          lines.push(':clipboard: *日報提出済み・打刻なし:*')
-          for (const entry of group.typeB) {
-            lines.push(`  • ${entry.staffName}`)
+          if (group.typeA.length > 0) {
+            lines.push(':clipboard: *シフト予定あり・打刻なし・日報なし:*')
+            for (const entry of group.typeA) {
+              const timeRange = `${formatTime(entry.startTime)}〜${entry.endTime ? formatTime(entry.endTime) : '?'}`
+              lines.push(`  • ${entry.staffName} (${timeRange})`)
+            }
+            lines.push('')
           }
-          lines.push('')
-        }
 
-        const notification = {
-          text: lines.join('\n'),
-        }
+          if (group.typeB.length > 0) {
+            lines.push(':clipboard: *日報提出済み・打刻なし:*')
+            for (const entry of group.typeB) {
+              lines.push(`  • ${entry.staffName}`)
+            }
+            lines.push('')
+          }
 
-        if (group.slackChannelId) {
+          const notification = {
+            text: lines.join('\n'),
+          }
+
           const staffIds = [
             ...group.typeA.map(a => a.staffId),
             ...group.typeB.map(b => b.staffId),
