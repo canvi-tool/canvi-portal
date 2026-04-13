@@ -22,6 +22,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -349,16 +350,18 @@ export default function ProjectsPage() {
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuLabel>ステータスを変更</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {BULK_STATUS_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => handleBulkUpdate('status', opt.value)}
-              >
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>ステータスを変更</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {BULK_STATUS_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => handleBulkUpdate('status', opt.value)}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -369,23 +372,25 @@ export default function ProjectsPage() {
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuLabel>日報タイプを変更</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {BULK_REPORT_TYPE_OPTIONS.map((opt) => (
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>日報タイプを変更</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {BULK_REPORT_TYPE_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => handleBulkUpdate('report_type', opt.value)}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
-                key={opt.value}
-                onClick={() => handleBulkUpdate('report_type', opt.value)}
+                onClick={() => handleBulkUpdate('report_type', null)}
+                className="text-muted-foreground"
               >
-                {opt.label}
+                未設定に戻す
               </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => handleBulkUpdate('report_type', null)}
-              className="text-muted-foreground"
-            >
-              未設定に戻す
-            </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -396,16 +401,18 @@ export default function ProjectsPage() {
             <ChevronDown className="h-3.5 w-3.5 ml-1" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuLabel>シフト承認モードを変更</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {BULK_SHIFT_APPROVAL_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => handleBulkUpdate('shift_approval_mode', opt.value)}
-              >
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>シフト承認モードを変更</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {BULK_SHIFT_APPROVAL_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => handleBulkUpdate('shift_approval_mode', opt.value)}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </BulkActionBar>
