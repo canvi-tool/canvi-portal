@@ -139,7 +139,7 @@ export async function getRecentDerivedAlerts(
   //    シンプル化: 過去日で clock_in または clock_out NULL のシフト。今日は end_time <= 現在のもののみ。
   const shiftsQueryBase = supabase
     .from('shifts')
-    .select('id, staff_id, project_id, shift_date, start_time, end_time, staff:staff_id(last_name, first_name), project:project_id(id, name, project_type)')
+    .select('id, staff_id, project_id, shift_date, start_time, end_time, staff:staff_id(last_name, first_name), project:project_id(id, name, project_type, report_type)')
     .gte('shift_date', fromStr)
     .lte('shift_date', today)
     .is('deleted_at', null)
@@ -196,7 +196,7 @@ export async function getRecentDerivedAlerts(
     start_time: string | null
     end_time: string | null
     staff: { last_name: string; first_name: string } | null
-    project: { id: string; name: string; project_type: string | null } | null
+    project: { id: string; name: string; project_type: string | null; report_type?: string | null } | null
   }>
 
   // staff_idでフィルタ (owner以外)
@@ -377,14 +377,9 @@ export async function getRecentDerivedAlerts(
     }
 
     // 日報送付漏れ: 終了済みシフトで work_reports に存在しない (staff_id + date 基準, 1日1件に重複排除)
-    // 日報アラート除外PJ（日報運用がないPJ）
-    const REPORT_EXCLUDED_PROJECT_IDS = new Set([
-      '32098ee2-33b5-44ae-8ad6-f6fecf433f41', // レオン矯正（IS）
-      '49942f85-d5f5-47a1-adfa-80eac2cdd10c', // ささえ
-      '8fd5c8b7-dda9-402c-a305-10dfc6021dae', // ミズテック（IS）
-    ])
+    // report_type 未設定のPJは日報義務なし → スキップ
     const reportKey = `${s.staff_id}:${s.shift_date}`
-    if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && !(s.project_id && REPORT_EXCLUDED_PROJECT_IDS.has(s.project_id))) {
+    if (endPassed && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && s.project?.report_type) {
       reportMissingEmitted.add(reportKey)
       let description = `${staffName} / ${projectName} (${s.shift_date}) の日報未提出`
       if (ownerScope && managerName) description += `（管理者: ${managerName}）`

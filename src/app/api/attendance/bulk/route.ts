@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
           const key = `${rec.staff_id}:${rec.date}`
           if (seen.has(key)) continue
           seen.add(key)
-          await notifyIfDailyReportMissing(rec.staff_id, rec.date)
+          await notifyIfDailyReportMissing(rec.staff_id, rec.date, (rec as { project_id?: string | null }).project_id)
         }
       } catch (err) {
         console.error('[bulk-clock-out] daily-report-check error:', err)

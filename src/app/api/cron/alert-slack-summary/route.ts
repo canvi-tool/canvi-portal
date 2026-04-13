@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       .select(
         'id, staff_id, project_id, shift_date, start_time, end_time, ' +
         'staff:staff_id(id, last_name, first_name), ' +
-        'project:project_id(id, name, slack_channel_id, project_type)'
+        'project:project_id(id, name, slack_channel_id, project_type, report_type)'
       )
       .gte('shift_date', fromStr)
       .lte('shift_date', today)
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         id: string; staff_id: string | null; project_id: string | null;
         shift_date: string; start_time: string | null; end_time: string | null;
         staff: { id: string; last_name: string; first_name: string } | null;
-        project: { id: string; name: string; slack_channel_id: string | null; project_type: string | null } | null;
+        project: { id: string; name: string; slack_channel_id: string | null; project_type: string | null; report_type?: string | null } | null;
       }> | null; error: unknown }
 
     if (shiftsError) {
@@ -180,12 +180,7 @@ export async function GET(request: NextRequest) {
 
     const nowHHmm = `${String(jstHours).padStart(2, '0')}:${String(jstNow.getUTCMinutes()).padStart(2, '0')}`
 
-    // 日報アラート除外PJ（日報運用がないPJ）
-    const REPORT_EXCLUDED_PROJECT_IDS = new Set([
-      '32098ee2-33b5-44ae-8ad6-f6fecf433f41', // レオン矯正（IS）
-      '49942f85-d5f5-47a1-adfa-80eac2cdd10c', // ささえ
-      '8fd5c8b7-dda9-402c-a305-10dfc6021dae', // ミズテック（IS）
-    ])
+    // 日報アラート除外: report_type が未設定のPJは日報義務なし
 
     for (const s of targetShifts) {
       const staffName = s.staff ? `${s.staff.last_name} ${s.staff.first_name}` : '不明'
@@ -229,7 +224,9 @@ export async function GET(request: NextRequest) {
       // 日報送付漏れ
       // 当日分は attendance-check cron（日報リマインド）+ 退勤時DMがリアルタイム通知するためスキップ
       const reportKey = `${s.staff_id}:${s.shift_date}`
-      if (endPassed && isPastDate && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && !(s.project_id && REPORT_EXCLUDED_PROJECT_IDS.has(s.project_id))) {
+      // report_type 未設定のPJは日報義務なし → スキップ
+      const projectReportType = s.project?.report_type
+      if (endPassed && isPastDate && !workReportStaffDates.has(reportKey) && !reportMissingEmitted.has(reportKey) && projectReportType) {
         reportMissingEmitted.add(reportKey)
         const description = `${staffName} / ${projectName} (${s.shift_date}) の日報未提出`
         alerts.push({

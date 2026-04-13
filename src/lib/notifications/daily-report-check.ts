@@ -7,19 +7,51 @@ import { sendSlackDM, resolveStaffSlackUserId } from '@/lib/integrations/slack'
  * - fire-and-forget を想定。例外は呼び出し元に伝播させず log のみ。
  * - Slack 未設定・staff の Slack ID 未登録でもエラーにしない。
  * - broadcast しない（本人のみ）。
+ * - プロジェクトに report_type が設定されていない場合は日報義務なしとしてスキップ。
  *
  * @param staffId    staff.id (work_reports.staff_id と対応)
  * @param dateJst    YYYY-MM-DD 形式の JST 日付 (work_reports.report_date)
+ * @param projectId  project.id（report_type チェック用、省略時はシフトから推定）
  */
 export async function notifyIfDailyReportMissing(
   staffId: string | null | undefined,
-  dateJst: string
+  dateJst: string,
+  projectId?: string | null
 ): Promise<void> {
   try {
     if (!staffId) return
     if (!dateJst) return
 
     const admin = createAdminClient()
+
+    // プロジェクトの report_type を確認 — 未設定なら日報義務なしとしてスキップ
+    if (projectId) {
+      const { data: proj } = await admin
+        .from('projects')
+        .select('report_type')
+        .eq('id', projectId)
+        .single()
+      if (!proj?.report_type) {
+        console.log(`[daily-report-check] project ${projectId} has no report_type, skip`)
+        return
+      }
+    } else {
+      // projectId 未指定の場合、当日のシフトからプロジェクトを取得して判定
+      const { data: todayShift } = await admin
+        .from('shifts')
+        .select('project_id, project:project_id(report_type)')
+        .eq('staff_id', staffId)
+        .eq('shift_date', dateJst)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const shiftProject = todayShift?.project as any
+      if (todayShift && !shiftProject?.report_type) {
+        console.log(`[daily-report-check] shift project has no report_type, skip`)
+        return
+      }
+    }
 
     // 当日分の日報有無を確認
     const { data: existing, error: selectError } = await admin

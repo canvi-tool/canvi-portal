@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
       // 今日のシフトで退勤済みのスタッフを取得
       const { data: todayShiftsForReport } = await admin
         .from('shifts')
-        .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id)')
+        .select('id, staff_id, project_id, start_time, end_time, staff:staff_id(last_name, first_name, user_id), project:project_id(id, name, slack_channel_id, report_type)')
         .eq('shift_date', today)
         .is('deleted_at', null)
         .in('status', ['APPROVED', 'SUBMITTED'])
@@ -309,9 +309,12 @@ export async function GET(request: NextRequest) {
         for (const shift of todayShiftsForReport) {
           results.report_overdue.checked++
           const staff = shift.staff as unknown as { last_name: string; first_name: string; user_id: string } | null
-          const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null } | null
+          const project = shift.project as unknown as { id: string; name: string; slack_channel_id: string | null; report_type: string | null } | null
 
           if (!staff || !shift.staff_id || !shift.project_id) continue
+
+          // report_type 未設定のPJは日報義務なし → スキップ
+          if (!project?.report_type) continue
 
           // 日報提出済みならスキップ
           if (reportedStaffIds.has(shift.staff_id)) continue

@@ -155,7 +155,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         // 日報提出チェック → 未提出なら本人のみ Slack DM
         try {
           if (record.staff_id && record.date) {
-            await notifyIfDailyReportMissing(record.staff_id, record.date)
+            await notifyIfDailyReportMissing(record.staff_id, record.date, record.project_id)
           }
         } catch (err) {
           console.error('[clock_out] daily-report-check error:', err)
