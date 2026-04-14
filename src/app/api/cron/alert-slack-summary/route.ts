@@ -550,7 +550,7 @@ export async function GET(request: NextRequest) {
           .map(a => a.relatedStaffId)
           .filter((x): x is string => !!x)
 
-        await sendProjectNotification(
+        const sendResult = await sendProjectNotification(
           { text: lines.join('\n') },
           channelInfo.channelId,
           {
@@ -559,6 +559,34 @@ export async function GET(request: NextRequest) {
           }
         )
         results.projectsNotified++
+
+        // スレッド返信対応: 送信メッセージのコンテキストを保存
+        if (sendResult.ts) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (admin as any).from('slack_bot_messages').upsert({
+              channel_id: channelInfo.channelId,
+              message_ts: sendResult.ts,
+              message_type: 'alert_summary',
+              project_id: projectId !== '__no_project__' ? projectId : null,
+              context: {
+                alerts: projectAlerts.map(a => ({
+                  id: a.id,
+                  type: a.type,
+                  staffId: a.relatedStaffId,
+                  staffName: a.relatedStaffName,
+                  projectId: a.relatedProjectId,
+                  date: a.createdAt?.split('T')[0] || today,
+                  description: a.description,
+                })),
+                projectId: projectId !== '__no_project__' ? projectId : null,
+                date: today,
+              },
+            }, { onConflict: 'channel_id,message_ts' })
+          } catch (storeErr) {
+            console.warn('[alert-slack-summary] Failed to store thread context:', storeErr)
+          }
+        }
       } catch (err) {
         const errMsg = `Failed to notify ${channelInfo.projectName}: ${err}`
         console.error(`[alert-slack-summary] ${errMsg}`)

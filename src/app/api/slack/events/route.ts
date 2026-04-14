@@ -5,6 +5,7 @@ import {
   findProjectByChannelId,
   syncProjectUsergroup,
 } from '@/lib/integrations/slack'
+import { processThreadReply } from '@/lib/slack/thread-reply-processor'
 
 // Vercel上で応答後も処理を継続させる
 function after(fn: () => Promise<unknown>) {
@@ -71,13 +72,36 @@ export async function POST(request: NextRequest) {
         case 'member_joined_channel':
         case 'member_left_channel': {
           // メンバーがチャンネルに参加/退出 → プロジェクト紐付きならアサインベースで再同期
-          // （二次的な同期: 主にはアサインAPI経由で同期されるが、チャンネルイベントもバックアップとして処理）
           after(async () => {
             console.log(`[slack/events] ${event.type}: user=${event.user} channel=${event.channel}`)
             const project = await findProjectByChannelId(event.channel)
             if (!project) return
             await syncProjectUsergroup(project.id)
           })
+          break
+        }
+
+        case 'message': {
+          // スレッド返信の検出: thread_ts があり、bot_id がない（人間の返信）
+          if (event.thread_ts && !event.bot_id && !event.subtype) {
+            after(async () => {
+              console.log(`[slack/events] thread reply: channel=${event.channel} thread_ts=${event.thread_ts} user=${event.user}`)
+              try {
+                const result = await processThreadReply({
+                  channelId: event.channel,
+                  threadTs: event.thread_ts,
+                  messageTs: event.ts,
+                  userId: event.user,
+                  text: event.text || '',
+                })
+                if (result.handled) {
+                  console.log(`[slack/events] thread reply processed: actions=${result.actions.join(',')}`)
+                }
+              } catch (err) {
+                console.error('[slack/events] thread reply processing error:', err)
+              }
+            })
+          }
           break
         }
       }
