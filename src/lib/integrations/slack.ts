@@ -1084,12 +1084,8 @@ export function buildClockInNotification(staffName: string, projectName?: string
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🟢 ${projectName ? `${projectName}｜` : ''}${staffName} さんが出勤しました`,
+          text: `🟢 ${projectName ? `${projectName}｜` : ''}${staffName} さんが出勤しました\n*日時:* ${dateStr} ${timeStr}\n*PJ:* ${projectName || '未選択'}`,
         },
-        fields: [
-          { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
-          { type: 'mrkdwn', text: `*PJ:* ${projectName || '未選択'}` },
-        ],
       },
     ],
   }
@@ -1109,13 +1105,8 @@ export function buildClockOutNotification(staffName: string, workHours: string, 
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🔴 ${projectName ? `${projectName}｜` : ''}${staffName} さんが退勤しました`,
+          text: `🔴 ${projectName ? `${projectName}｜` : ''}${staffName} さんが退勤しました\n*日時:* ${dateStr} ${timeStr}\n*勤務時間:* ${workHours}${projectName ? `\n*PJ:* ${projectName}` : ''}`,
         },
-        fields: [
-          { type: 'mrkdwn', text: `*日時:* ${dateStr} ${timeStr}` },
-          { type: 'mrkdwn', text: `*勤務時間:* ${workHours}` },
-          ...(projectName ? [{ type: 'mrkdwn' as const, text: `*PJ:* ${projectName}` }] : []),
-        ],
       },
     ],
   }
