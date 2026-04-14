@@ -1452,10 +1452,20 @@ export function buildClockOutMissingDMNotification(staffName: string, date: stri
 }
 
 /**
- * シフトvs打刻の乖離通知
+ * シフトvs打刻の乖離通知（1メンバー = 1メッセージ）
+ *
+ * 運用ポリシー: 乖離は1件ずつ独立したメッセージとして投稿する。
+ * これにより、スレッド返信（丸め / 実績確定 / 修正依頼）が
+ * 特定のメンバーの乖離にだけ紐づき、積み上げの可視化と
+ * オペレーション抜け漏れを防ぐ。
+ *
+ * ボタンは3択:
+ * 1. 定時で丸める (diff_round) — シフト時刻に合わせて打刻を上書き
+ * 2. 実績が正しい (diff_confirm_actual) — 打刻を正とみなして status='approved' へ
+ * 3. 修正依頼する (diff_request_fix) — 本人にスレッドで修正依頼
  */
 export function buildShiftAttendanceDiffNotification(
-  entries: {
+  entry: {
     staffName: string
     shiftTime: string
     actualTime: string
@@ -1463,7 +1473,7 @@ export function buildShiftAttendanceDiffNotification(
     attendanceRecordId: string | null
     shiftId: string | null
     staffSlackUserId: string | null
-  }[],
+  },
   date: string,
   projectName?: string
 ): SlackMessage {
@@ -1478,45 +1488,42 @@ export function buildShiftAttendanceDiffNotification(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `以下のメンバーのシフト時刻と実績に乖離があります (${entries.length}件):`,
+        text: `*${entry.staffName}* さんのシフト時刻と実績に乖離があります。\n• シフト: ${entry.shiftTime}\n• 実績: ${entry.actualTime}\n• 差: ${entry.diffMinutes}分`,
       },
     },
   ]
 
-  for (const e of entries) {
+  if (entry.attendanceRecordId) {
+    const value = `${entry.attendanceRecordId}|${entry.shiftId || ''}|${entry.staffSlackUserId || ''}`
     blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `• ${e.staffName}: シフト ${e.shiftTime} → 実績 ${e.actualTime} (差 ${e.diffMinutes}分)`,
-      },
-    })
-    if (e.attendanceRecordId) {
-      const value = `${e.attendanceRecordId}|${e.shiftId || ''}|${e.staffSlackUserId || ''}`
-      blocks.push({
-        type: 'actions',
-        block_id: `diff_actions_${e.attendanceRecordId}`,
-        elements: [
-          {
-            type: 'button',
-            style: 'primary',
-            text: { type: 'plain_text', text: '定時で丸める' },
-            action_id: 'diff_round',
-            value,
-          },
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: '修正依頼する' },
-            action_id: 'diff_request_fix',
-            value,
-          },
-        ],
-      } as unknown as SlackBlock)
-    }
+      type: 'actions',
+      block_id: `diff_actions_${entry.attendanceRecordId}`,
+      elements: [
+        {
+          type: 'button',
+          style: 'primary',
+          text: { type: 'plain_text', text: '定時で丸める' },
+          action_id: 'diff_round',
+          value,
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '実績が正しい' },
+          action_id: 'diff_confirm_actual',
+          value,
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '修正依頼する' },
+          action_id: 'diff_request_fix',
+          value,
+        },
+      ],
+    } as unknown as SlackBlock)
   }
 
   return {
-    text: `【シフト乖離】${projectName ? `${projectName}｜` : ''}${date} - ${entries.length}件の乖離を検知`,
+    text: `【シフト乖離】${projectName ? `${projectName}｜` : ''}${date} - ${entry.staffName} (差 ${entry.diffMinutes}分)`,
     blocks,
   }
 }

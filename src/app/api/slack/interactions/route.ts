@@ -189,6 +189,11 @@ export async function POST(request: NextRequest) {
         return handleDiffRound(payload)
       }
 
+      // シフト乖離: 実績が正しい（管理者）— 打刻をそのまま正とみなし approved へ
+      if (actionId === 'diff_confirm_actual') {
+        return handleDiffConfirmActual(payload)
+      }
+
       // シフト乖離: 修正依頼する（管理者）
       if (actionId === 'diff_request_fix') {
         return handleDiffRequestFix(payload)
@@ -1705,6 +1710,112 @@ async function handleDiffRound(payload: Record<string, unknown>) {
     (message as Record<string, unknown> | undefined)?.blocks,
     `${roundProjectName ? `${roundProjectName}｜` : ''}${staffName}の勤怠を定時で丸めました`,
     `:white_check_mark: ${roundProjectName ? `${roundProjectName}｜` : ''}${staffName} の勤怠を定時丸め済み → 出勤 ${jstHHmm(clockInIso)} / 退勤 ${jstHHmm(clockOutIso)} / 休憩 ${breakMinutes}分 by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  )
+
+  return new Response('', { status: 200 })
+}
+
+// ---- 「実績が正しい」 ----
+// 打刻 (clock_in / clock_out) はそのまま残し、status='approved' で確定させる。
+// シフト側と実績の乖離を「実績が正」として認める運用。
+async function handleDiffConfirmActual(payload: Record<string, unknown>) {
+  const action = (payload.actions as Array<Record<string, string>>)[0]
+  const value = action?.value || ''
+  const { attendanceRecordId } = parseDiffValue(value)
+  const user = payload.user as Record<string, string>
+  const slackUserId = user?.id
+  const channel = payload.channel as Record<string, string> | undefined
+  const message = payload.message as Record<string, unknown> | undefined
+  const channelId = channel?.id
+  const messageTs = (message?.ts as string) || ''
+
+  if (!attendanceRecordId) return new Response('', { status: 200 })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = getSupabase() as any
+
+  // 権限
+  const { approverUserId, isAuthorized } = await checkSlackUserPermission(slackUserId)
+  if (!approverUserId || !isAuthorized) {
+    await sendDiffEphemeral(channelId, slackUserId, ':warning: 管理者権限が必要です')
+    return new Response('', { status: 200 })
+  }
+
+  const { data: rec } = await supabase
+    .from('attendance_records')
+    .select('id, project_id, staff_id, clock_in, clock_out, slack_diff_thread_ts, slack_diff_channel_id, staff:staff_id(last_name, first_name), project:project_id(name)')
+    .eq('id', attendanceRecordId)
+    .is('deleted_at', null)
+    .single()
+
+  if (!rec) {
+    await sendDiffEphemeral(channelId, slackUserId, '対象の打刻レコードが見つかりません')
+    return new Response('', { status: 200 })
+  }
+
+  const confirmProjectName = (rec.project as { name?: string } | null)?.name || ''
+
+  if (!(await checkDiffPjPermission(approverUserId, rec.project_id))) {
+    await sendDiffEphemeral(channelId, slackUserId, ':warning: このPJの管理権限がありません')
+    return new Response('', { status: 200 })
+  }
+
+  // 打刻はそのまま、status のみ approved に更新
+  const { error: upErr } = await supabase
+    .from('attendance_records')
+    .update({
+      status: 'approved',
+      modified_by: approverUserId,
+      modification_reason: '実績が正しい (Slack確認)',
+    })
+    .eq('id', attendanceRecordId)
+
+  if (upErr) {
+    await sendDiffEphemeral(channelId, slackUserId, `更新に失敗しました: ${upErr.message}`)
+    return new Response('', { status: 200 })
+  }
+
+  const staffName = (() => {
+    const s = rec.staff as { last_name?: string; first_name?: string } | null
+    return s ? `${s.last_name || ''} ${s.first_name || ''}`.trim() : 'メンバー'
+  })()
+
+  const clockInStr = rec.clock_in ? jstHHmm(rec.clock_in as string) : '未打刻'
+  const clockOutStr = rec.clock_out ? jstHHmm(rec.clock_out as string) : '未退勤'
+
+  const threadTs = (rec.slack_diff_thread_ts as string) || messageTs
+  const replyChannel = (rec.slack_diff_channel_id as string) || channelId
+
+  if (replyChannel && threadTs) {
+    try {
+      await sendSlackBotMessage(
+        replyChannel,
+        {
+          text: `${confirmProjectName ? `${confirmProjectName}｜` : ''}${staffName}の実績を正として確定しました`,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `:white_check_mark: ${confirmProjectName ? `${confirmProjectName}｜` : ''}${staffName} の実績を正として確定しました → 出勤 ${clockInStr} / 退勤 ${clockOutStr} by <@${slackUserId}>`,
+              },
+            },
+          ],
+        },
+        { thread_ts: threadTs }
+      )
+    } catch (e) {
+      console.error('diff_confirm_actual thread reply error:', e)
+    }
+  }
+
+  // 元メッセージのボタンを非活性化（確定済み表示）
+  await disableSlackMessageButtons(
+    channelId,
+    messageTs,
+    (message as Record<string, unknown> | undefined)?.blocks,
+    `${confirmProjectName ? `${confirmProjectName}｜` : ''}${staffName}の実績を正として確定しました`,
+    `:white_check_mark: ${confirmProjectName ? `${confirmProjectName}｜` : ''}${staffName} の実績を確定 (打刻を正とする) → 出勤 ${clockInStr} / 退勤 ${clockOutStr} by <@${slackUserId}> | ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   )
 
   return new Response('', { status: 200 })

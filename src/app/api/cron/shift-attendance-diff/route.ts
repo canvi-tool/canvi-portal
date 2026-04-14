@@ -168,20 +168,27 @@ export async function GET(request: NextRequest) {
       diffsByProject.set(projectId, existing)
     }
 
-    // プロジェクト別にSlack通知
+    // プロジェクト別 × メンバー別に Slack通知（1メンバー = 1メッセージ）
+    //
+    // ポリシー変更: 以前は「Nメンバー分をまとめて1投稿」だったが、
+    // スレッド返信（丸め/実績確定/修正依頼）が誰の乖離に紐づくのか
+    // 曖昧になり積み上げが崩れたため、乖離1件=1投稿に分離する。
     for (const [projectId, info] of diffsByProject) {
       if (info.entries.length === 0) continue
+      if (!info.slackChannelId) continue
 
-      try {
-        const notification = buildShiftAttendanceDiffNotification(info.entries, today, info.projectName)
+      for (const entry of info.entries) {
+        try {
+          const notification = buildShiftAttendanceDiffNotification(entry, today, info.projectName)
 
-        if (info.slackChannelId) {
           const result = await sendProjectNotification(notification, info.slackChannelId, {
             projectId: projectId !== '__no_project__' ? projectId : null,
-            staffId: info.staffIds,
+            staffId: entry.attendanceRecordId ? info.staffIds : undefined,
           })
-          // 送信成功時、各 attendance_record にスレッドtsを保存（後続のリプライで使用）
-          if (result?.ts && info.attendanceRecordIds.length > 0) {
+
+          // 送信成功時、当該 attendance_record のみに thread_ts を保存。
+          // 後続のスレッドリプライ（ボタン処理）はこの ts にぶら下げる。
+          if (result?.ts && entry.attendanceRecordId) {
             try {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               await (admin as any)
@@ -190,15 +197,18 @@ export async function GET(request: NextRequest) {
                   slack_diff_thread_ts: result.ts,
                   slack_diff_channel_id: info.slackChannelId,
                 })
-                .in('id', info.attendanceRecordIds)
+                .eq('id', entry.attendanceRecordId)
             } catch (e) {
               console.error('[shift-attendance-diff] failed to save slack_diff_thread_ts:', e)
             }
           }
+        } catch (err) {
+          console.error(
+            `[shift-attendance-diff] notification error for ${info.projectName} / ${entry.staffName}:`,
+            err,
+          )
+          results.errors++
         }
-      } catch (err) {
-        console.error(`[shift-attendance-diff] notification error for project ${info.projectName}:`, err)
-        results.errors++
       }
     }
 
