@@ -66,9 +66,16 @@ export async function GET(request: NextRequest) {
       .is('deleted_at', null)
       .not('clock_in', 'is', null)
 
-    // staff_id + project_id -> attendance マップ
+    // staff_id + project_id -> attendance 配列マップ
+    //
+    // 以前は Map<key, single> で最終書き込みが勝つ実装だったため、同日に
+    // 同一 staff/project で 2 件以上シフトがあると 1 件の打刻を全シフトが
+    // 共有参照してしまい「午後シフト(16:00~22:00) vs 午前打刻(08:00~09:40)」
+    // のような 740 分の偽陽性が発生していた。
+    // → リスト化し、後段で 1-to-1 greedy マッチ（開始時刻近接優先）に変更。
     // 比較は丸め後の値で行う (fallback: 生値)
-    const attendanceMap = new Map<string, { id: string; clock_in: string; clock_out: string | null }>()
+    type AttRec = { id: string; clock_in: string; clock_out: string | null }
+    const attendanceMap = new Map<string, AttRec[]>()
     for (const att of (todayAttendance || []) as Array<{
       id: string
       staff_id: string | null
@@ -80,11 +87,72 @@ export async function GET(request: NextRequest) {
     }>) {
       if (!att.clock_in) continue
       const key = `${att.staff_id}__${att.project_id || ''}`
-      attendanceMap.set(key, {
+      const rec: AttRec = {
         id: att.id,
         clock_in: att.clock_in_rounded || att.clock_in,
         clock_out: att.clock_out_rounded || att.clock_out,
+      }
+      const list = attendanceMap.get(key)
+      if (list) list.push(rec)
+      else attendanceMap.set(key, [rec])
+    }
+    // 各グループ内は clock_in 昇順でソート（近接マッチを安定化）
+    for (const list of attendanceMap.values()) {
+      list.sort((a, b) => toJstMinutes(a.clock_in, jstOffset) - toJstMinutes(b.clock_in, jstOffset))
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 1-to-1 greedy マッチング (staff_id + project_id 単位)
+    //
+    // shift の start_time に最も近い clock_in を持つ打刻を「そのシフトの
+    // 実績」として 1 件だけ割り当てる。1 度割り当てた打刻は他のシフトに
+    // 再利用しない。これにより:
+    //   shifts = [08:00~09:30, 16:00~22:00]
+    //   attendance = [08:00~09:40]
+    // は shift[0] ↔ att[0] のみペア成立、shift[1] は「打刻なし」として
+    // このジョブでは通知しない (attendance-alerts 側の責務)。
+    // ──────────────────────────────────────────────────────────
+    const shiftToAttendance = new Map<string, AttRec>() // shiftId -> 割当済み attendance
+
+    // シフトを (staff_id, project_id) ごとにグルーピング
+    const shiftsByKey = new Map<string, typeof todayShifts>()
+    for (const s of todayShifts) {
+      const k = `${s.staff_id}__${s.project_id || ''}`
+      const list = shiftsByKey.get(k)
+      if (list) list.push(s)
+      else shiftsByKey.set(k, [s])
+    }
+
+    for (const [key, shifts] of shiftsByKey) {
+      const attList = attendanceMap.get(key)
+      if (!attList || attList.length === 0) continue
+
+      // 開始時刻昇順でソート
+      const sortedShifts = [...shifts].sort((a, b) => {
+        const am = a.start_time ? timeToMinutes(a.start_time) : 0
+        const bm = b.start_time ? timeToMinutes(b.start_time) : 0
+        return am - bm
       })
+      const pool = [...attList] // 残り attendance プール（シフトに割当てられると削除）
+
+      for (const shift of sortedShifts) {
+        if (!shift.start_time || !shift.id) continue
+        if (pool.length === 0) break
+        const shiftStart = timeToMinutes(shift.start_time)
+        // プールから最も clock_in が近いものを選ぶ
+        let bestIdx = 0
+        let bestDist = Number.POSITIVE_INFINITY
+        for (let i = 0; i < pool.length; i++) {
+          const ci = toJstMinutes(pool[i].clock_in, jstOffset)
+          const dist = Math.abs(ci - shiftStart)
+          if (dist < bestDist) {
+            bestDist = dist
+            bestIdx = i
+          }
+        }
+        const picked = pool.splice(bestIdx, 1)[0]
+        shiftToAttendance.set(shift.id, picked)
+      }
     }
 
     // プロジェクト別にグループ化
@@ -112,10 +180,12 @@ export async function GET(request: NextRequest) {
       if (!staff || !shift.start_time) continue
 
       const staffName = `${staff.last_name || ''} ${staff.first_name || ''}`.trim() || '不明'
-      const attKey = `${shift.staff_id}__${shift.project_id || ''}`
-      const attendance = attendanceMap.get(attKey)
+      // 1-to-1 greedy マッチで事前割当済みの attendance を参照する。
+      // シフト数 > 打刻数 の場合、未割当シフトはこの cron では通知しない
+      // (打刻なし は attendance-alerts 側で通知されるため二重化を避ける)。
+      const attendance = shift.id ? shiftToAttendance.get(shift.id) : undefined
 
-      if (!attendance) continue // 打刻なし -> attendance-alerts で処理済み
+      if (!attendance) continue // 打刻なし or 他シフトに割当済み -> attendance-alerts で処理
 
       // シフト開始 vs 実際の出勤を比較
       const shiftStartMinutes = timeToMinutes(shift.start_time)
