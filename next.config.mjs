@@ -1,4 +1,10 @@
 /** @type {import('next').NextConfig} */
+// Canonical host redirect is env-var gated so that deploying before DNS/domain
+// is ready does not brick the site. When CANONICAL_HOST is unset, no redirect
+// is registered. When set (e.g. "portal.canvi.co.jp"), requests hitting the
+// *.vercel.app host are 308-redirected to the canonical host.
+const CANONICAL_HOST = process.env.CANONICAL_HOST?.trim() || '';
+
 const nextConfig = {
   // Supabase requires runtime env vars, disable static page generation
   output: undefined,
@@ -6,6 +12,17 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+  },
+  async redirects() {
+    if (!CANONICAL_HOST) return [];
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: '(.*)\\.vercel\\.app' }],
+        destination: `https://${CANONICAL_HOST}/:path*`,
+        permanent: true,
+      },
+    ];
   },
   async headers() {
     return [
