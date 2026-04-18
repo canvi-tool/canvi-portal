@@ -30,7 +30,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'slug is required' }, { status: 400 })
   }
 
-  const secret = process.env.CANVI_SSO_SECRET
+  // Tolerate trailing whitespace/newlines that may have been copy-pasted into
+  // the Vercel env var (root cause of a past invalid_token_bad_signature bug).
+  const secret = (process.env.CANVI_SSO_SECRET ?? '').trim()
   if (!secret) {
     return NextResponse.json({ error: 'SSO not configured' }, { status: 500 })
   }
