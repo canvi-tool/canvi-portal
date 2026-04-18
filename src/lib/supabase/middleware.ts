@@ -4,6 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 export async function updateSession(request: NextRequest) {
+  // 招待制: /signup /register へのアクセスは 404 を返す（新規登録は完全廃止）
+  const p = request.nextUrl.pathname
+  if (p === '/signup' || p.startsWith('/signup/') || p === '/register' || p.startsWith('/register/')) {
+    return new NextResponse('Not Found', { status: 404 })
+  }
+
   // デモモード
   if (DEMO_MODE) {
     const demoRole = request.cookies.get('demo_role')?.value
