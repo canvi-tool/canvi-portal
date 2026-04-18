@@ -1,8 +1,36 @@
 export const APP_NAME = 'Canvi Portal'
 export const APP_DESCRIPTION = 'Canvi業務総合ポータル'
 
-/** ログインを許可するメールドメイン（小文字） */
-export const ALLOWED_EMAIL_DOMAINS = ['canvi.co.jp']
+/**
+ * OAuth等のリダイレクトで使用する canonical な origin を返す。
+ *
+ * Google OAuth の PKCE フローでは、 `code_verifier` がブラウザ cookie に保存されるため、
+ * `signInWithOAuth` を呼んだ host と callback に戻ってくる host が一致していないと、
+ * cookie が送信されず PKCE 検証に失敗して /login へループする。
+ *
+ * canonical host (`portal.canvi.co.jp`) への 308 リダイレクトが発火する環境では、
+ * もしユーザーが `*.vercel.app` 経由で login 画面にアクセスしていた場合
+ * `window.location.origin` が vercel.app になり、callback では portal.canvi.co.jp に着くため
+ * 同一 host 前提が崩れる。これを防ぐため、本番環境では常に NEXT_PUBLIC_APP_URL を使う。
+ *
+ * `.trim()` は env 値に混入した改行（`\n`）等を除去するための防御的処理。
+ */
+export function getCanonicalOrigin(): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  if (envUrl) return envUrl.replace(/\/+$/, '')
+  if (typeof window !== 'undefined') return window.location.origin
+  return ''
+}
+
+/** ログインを許可するメールドメイン（小文字）。空配列の場合は全ドメイン許可 */
+export const ALLOWED_EMAIL_DOMAINS: string[] = []
+
+/** メールアドレスのドメインが許可されているか確認（空配列なら常にtrue） */
+export function isEmailAllowed(email: string): boolean {
+  if (ALLOWED_EMAIL_DOMAINS.length === 0) return true
+  const domain = email.split('@')[1]?.toLowerCase()
+  return ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')
+}
 
 export const STAFF_STATUS_LABELS: Record<string, string> = {
   pending_registration: '登録待ち',
@@ -189,6 +217,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: '業務',
     items: [
       { label: 'ダッシュボード', href: '/dashboard', icon: 'LayoutDashboard' },
+      { label: 'マイサービス', href: '/apps', icon: 'LayoutGrid' },
       { label: 'Canviカレンダー', href: '/shifts', icon: 'CalendarDays' },
       { label: '勤怠打刻', href: '/attendance', icon: 'Clock' },
       { label: '日次報告', href: '/reports/work', icon: 'ClipboardList' },
@@ -208,6 +237,9 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: '支払通知書', href: '/payments', icon: 'Wallet' },
       { label: '貸与品管理', href: '/equipment', icon: 'Monitor' },
       { label: 'プロフィール申請承認', href: '/approvals/profile', icon: 'UserCheck' },
+      { label: 'サービス付与管理', href: '/admin/services', icon: 'KeyRound' },
+      { label: 'ユーザー招待', href: '/admin/users/invite', icon: 'UserPlus' },
+      { label: 'サービスアクセスログ', href: '/admin/audit-logs', icon: 'History' },
     ],
   },
   {

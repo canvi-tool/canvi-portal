@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="th-bg" x1="0" y1="0" x2="128" y2="128">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#db2777"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#th-bg)"/>
+  <!-- @ symbol style for Threads -->
+  <circle cx="64" cy="64" r="32" fill="none" stroke="#ffffff" stroke-width="5"/>
+  <!-- Inner @ curves -->
+  <circle cx="66" cy="64" r="12" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <path d="M 78 64 Q 78 80 88 80 Q 96 80 96 64 Q 96 42 74 42" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Small boost arrow for "Boost" aspect -->
+  <path d="M 34 30 L 44 36 L 40 40" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

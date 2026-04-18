@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="om-bg" x1="0" y1="0" x2="128" y2="128">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#om-bg)"/>
+  <!-- Headset outer band -->
+  <path d="M 34 66 Q 34 36 64 36 Q 94 36 94 66" stroke="#ffffff" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <!-- Left earpiece -->
+  <rect x="26" y="62" width="16" height="22" rx="4" fill="#ffffff"/>
+  <!-- Right earpiece -->
+  <rect x="86" y="62" width="16" height="22" rx="4" fill="#ffffff"/>
+  <!-- Mic boom -->
+  <path d="M 94 78 Q 94 90 80 90 L 70 90" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Mic tip -->
+  <circle cx="68" cy="90" r="3.5" fill="#fbbf24"/>
+  <!-- Management chart dots (3 operators) -->
+  <circle cx="50" cy="104" r="3" fill="#ffffff" opacity="0.85"/>
+  <circle cx="64" cy="104" r="3" fill="#ffffff" opacity="0.85"/>
+  <circle cx="78" cy="104" r="3" fill="#ffffff" opacity="0.85"/>
+</svg>

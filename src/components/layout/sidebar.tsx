@@ -5,12 +5,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { NAV_SECTIONS, APP_NAME, type NavItem } from '@/lib/constants'
-import { canAccessRoute, type Role } from '@/lib/auth/roles'
+import { canAccessRoute, isPlatformOwnerOnlyPath, isPlatformOwnerEmail, type Role } from '@/lib/auth/roles'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
   LayoutDashboard,
+  LayoutGrid,
+  KeyRound,
+  UserPlus,
+  UserCheck,
+  Monitor,
   Users,
   FileText,
   Briefcase,
@@ -30,11 +35,17 @@ import {
   ChevronRight,
   Clock,
   Palmtree,
+  History,
   type LucideIcon,
 } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
+  LayoutGrid,
+  KeyRound,
+  UserPlus,
+  UserCheck,
+  Monitor,
   Users,
   FileText,
   Briefcase,
@@ -50,6 +61,7 @@ const iconMap: Record<string, LucideIcon> = {
   Building2,
   Receipt,
   Palmtree,
+  History,
 }
 
 export interface SidebarProps {
@@ -289,9 +301,13 @@ function SidebarContent({
       <ScrollArea className="flex-1 px-2.5 py-3">
         <nav className="flex flex-col gap-3">
           {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter(
-              (item) => user?.role ? canAccessRoute(user.role, item.href) : false
-            )
+            const isPlatformOwner = isPlatformOwnerEmail(user?.email)
+            const visibleItems = section.items.filter((item) => {
+              if (!user?.role) return false
+              // プラットフォーム管理者専用パスは岡林のみ表示
+              if (isPlatformOwnerOnlyPath(item.href)) return isPlatformOwner
+              return canAccessRoute(user.role, item.href)
+            })
             if (visibleItems.length === 0) return null
             return (
               <div key={section.title}>
