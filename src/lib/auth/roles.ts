@@ -13,7 +13,19 @@ export const PLATFORM_OWNER_ONLY_PATHS = [
   '/admin/services',
   '/admin/users/invite',
   '/admin/audit-logs',
+  '/super-admin',
 ]
+
+/** スーパー管理者（株式会社Canvi 全サービス管理）専用パス */
+export const SUPER_ADMIN_ONLY_PATHS = ['/super-admin']
+export const SUPER_ADMIN_EMAILS_CLIENT = [
+  'yuji.okabayashi@canvi.co.jp',
+  'tsutomu.hokugo@canvi.co.jp',
+]
+export function isSuperAdminEmailClient(email: string | null | undefined): boolean {
+  if (!email) return false
+  return SUPER_ADMIN_EMAILS_CLIENT.includes(email.toLowerCase())
+}
 
 /** プラットフォーム管理者のメールアドレス（client-safeな定数） */
 export const PLATFORM_OWNER_EMAILS_CLIENT = ['yuji.okabayashi@canvi.co.jp']

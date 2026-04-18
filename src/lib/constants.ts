@@ -240,6 +240,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'サービス付与管理', href: '/admin/services', icon: 'KeyRound' },
       { label: 'ユーザー招待', href: '/admin/users/invite', icon: 'UserPlus' },
       { label: 'サービスアクセスログ', href: '/admin/audit-logs', icon: 'History' },
+      { label: '全サービステナント管理', href: '/super-admin/tenants', icon: 'Building' },
     ],
   },
   {
