@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getCanonicalOrigin } from '@/lib/constants'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -115,7 +116,7 @@ function SetupPasswordInner() {
     await supabase.auth.linkIdentity({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/callback`,
+        redirectTo: `${getCanonicalOrigin()}/callback`,
         scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         queryParams: {
           access_type: 'offline',

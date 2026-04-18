@@ -1,16 +1,14 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import { ALLOWED_EMAIL_DOMAINS } from '@/lib/constants'
-
-/** メールアドレスのドメインが許可リストに含まれるか確認 */
-function isAllowedDomain(email: string): boolean {
-  const domain = email.split('@')[1]?.toLowerCase()
-  return ALLOWED_EMAIL_DOMAINS.includes(domain ?? '')
-}
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams, origin: requestOrigin } = new URL(request.url)
+  // canonical host へ揃えることで、/callback が vercel.app 経由で到達した場合でも
+  // 後続の redirect は必ず portal.canvi.co.jp に向ける。
+  // NEXT_PUBLIC_APP_URL の末尾改行等は trim で除去する。
+  const canonicalOrigin = (process.env.NEXT_PUBLIC_APP_URL?.trim() || requestOrigin).replace(/\/+$/, '')
+  const origin = canonicalOrigin
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
@@ -44,15 +42,6 @@ export async function GET(request: Request) {
       }
 
       if (user) {
-        // ドメイン制限チェック
-        if (!isAllowedDomain(user.email ?? '')) {
-          // 許可されていないドメイン → セッション削除してログインページへ
-          await supabase.auth.signOut()
-          return NextResponse.redirect(
-            `${origin}/login?error=domain_not_allowed`
-          )
-        }
-
         // Google OAuthログイン時: ポータルのメールアドレスとGoogleアカウントのメールが一致するか検証
         // needs_google_link フロー以外でも、Googleアカウントのメールが一致しない場合はブロック
         const googleIdentityForCheck = user.identities?.find(

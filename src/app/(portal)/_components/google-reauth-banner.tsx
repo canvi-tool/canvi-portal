@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { AlertTriangle, X, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { getCanonicalOrigin } from '@/lib/constants'
 
 export function GoogleReauthBanner() {
   const [needsReauth, setNeedsReauth] = useState(false)
@@ -34,7 +35,7 @@ export function GoogleReauthBanner() {
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/callback?reauth=true`,
+          redirectTo: `${getCanonicalOrigin()}/callback?reauth=true`,
           scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
           queryParams: {
             access_type: 'offline',

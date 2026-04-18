@@ -179,6 +179,7 @@ export function buildWelcomeLoginEmail(params: {
   email: string
   initialPassword: string
   loginUrl: string
+  grantedServices?: Array<{ name: string; category?: string | null; url?: string | null }>
 }) {
   return {
     subject: '【Canvi Portal】初回ログインのご案内',
@@ -231,6 +232,23 @@ export function buildWelcomeLoginEmail(params: {
           ※ パスワード設定後、Googleアカウント連携を行うとポータルをご利用いただけます。<br />
           ※ ご不明な点がございましたら管理者にお問い合わせください。
         </p>
+
+        ${params.grantedServices && params.grantedServices.length > 0 ? `
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+        <p style="color: #334155; font-size: 14px; font-weight: 600; margin: 0 0 12px;">利用可能なCanviサービス</p>
+        <div style="text-align: left; max-width: 400px; margin: 0 auto;">
+          ${params.grantedServices.map((svc) => `
+            <div style="background: #f1f5f9; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; font-size: 13px;">
+              <span style="color: #1e293b; font-weight: 600;">${svc.name}</span>
+              ${svc.category ? `<span style="color: #64748b; margin-left: 8px;">（${svc.category}）</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; line-height: 1.6; margin-top: 12px;">
+          ログイン後、Canvi Portalの「マイサービス」メニューから各サービスにアクセスできます。
+        </p>
+        ` : ''}
+
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
         <p style="color: #94a3b8; font-size: 12px;">Canvi Portal</p>
       </div>
