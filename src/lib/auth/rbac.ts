@@ -257,6 +257,13 @@ export function isStaff(user: UserWithRole): boolean {
   return hasRole(user, 'staff')
 }
 
+/** プラットフォーム管理者（岡林）のみアクセス可能な super-admin 判定 */
+export const PLATFORM_OWNER_EMAILS = ['yuji.okabayashi@canvi.co.jp']
+export function isPlatformOwner(user: UserWithRole | null | undefined): boolean {
+  if (!user?.email) return false
+  return PLATFORM_OWNER_EMAILS.includes(user.email.toLowerCase())
+}
+
 export function isManagerOrOwner(user: UserWithRole): boolean {
   return hasRole(user, 'owner') || hasRole(user, 'admin')
 }

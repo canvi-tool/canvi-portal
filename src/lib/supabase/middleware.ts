@@ -77,7 +77,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const portalPaths = [
-    '/dashboard', '/staff', '/contracts', '/projects',
+    '/dashboard', '/apps', '/staff', '/contracts', '/projects',
     '/documents', '/invoices', '/shifts', '/attendance', '/reports', '/payments', '/retirement',
     '/ai', '/alerts', '/settings',
   ]
