@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       // 設定をMapに変換
       const settingsMap = new Map(
         notifSettings.map(s => [s.project_id, {
-          delayMinutes: s.attendance_missing_delay_minutes ?? 5,
+          delayMinutes: s.attendance_missing_delay_minutes ?? 1,
           repeatIntervalMinutes: s.attendance_missing_repeat_interval_minutes ?? 5,
           maxRepeats: s.attendance_missing_max_repeats ?? 5,
         }])

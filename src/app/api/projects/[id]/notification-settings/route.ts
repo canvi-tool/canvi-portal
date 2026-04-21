@@ -52,7 +52,7 @@ const DEFAULT_SETTINGS: Record<string, boolean | number> = {
   member_assigned: true,
   member_removed: true,
   // タイミングパラメータ
-  attendance_missing_delay_minutes: 5,
+  attendance_missing_delay_minutes: 1,
   attendance_missing_repeat_interval_minutes: 5,
   attendance_missing_max_repeats: 5,
   shift_submission_deadline_day: 25,
