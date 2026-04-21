@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
           const result = await sendProjectNotification(
             buildClockInNotification(staffName, proj?.name),
             proj?.slack_channel_id || null,
-            { projectId, staffId: staffRecord?.id }
+            { projectId, staffId: staffRecord?.id, noMention: true }
           )
           if (result.ts && data.id) {
             const adminSupabase = createAdminClient()
@@ -251,6 +251,7 @@ export async function POST(request: NextRequest) {
               ...(threadTs ? { thread_ts: threadTs } : {}),
               projectId: record.project_id,
               staffId: record.staff_id,
+              noMention: true,
             }
           )
         } catch (err) {

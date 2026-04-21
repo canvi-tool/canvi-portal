@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
             ...(threadTs ? { thread_ts: threadTs } : {}),
             projectId: record.project_id,
             staffId: record.staff_id,
+            noMention: true,
           })
         }
       } catch (err) {

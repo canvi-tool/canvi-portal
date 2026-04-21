@@ -465,15 +465,15 @@ export async function getProjectMentionText(
 export async function sendProjectNotification(
   message: SlackMessage,
   projectSlackChannelId?: string | null,
-  options?: { thread_ts?: string; projectId?: string | null; staffId?: string | string[] | null }
+  options?: { thread_ts?: string; projectId?: string | null; staffId?: string | string[] | null; noMention?: boolean }
 ): Promise<{ success: boolean; error?: string; ts?: string }> {
   const channelId = projectSlackChannelId || getDefaultChannelId()
   const botToken = await getBotTokenSafe()
   const hasBotToken = !!botToken
   console.log(`[sendProjectNotification] channelId=${channelId}, hasBotToken=${hasBotToken}, hasProjectChannel=${!!projectSlackChannelId}, defaultChannel=${getDefaultChannelId()}`)
 
-  // メンション文字列を生成してメッセージに追加
-  if (options?.projectId || options?.staffId) {
+  // メンション文字列を生成してメッセージに追加（noMention指定時はスキップ）
+  if (!options?.noMention && (options?.projectId || options?.staffId)) {
     try {
       const mentionText = await getProjectMentionText(options.projectId, options.staffId)
       if (mentionText) {

@@ -146,6 +146,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
               ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
               projectId: record.project_id,
               staffId: record.staff_id,
+              noMention: true,
             }
           )
         } catch (err) {
@@ -203,6 +204,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
                 projectId: record.project_id,
                 staffId: record.staff_id,
+                noMention: true,
               }
             )
           }
@@ -259,6 +261,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
                 projectId: record.project_id,
                 staffId: record.staff_id,
+                noMention: true,
               }
             )
           }

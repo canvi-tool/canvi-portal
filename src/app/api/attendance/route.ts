@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
       const result = await sendProjectNotification(
         buildClockInNotification(staffName, projectName),
         projectSlackChannelId,
-        { projectId, staffId: staffRecord?.id }
+        { projectId, staffId: staffRecord?.id, noMention: true }
       )
       console.log(`[attendance-notify] result: success=${result.success}, error=${result.error || 'none'}, ts=${result.ts}, id=${data?.id}`)
       if (!result.success) {
