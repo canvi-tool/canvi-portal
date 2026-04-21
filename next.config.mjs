@@ -19,6 +19,10 @@ const nextConfig = {
       {
         source: '/:path*',
         has: [{ type: 'host', value: '(.*)\\.vercel\\.app' }],
+        // Vercel Cronは *.vercel.app 経由で Authorization: Bearer $CRON_SECRET 付きで叩くが、
+        // 308 redirect で Authorization ヘッダが落ちて cron ハンドラが401を返す。
+        // x-vercel-cron ヘッダ（Vercel Cronが必ず付与）があるリクエストは redirect 対象外にする。
+        missing: [{ type: 'header', key: 'x-vercel-cron' }],
         destination: `https://${CANONICAL_HOST}/:path*`,
         permanent: true,
       },
