@@ -7,7 +7,6 @@ import {
   buildClockOutNotification,
   buildBreakStartNotification,
   buildBreakEndNotification,
-  isNotificationEnabled,
 } from '@/lib/integrations/slack'
 import { extractSlackThreadTs } from '@/lib/utils/slack-thread'
 import { applyShiftRounding } from '@/lib/attendance/rounding'
@@ -184,7 +183,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（休憩開始） - スレッド内に統合
+        // Slack通知（休憩開始） - clock_in/out と同じくゲート無しで常時送信
+        // （プロジェクト設定に依存せず、出退勤スレッドにタイムラインを統合する）
         try {
           let breakChannelId: string | null = null
           if (record.project_id) {
@@ -196,18 +196,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             breakChannelId = proj?.slack_channel_id || null
           }
           const breakStaffName = resolvedStaffName
-          if (await isNotificationEnabled(record.project_id, 'attendance_break_start')) {
-            await sendProjectNotification(
-              buildBreakStartNotification(breakStaffName),
-              breakChannelId,
-              {
-                ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
-                projectId: record.project_id,
-                staffId: record.staff_id,
-                noMention: true,
-              }
-            )
-          }
+          await sendProjectNotification(
+            buildBreakStartNotification(breakStaffName),
+            breakChannelId,
+            {
+              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
+              projectId: record.project_id,
+              staffId: record.staff_id,
+              noMention: true,
+            }
+          )
         } catch (err) {
           console.error('休憩開始Slack通知エラー:', err)
         }
@@ -241,7 +239,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Slack通知（休憩終了） - スレッド内に統合
+        // Slack通知（休憩終了） - clock_in/out と同じくゲート無しで常時送信
         try {
           let breakEndChannelId: string | null = null
           if (record.project_id) {
@@ -253,18 +251,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             breakEndChannelId = proj?.slack_channel_id || null
           }
           const breakEndStaffName = resolvedStaffName
-          if (await isNotificationEnabled(record.project_id, 'attendance_break_end')) {
-            await sendProjectNotification(
-              buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
-              breakEndChannelId,
-              {
-                ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
-                projectId: record.project_id,
-                staffId: record.staff_id,
-                noMention: true,
-              }
-            )
-          }
+          await sendProjectNotification(
+            buildBreakEndNotification(breakEndStaffName, additionalBreakMinutes),
+            breakEndChannelId,
+            {
+              ...(slackThreadTs ? { thread_ts: slackThreadTs } : {}),
+              projectId: record.project_id,
+              staffId: record.staff_id,
+              noMention: true,
+            }
+          )
         } catch (err) {
           console.error('休憩終了Slack通知エラー:', err)
         }

@@ -89,7 +89,16 @@ function getStatusColor(status: string) {
 
 /** プロジェクトごとの今日の打刻状態を計算 */
 function getProjectTodayStatus(records: AttendanceRecord[], projectId: string) {
-  const projectRecords = records.filter((r) => r.project_id === projectId)
+  // clock_in 昇順（古い順）にソートして「1回目」「2回目」の順序を時系列通りにする
+  // /api/attendance/today は DESC で返すため、ここで必ず並べ替える
+  const projectRecords = records
+    .filter((r) => r.project_id === projectId)
+    .slice()
+    .sort((a, b) => {
+      const ai = a.clock_in ? new Date(a.clock_in).getTime() : 0
+      const bi = b.clock_in ? new Date(b.clock_in).getTime() : 0
+      return ai - bi
+    })
   const activeRecord = projectRecords.find(
     (r) => r.status === 'clocked_in' || r.status === 'on_break'
   )
