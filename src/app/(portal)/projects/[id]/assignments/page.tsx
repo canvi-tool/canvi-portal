@@ -382,12 +382,27 @@ export default function AssignmentsPage({ params }: PageProps) {
               </Label>
               <Select value={newStaffId} onValueChange={(val) => setNewStaffId(val ?? '')}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="スタッフを選択" />
+                  {/*
+                    base-ui の SelectValue は初期実装では選択値(UUID)をそのまま描画してしまう。
+                    value → 表示文言のマッピングを明示する SelectValueWithLabel を使用する。
+                  */}
+                  <SelectValueWithLabel
+                    value={newStaffId}
+                    labels={Object.fromEntries(
+                      (staffList || []).map((staff) => {
+                        const fullName = `${staff.last_name ?? ''} ${staff.first_name ?? ''}`.trim()
+                        const display = staff.email ? `${fullName || staff.email} (${staff.email})` : (fullName || staff.id)
+                        return [staff.id, display]
+                      })
+                    )}
+                    placeholder="スタッフを選択"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {(staffList || []).map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
-                      {staff.last_name} {staff.first_name} ({staff.email})
+                      {staff.last_name} {staff.first_name}
+                      {staff.email ? ` (${staff.email})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

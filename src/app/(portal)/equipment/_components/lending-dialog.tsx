@@ -23,6 +23,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
+  SelectValueWithLabel,
 } from '@/components/ui/select'
 import { Loader2, Star } from 'lucide-react'
 import { PLEDGE_STATUS_LABELS } from '@/lib/constants'
@@ -174,7 +175,14 @@ export function LendingDialog({
             <Label>スタッフ *</Label>
             <Select value={staffId} onValueChange={setStaffId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="スタッフを選択" />
+                {/* base-ui の SelectValue は選択値(UUID)をそのまま表示するため、labels経由で氏名表示 */}
+                <SelectValueWithLabel
+                  value={staffId}
+                  labels={Object.fromEntries(
+                    staffList.map((s) => [s.id, `${s.last_name ?? ''} ${s.first_name ?? ''}`.trim() || s.id])
+                  )}
+                  placeholder="スタッフを選択"
+                />
               </SelectTrigger>
               <SelectContent>
                 {(() => {
