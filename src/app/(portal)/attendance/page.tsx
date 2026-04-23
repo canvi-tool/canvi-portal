@@ -371,22 +371,43 @@ function ProjectAttendance({
                 {status.records.map((r, i) => (
                   <div
                     key={r.id}
-                    className="flex items-center gap-3 text-sm py-1 px-2 rounded bg-muted/50"
+                    className="flex flex-col gap-0.5 text-sm py-1.5 px-2 rounded bg-muted/50"
                   >
-                    <span className="text-xs text-muted-foreground w-12">{i + 1}回目</span>
-                    <span className="font-mono">{formatTime(r.clock_in)}</span>
-                    <span className="text-muted-foreground">→</span>
-                    <span className="font-mono">
-                      {r.clock_out ? formatTime(r.clock_out) : '---'}
-                    </span>
-                    {r.work_minutes != null && r.clock_out && (
-                      <span className="text-muted-foreground text-xs">
-                        ({formatMinutes(r.work_minutes)})
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground w-12">{i + 1}回目</span>
+                      <span className="font-mono">{formatTime(r.clock_in)}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="font-mono">
+                        {r.clock_out ? formatTime(r.clock_out) : '---'}
                       </span>
+                      {r.work_minutes != null && r.clock_out && (
+                        <span className="text-muted-foreground text-xs">
+                          ({formatMinutes(r.work_minutes)})
+                        </span>
+                      )}
+                      <Badge variant={getStatusBadgeVariant(r.status)} className="text-xs ml-auto">
+                        {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
+                      </Badge>
+                    </div>
+                    {(r.break_start || r.break_minutes > 0) && (
+                      <div className="flex items-center gap-2 pl-[3.75rem] text-xs text-muted-foreground">
+                        <Coffee className="h-3 w-3 text-amber-500" />
+                        <span className="font-mono">
+                          {r.break_start ? formatTime(r.break_start) : '---'}
+                        </span>
+                        <span>→</span>
+                        <span className="font-mono">
+                          {r.break_end
+                            ? formatTime(r.break_end)
+                            : r.status === 'on_break'
+                              ? '休憩中'
+                              : '---'}
+                        </span>
+                        {r.break_minutes > 0 && (
+                          <span>({formatMinutes(r.break_minutes)})</span>
+                        )}
+                      </div>
                     )}
-                    <Badge variant={getStatusBadgeVariant(r.status)} className="text-xs ml-auto">
-                      {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
-                    </Badge>
                   </div>
                 ))}
               </div>

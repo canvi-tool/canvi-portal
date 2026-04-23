@@ -26,10 +26,12 @@ export type NotificationToggleKey =
 
 // デフォルト通知設定（settings未作成の場合）
 // 出退勤はスレッド化のため必ずON（thread_ts取得に必要）
+// 休憩開始/終了もスレッド内に統合してタイムラインを完結させるためデフォルトON
+// （個別プロジェクトの notification settings 画面から OFF 可能）
 const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
   attendance_clock_in: true,
-  attendance_break_start: false,
-  attendance_break_end: false,
+  attendance_break_start: true,
+  attendance_break_end: true,
   attendance_clock_out: true,
   attendance_missing: true,
   shift_submitted: false,
