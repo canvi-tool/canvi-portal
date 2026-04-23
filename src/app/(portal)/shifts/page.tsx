@@ -1488,6 +1488,10 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             initialDate={createInitial.date}
             initialStartTime={createInitial.startTime}
             initialEndTime={createInitial.endTime}
+            // フィルターで単一プロジェクトが選択されていればダイアログに自動反映
+            initialProjectId={filterProject !== 'all' ? filterProject : undefined}
+            // フィルターで単一スタッフが選択されていれば反映 (管理者のみ意味を持つ)
+            initialStaffId={filterStaffIds.length === 1 ? filterStaffIds[0] : undefined}
             projects={projects}
             staffList={staffList}
             currentStaffId={currentStaffId}
@@ -1562,7 +1566,17 @@ const statusLabels = useMemo<Record<string, string>>(() => ({
             isManager={isManager}
             userRoles={userRoles}
             onCreated={fetchShiftsSafe}
-            prefill={duplicatePrefill}
+            prefill={
+              duplicatePrefill ?? (
+                // duplicate/slot予約 prefill が無い通常オープン時は、現在のフィルターから補完
+                (filterProject !== 'all' || filterStaffIds.length === 1)
+                  ? {
+                      staffId: filterStaffIds.length === 1 ? filterStaffIds[0] : undefined,
+                      projectId: filterProject !== 'all' ? filterProject : undefined,
+                    }
+                  : null
+              )
+            }
           />
         </Suspense>
       )}

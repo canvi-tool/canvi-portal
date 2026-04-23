@@ -39,6 +39,10 @@ interface ShiftCreateDialogProps {
   initialDate: string
   initialStartTime: string
   initialEndTime: string
+  /** フィルターで単一プロジェクトが選択されているときに自動プリフィルするID */
+  initialProjectId?: string
+  /** フィルターで単一スタッフが選択されているときに自動プリフィルするID (管理者のみ) */
+  initialStaffId?: string
   projects: ProjectOption[]
   staffList: StaffOption[]
   currentStaffId?: string
@@ -52,14 +56,16 @@ export function ShiftCreateDialog({
   initialDate,
   initialStartTime,
   initialEndTime,
+  initialProjectId,
+  initialStaffId,
   projects,
   staffList,
   currentStaffId,
   isManager,
   onCreated,
 }: ShiftCreateDialogProps) {
-  const [staffId, setStaffId] = useState(currentStaffId || '')
-  const [projectId, setProjectId] = useState('')
+  const [staffId, setStaffId] = useState(initialStaffId || currentStaffId || '')
+  const [projectId, setProjectId] = useState(initialProjectId || '')
   const [date, setDate] = useState(initialDate)
   const [startTime, setStartTime] = useState(initialStartTime)
   const [endTime, setEndTime] = useState(initialEndTime)
@@ -75,9 +81,23 @@ export function ShiftCreateDialog({
     setEndTime(initialEndTime)
   }, [initialDate, initialStartTime, initialEndTime])
 
+  // ダイアログが開くたびにフィルター由来の初期PJ/スタッフを再反映
+  // (page側で filterProject/filterStaffIds が切り替わった直後に開かれても追従するように)
   useEffect(() => {
-    if (currentStaffId) setStaffId(currentStaffId)
-  }, [currentStaffId])
+    if (!open) return
+    if (initialProjectId) setProjectId(initialProjectId)
+    if (initialStaffId) {
+      setStaffId(initialStaffId)
+    } else if (currentStaffId) {
+      setStaffId(currentStaffId)
+    }
+    // open 時のワンショット反映。以降の手動変更はユーザー操作を優先。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
+    if (currentStaffId && !initialStaffId) setStaffId(currentStaffId)
+  }, [currentStaffId, initialStaffId])
 
   const selectedProject = projects.find(p => p.id === projectId)
   const isAutoApproval = selectedProject?.shiftApprovalMode === 'AUTO'
