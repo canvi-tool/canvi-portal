@@ -43,6 +43,14 @@
     {
       "path": "/api/cron/alert-slack-summary",
       "schedule": "0 0,6,12 * * *"
+    },
+    {
+      "path": "/api/cron/shift-unsubmitted-alerts",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/shift-variance-alerts",
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -1981,11 +1981,20 @@ export interface Database {
           id: string
           project_id: string
           attendance_clock_in: boolean
+          attendance_break_start: boolean
+          attendance_break_end: boolean
           attendance_clock_out: boolean
           attendance_missing: boolean
           shift_submitted: boolean
           shift_approved: boolean
           shift_rejected: boolean
+          shift_unsubmitted_alert: boolean
+          shift_unsubmitted_alert_hour: number
+          shift_unsubmitted_alert_interval_days: number
+          shift_unsubmitted_alert_max_repeats: number
+          shift_variance_alert: boolean
+          shift_variance_alert_threshold_pct: number
+          shift_variance_alert_min_baseline_hours: number
           report_submitted: boolean
           report_overdue: boolean
           overtime_warning: boolean
@@ -2010,11 +2019,20 @@ export interface Database {
           id?: string
           project_id: string
           attendance_clock_in?: boolean
+          attendance_break_start?: boolean
+          attendance_break_end?: boolean
           attendance_clock_out?: boolean
           attendance_missing?: boolean
           shift_submitted?: boolean
           shift_approved?: boolean
           shift_rejected?: boolean
+          shift_unsubmitted_alert?: boolean
+          shift_unsubmitted_alert_hour?: number
+          shift_unsubmitted_alert_interval_days?: number
+          shift_unsubmitted_alert_max_repeats?: number
+          shift_variance_alert?: boolean
+          shift_variance_alert_threshold_pct?: number
+          shift_variance_alert_min_baseline_hours?: number
           report_submitted?: boolean
           report_overdue?: boolean
           overtime_warning?: boolean
@@ -2039,11 +2057,20 @@ export interface Database {
           id?: string
           project_id?: string
           attendance_clock_in?: boolean
+          attendance_break_start?: boolean
+          attendance_break_end?: boolean
           attendance_clock_out?: boolean
           attendance_missing?: boolean
           shift_submitted?: boolean
           shift_approved?: boolean
           shift_rejected?: boolean
+          shift_unsubmitted_alert?: boolean
+          shift_unsubmitted_alert_hour?: number
+          shift_unsubmitted_alert_interval_days?: number
+          shift_unsubmitted_alert_max_repeats?: number
+          shift_variance_alert?: boolean
+          shift_variance_alert_threshold_pct?: number
+          shift_variance_alert_min_baseline_hours?: number
           report_submitted?: boolean
           report_overdue?: boolean
           overtime_warning?: boolean
@@ -2243,6 +2270,39 @@ export interface Database {
           alert_count?: number
           last_alerted_at?: string
           created_at?: string
+        }
+        Relationships: []
+      }
+      notification_dispatch_log: {
+        Row: {
+          id: string
+          project_id: string | null
+          staff_id: string | null
+          notification_type: string
+          period_key: string
+          sent_at: string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata: Record<string, any>
+        }
+        Insert: {
+          id?: string
+          project_id?: string | null
+          staff_id?: string | null
+          notification_type: string
+          period_key: string
+          sent_at?: string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata?: Record<string, any>
+        }
+        Update: {
+          id?: string
+          project_id?: string | null
+          staff_id?: string | null
+          notification_type?: string
+          period_key?: string
+          sent_at?: string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata?: Record<string, any>
         }
         Relationships: []
       }

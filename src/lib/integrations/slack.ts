@@ -17,6 +17,8 @@ export type NotificationToggleKey =
   | 'shift_submitted'
   | 'shift_approved'
   | 'shift_rejected'
+  | 'shift_unsubmitted_alert'
+  | 'shift_variance_alert'
   | 'report_submitted'
   | 'report_overdue'
   | 'overtime_warning'
@@ -37,6 +39,8 @@ const DEFAULT_NOTIFICATION_TOGGLES: Record<NotificationToggleKey, boolean> = {
   shift_submitted: false,
   shift_approved: false,
   shift_rejected: false,
+  shift_unsubmitted_alert: true,
+  shift_variance_alert: true,
   report_submitted: true,
   report_overdue: true,
   overtime_warning: false,
@@ -1269,6 +1273,98 @@ export function buildShiftOverdueNotification(staffNames: string[], deadline: st
           type: 'mrkdwn',
           text: `${projectName} のシフト提出期限(${deadline})を超過しているメンバー:\n${nameList}`,
         },
+      },
+    ],
+  }
+}
+
+/**
+ * シフト未提出アラート（締切後・繰り返し用）
+ * @param staffName 対象スタッフ名
+ * @param deadline 提出期限（YYYY-MM-DD）
+ * @param targetMonth 未提出対象月（YYYY-MM）
+ * @param projectName プロジェクト名
+ * @param repeatNumber 何回目のリマインドか
+ * @param maxRepeats 最大送信回数（severityに使用）
+ */
+export function buildShiftUnsubmittedAlertNotification(
+  staffName: string,
+  deadline: string,
+  targetMonth: string,
+  projectName: string,
+  repeatNumber: number,
+  maxRepeats: number,
+): SlackMessage {
+  const isFinal = maxRepeats > 0 && repeatNumber >= maxRepeats
+  const severity = isFinal ? '🚨 最終' : repeatNumber >= 3 ? '⚠️ 再' : '📩'
+  return {
+    text: `${severity}【シフト未提出 ${repeatNumber}回目】${staffName}さん（${projectName} / ${targetMonth}月分）`,
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: `${severity}シフト未提出リマインド (${repeatNumber}回目${maxRepeats > 0 ? `/${maxRepeats}` : ''})`,
+          emoji: true,
+        },
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            `${staffName}さん、${projectName} の *${targetMonth}月分シフト* がまだ未提出です。\n` +
+            `提出期限: *${deadline}*\n` +
+            `お早めに <https://portal.canvi.co.jp/shifts|シフト登録ページ> から提出してください。`,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * シフト変動アラート（前月比）
+ * @param staffName 対象スタッフ名
+ * @param projectName プロジェクト名
+ * @param prevHours 前月実績時間
+ * @param currentHours 今回提出時間
+ * @param diffPct 増減率(%)
+ * @param targetMonth 対象月（YYYY-MM）
+ */
+export function buildShiftVarianceAlertNotification(
+  staffName: string,
+  projectName: string,
+  prevHours: number,
+  currentHours: number,
+  diffPct: number,
+  targetMonth: string,
+): SlackMessage {
+  const direction = diffPct > 0 ? '増加' : '減少'
+  const arrow = diffPct > 0 ? '📈' : '📉'
+  const sign = diffPct > 0 ? '+' : ''
+  return {
+    text: `${arrow}【シフト変動】${staffName}さん ${targetMonth}月分が前月比${sign}${diffPct.toFixed(0)}% ${direction}`,
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: `${arrow} シフト変動アラート（前月比）`,
+          emoji: true,
+        },
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            `${projectName}｜*${staffName}* さんの ${targetMonth}月分シフトが前月実績と比べて *${sign}${diffPct.toFixed(0)}%* ${direction}しています。`,
+        },
+        fields: [
+          { type: 'mrkdwn', text: `*前月実績:* ${prevHours.toFixed(1)}h` },
+          { type: 'mrkdwn', text: `*今回提出:* ${currentHours.toFixed(1)}h` },
+          { type: 'mrkdwn', text: `*対象月:* ${targetMonth}` },
+        ],
       },
     ],
   }

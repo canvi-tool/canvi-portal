@@ -33,6 +33,17 @@ export interface ProjectNotificationSettings {
   shift_submission_alert_start_days_before: number
   shift_submission_alert_repeat_interval_days: number
 
+  // シフト未提出アラート (締切後)
+  shift_unsubmitted_alert: boolean
+  shift_unsubmitted_alert_hour: number
+  shift_unsubmitted_alert_interval_days: number
+  shift_unsubmitted_alert_max_repeats: number
+
+  // シフト変動アラート (前月比)
+  shift_variance_alert: boolean
+  shift_variance_alert_threshold_pct: number
+  shift_variance_alert_min_baseline_hours: number
+
   // 日報未提出リマインドのタイミング
   report_overdue_delay_minutes: number
   report_overdue_delay_hours: number
@@ -49,6 +60,7 @@ export interface ProjectNotificationSettings {
 export type ToggleSettingKey = Extract<keyof ProjectNotificationSettings,
   | 'attendance_clock_in' | 'attendance_break_start' | 'attendance_break_end' | 'attendance_clock_out' | 'attendance_missing'
   | 'shift_submitted' | 'shift_approved' | 'shift_rejected'
+  | 'shift_unsubmitted_alert' | 'shift_variance_alert'
   | 'report_submitted' | 'report_overdue'
   | 'overtime_warning' | 'leave_requested'
   | 'member_assigned' | 'member_removed'
@@ -58,6 +70,8 @@ export type ToggleSettingKey = Extract<keyof ProjectNotificationSettings,
 export type NumericSettingKey = Extract<keyof ProjectNotificationSettings,
   | 'attendance_missing_delay_minutes' | 'attendance_missing_repeat_interval_minutes' | 'attendance_missing_max_repeats'
   | 'shift_submission_deadline_day' | 'shift_submission_alert_start_days_before' | 'shift_submission_alert_repeat_interval_days'
+  | 'shift_unsubmitted_alert_hour' | 'shift_unsubmitted_alert_interval_days' | 'shift_unsubmitted_alert_max_repeats'
+  | 'shift_variance_alert_threshold_pct' | 'shift_variance_alert_min_baseline_hours'
   | 'report_overdue_delay_minutes' | 'report_overdue_delay_hours' | 'report_overdue_repeat_interval_hours' | 'report_overdue_max_repeats'
   | 'overtime_warning_threshold_hours'
 >
@@ -174,6 +188,56 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
             unit: '日ごと',
             min: 1,
             max: 7,
+          },
+        ],
+      },
+      {
+        key: 'shift_unsubmitted_alert',
+        label: 'シフト未提出アラート（締切後）',
+        description: '提出締切日を過ぎても未提出のスタッフへ毎日アラート送信',
+        timingParams: [
+          {
+            key: 'shift_unsubmitted_alert_hour',
+            label: '送信時刻（JST）',
+            unit: '時',
+            min: 0,
+            max: 23,
+          },
+          {
+            key: 'shift_unsubmitted_alert_interval_days',
+            label: '送信間隔',
+            unit: '日ごと',
+            min: 1,
+            max: 30,
+          },
+          {
+            key: 'shift_unsubmitted_alert_max_repeats',
+            label: '最大送信回数',
+            unit: '回',
+            min: 0,
+            max: 30,
+          },
+        ],
+      },
+      {
+        key: 'shift_variance_alert',
+        label: 'シフト変動アラート（前月比）',
+        description: '提出されたシフト時間が前月比で極端に増減した際に通知',
+        timingParams: [
+          {
+            key: 'shift_variance_alert_threshold_pct',
+            label: '増減率の閾値',
+            unit: '%以上',
+            min: 1,
+            max: 500,
+          },
+          {
+            key: 'shift_variance_alert_min_baseline_hours',
+            label: '前月実績の最低時間',
+            unit: '時間以上で評価',
+            min: 0,
+            max: 200,
+            step: 0.5,
           },
         ],
       },
